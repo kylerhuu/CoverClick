@@ -1,0 +1,27 @@
+{
+  "manifest_version": 3,
+  "name": "CoverClick",
+  "version": "0.1.0",
+  "description": "One-click tailored cover letters from any job posting.",
+  "action": {
+    "default_title": "CoverClick",
+    "default_popup": "popup.html"
+  },
+  "options_ui": {
+    "page": "options.html",
+    "open_in_tab": true
+  },
+  "permissions": ["activeTab", "storage", "scripting", "tabs"],
+  "host_permissions": ["http://*/*", "https://*/*"],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": ["http://*/*", "https://*/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}
