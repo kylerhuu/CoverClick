@@ -8,6 +8,7 @@ import { PrismaClient } from "@prisma/client";
 import type { GenerationRequest, UserProfile } from "./contract.js";
 import { extractTextFromResumeBuffer } from "./textExtract.js";
 import { extractProfileFromResumeText } from "./extractProfileWithOpenAI.js";
+import { cleanJobDescriptionWithOpenAI } from "./cleanJobDescriptionOpenAI.js";
 import { generateCoverLetterWithOpenAI } from "./generateCoverLetterOpenAI.js";
 import { randomBytes } from "node:crypto";
 
@@ -18,6 +19,13 @@ const upload = multer({
 });
 
 const app = express();
+
+/** Helps Chrome “Private Network Access” when the extension calls a local dev server. */
+app.use((req, res, next) => {
+  res.setHeader("Access-Control-Allow-Private-Network", "true");
+  next();
+});
+
 app.use(cors({ origin: true, credentials: true }));
 app.use(express.json({ limit: "1.5mb" }));
 
@@ -179,6 +187,26 @@ function isGenerationRequest(body: unknown): body is GenerationRequest {
   const b = body as Record<string, unknown>;
   return typeof b.profile === "object" && b.profile !== null && typeof b.job === "object" && b.job !== null;
 }
+
+app.post("/api/clean-job-description", async (req, res) => {
+  try {
+    const rawText = typeof req.body?.rawText === "string" ? req.body.rawText : "";
+    if (!rawText.trim()) {
+      res.status(400).json({ error: "rawText required." });
+      return;
+    }
+    const description = await cleanJobDescriptionWithOpenAI(rawText);
+    if (!description.trim()) {
+      res.status(422).json({ error: "Model returned empty text." });
+      return;
+    }
+    res.json({ description });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Clean failed";
+    const status = msg.includes("OPENAI_API_KEY") ? 503 : 500;
+    res.status(status).json({ error: msg });
+  }
+});
 
 app.post("/api/generate-cover-letter", async (req, res) => {
   try {
