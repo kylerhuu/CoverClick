@@ -1,5 +1,6 @@
 import type { JobExtractionPartial } from "../types";
-import { asPartial, firstMatchText, longestTextAmong, pickText } from "../dom";
+import { asPartial, firstMatchText } from "../dom";
+import { longestDescriptionFromRoots, readDescriptionFromRoot } from "../descriptionDom";
 
 export function extractLinkedIn(doc: Document): JobExtractionPartial {
   const title = firstMatchText(doc, [
@@ -24,7 +25,7 @@ export function extractLinkedIn(doc: Document): JobExtractionPartial {
   ]);
 
   const description =
-    longestTextAmong(
+    longestDescriptionFromRoots(
       doc,
       [
         ".jobs-description-content__text",
@@ -36,7 +37,7 @@ export function extractLinkedIn(doc: Document): JobExtractionPartial {
         "article.jobs-description",
       ],
       80,
-    ) || pickText(doc.querySelector(".jobs-description"));
+    ) || readDescriptionFromRoot(doc.querySelector(".jobs-description"));
 
   return asPartial({ jobTitle: title, companyName: company, descriptionText: description });
 }

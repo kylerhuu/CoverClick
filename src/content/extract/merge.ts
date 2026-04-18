@@ -1,6 +1,7 @@
 import type { JobContext } from "../../lib/types";
 import type { JobExtractionPartial } from "./types";
 import { bodyInnerTextFallback } from "./dom";
+import { stripBoilerplateLines } from "./sanitizeDescription";
 
 const MAX_DESCRIPTION = 24_000;
 
@@ -73,6 +74,8 @@ export function mergeJobExtractions(partials: JobExtractionPartial[], doc: Docum
     const body = bodyInnerTextFallback(doc, MAX_DESCRIPTION);
     if (body.length > descriptionText.length) descriptionText = body;
   }
+
+  descriptionText = stripBoilerplateLines(descriptionText);
 
   return {
     jobTitle: pickTitle(titles),

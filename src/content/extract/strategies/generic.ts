@@ -1,5 +1,6 @@
 import type { JobExtractionPartial } from "../types";
-import { asPartial, firstMatchText, longestTextAmong, pickText } from "../dom";
+import { asPartial, firstMatchText } from "../dom";
+import { longestDescriptionFromRoots, readDescriptionFromRoot } from "../descriptionDom";
 
 const DESCRIPTION_SELECTORS = [
   '[itemprop="description"]',
@@ -8,8 +9,8 @@ const DESCRIPTION_SELECTORS = [
   ".jobDescription",
   "#job-description",
   "#jobDescription",
-  '[class*="job-description" i]',
-  '[id*="job-description" i]',
+  '[class*="job-description"]',
+  '[id*="job-description"]',
   "article",
   "main",
 ] as const;
@@ -52,9 +53,9 @@ export function extractGenericCareersPage(doc: Document): JobExtractionPartial {
   }
 
   const descriptionText =
-    longestTextAmong(doc, [...DESCRIPTION_SELECTORS], 100) ||
-    pickText(doc.querySelector('[role="main"]')) ||
-    pickText(doc.querySelector("article"));
+    longestDescriptionFromRoots(doc, [...DESCRIPTION_SELECTORS], 100) ||
+    readDescriptionFromRoot(doc.querySelector('[role="main"]')) ||
+    readDescriptionFromRoot(doc.querySelector("article"));
 
   return asPartial({ jobTitle, companyName, descriptionText });
 }

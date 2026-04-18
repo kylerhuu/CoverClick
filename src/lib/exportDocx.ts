@@ -1,5 +1,5 @@
 import { Document, Packer, Paragraph, TextRun, AlignmentType } from "docx";
-import { letterParagraphBlocks } from "./letterFormatting";
+import type { StructuredCoverLetter } from "./types";
 import { sanitizeFilenamePart } from "./utils";
 
 function triggerDownload(blob: Blob, filename: string): void {
@@ -13,13 +13,12 @@ function triggerDownload(blob: Blob, filename: string): void {
 
 const RUN = { font: "Calibri" as const, size: 22 as const };
 
-/** One visual line break inside a paragraph (Word line break). */
 function lineBreakRun(): TextRun {
   return new TextRun({ break: 1 });
 }
 
-function paragraphFromBlock(block: string): Paragraph {
-  const lines = block.split("\n");
+function paragraphFromMultiline(text: string, spacingAfter: number): Paragraph {
+  const lines = text.replace(/\r\n/g, "\n").split("\n");
   const children: TextRun[] = [];
   lines.forEach((line, i) => {
     children.push(new TextRun({ text: line.length ? line : " ", ...RUN }));
@@ -27,38 +26,48 @@ function paragraphFromBlock(block: string): Paragraph {
   });
   return new Paragraph({
     alignment: AlignmentType.LEFT,
-    spacing: { after: 200, line: 276 },
+    spacing: { after: spacingAfter, line: 276 },
     children,
   });
 }
 
-export async function downloadCoverLetterDocx(params: {
+function paragraphSingle(text: string, spacingAfter: number): Paragraph {
+  return new Paragraph({
+    alignment: AlignmentType.LEFT,
+    spacing: { after: spacingAfter, line: 276 },
+    children: [new TextRun({ text: text.trim() || " ", ...RUN })],
+  });
+}
+
+export async function downloadStructuredCoverLetterDocx(params: {
   fullName: string;
   companyName: string;
   jobTitle: string;
-  letterText: string;
+  letter: StructuredCoverLetter;
 }): Promise<void> {
   const namePart = sanitizeFilenamePart(params.fullName, "Applicant");
   const companyPart = sanitizeFilenamePart(params.companyName, "Company");
   const rolePart = sanitizeFilenamePart(params.jobTitle, "Role");
   const filename = `${namePart}_CoverLetter_${companyPart}_${rolePart}.docx`;
 
-  const blocks = letterParagraphBlocks(params.letterText);
-  const bodyChildren =
-    blocks.length > 0
-      ? blocks.map((block) => paragraphFromBlock(block))
-      : [
-          new Paragraph({
-            spacing: { after: 200, line: 276 },
-            children: [new TextRun({ text: " ", ...RUN })],
-          }),
-        ];
+  const L = params.letter;
+  const children: Paragraph[] = [
+    paragraphFromMultiline(L.senderBlock, 240),
+    paragraphSingle(L.dateLine, 360),
+    paragraphFromMultiline(L.recipientBlock, 480),
+    paragraphSingle(L.greeting, 360),
+    paragraphFromMultiline(L.bodyParagraphs[0], 360),
+    paragraphFromMultiline(L.bodyParagraphs[1], 360),
+    paragraphFromMultiline(L.bodyParagraphs[2], 480),
+    paragraphSingle(L.closing, 120),
+    paragraphFromMultiline(L.signature, 0),
+  ];
 
   const doc = new Document({
     sections: [
       {
         properties: {},
-        children: bodyChildren,
+        children,
       },
     ],
   });

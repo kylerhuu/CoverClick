@@ -3,9 +3,9 @@ import {
   asPartial,
   companyFromFirstPathSegment,
   firstMatchText,
-  longestTextAmong,
   pickText,
 } from "../dom";
+import { longestDescriptionFromRoots, readDescriptionFromRoot } from "../descriptionDom";
 
 export function extractGreenhouse(doc: Document, url: URL): JobExtractionPartial {
   const pathCompany = companyFromFirstPathSegment(url);
@@ -34,9 +34,10 @@ export function extractGreenhouse(doc: Document, url: URL): JobExtractionPartial
   if (!company && pathCompany) company = pathCompany;
 
   const description =
-    longestTextAmong(
+    longestDescriptionFromRoots(
       doc,
       [
+        "#content .body",
         "#content",
         ".content",
         ".opening",
@@ -48,7 +49,7 @@ export function extractGreenhouse(doc: Document, url: URL): JobExtractionPartial
         "article",
       ],
       120,
-    ) || pickText(doc.querySelector("#app_body"));
+    ) || readDescriptionFromRoot(doc.querySelector("#app_body"));
 
   return asPartial({ jobTitle: title, companyName: company, descriptionText: description });
 }

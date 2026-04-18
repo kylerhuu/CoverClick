@@ -1,9 +1,21 @@
-import { useCallback, useEffect, useState } from "react";
-import { generateCoverLetter } from "../lib/api";
-import type { DefaultTone, Emphasis, JobContext, LetterLength, UserProfile } from "../lib/types";
+import { useCallback, useEffect, useRef, useState } from "react";
+import type {
+  DefaultTone,
+  Emphasis,
+  JobContext,
+  LetterLength,
+  ResponseShapePreference,
+  StructuredCoverLetter,
+  UserProfile,
+} from "../lib/types";
 import { EMPTY_PROFILE } from "../lib/types";
-import { downloadCoverLetterDocx } from "../lib/exportDocx";
-import { normalizeLetterText } from "../lib/letterFormatting";
+import { generateCoverLetter, resolveStructuredLetter } from "../lib/api";
+import { downloadStructuredCoverLetterDocx } from "../lib/exportDocx";
+import {
+  emptyStructuredFromContext,
+  plainTextToStructuredLetter,
+  structuredLetterToPlainText,
+} from "../lib/letterModel";
 import {
   STORAGE_KEYS,
   loadCachedLetter,
@@ -15,11 +27,8 @@ import {
 } from "../lib/storage";
 import { requestJobContextFromActiveTab } from "../lib/tabScrape";
 import { cn } from "../lib/classNames";
-import { Header } from "./components/Header";
-import { JobSection } from "./components/JobSection";
-import { ProfileSection } from "./components/ProfileSection";
-import { GenerationControls } from "./components/GenerationControls";
-import { OutputSection } from "./components/OutputSection";
+import { JobPane } from "./components/JobPane";
+import { LetterPane } from "./components/LetterPane";
 
 export function Popup() {
   const [profile, setProfile] = useState<UserProfile>(EMPTY_PROFILE);
@@ -27,7 +36,19 @@ export function Popup() {
   const [tone, setTone] = useState<DefaultTone>("professional");
   const [emphasis, setEmphasis] = useState<Emphasis>("general");
   const [length, setLength] = useState<LetterLength>("medium");
-  const [letter, setLetter] = useState("");
+  const [responseShape, setResponseShape] = useState<ResponseShapePreference>("structured");
+  const [letter, setLetter] = useState<StructuredCoverLetter>(() =>
+    emptyStructuredFromContext(EMPTY_PROFILE, {
+      jobTitle: "",
+      companyName: "",
+      descriptionText: "",
+      pageUrl: "",
+      scrapedAt: 0,
+    }),
+  );
+  const previewRef = useRef<HTMLDivElement>(null);
+  const profileRef = useRef(profile);
+  profileRef.current = profile;
   const [genBusy, setGenBusy] = useState(false);
   const [scrapeBusy, setScrapeBusy] = useState(false);
   const [scrapeError, setScrapeError] = useState<string | null>(null);
@@ -59,6 +80,7 @@ export function Popup() {
         setTone(prefs.tone);
         setEmphasis(prefs.emphasis);
         setLength(prefs.length);
+        setResponseShape(prefs.responseShape);
       } catch {
         // ignore
       }
@@ -75,13 +97,20 @@ export function Popup() {
   useEffect(() => {
     if (!job?.pageUrl) return;
     let cancelled = false;
+    const p = profileRef.current;
     (async () => {
       const cache = await loadCachedLetter();
       if (cancelled) return;
-      if (cache?.pageUrl === job.pageUrl && cache.coverLetter.trim()) {
-        setLetter(normalizeLetterText(cache.coverLetter));
+      if (cache?.pageUrl !== job.pageUrl) {
+        setLetter(emptyStructuredFromContext(p, job));
+        return;
+      }
+      if (cache.structured) {
+        setLetter(cache.structured);
+      } else if (cache.coverLetter?.trim()) {
+        setLetter(plainTextToStructuredLetter(cache.coverLetter, p, job));
       } else {
-        setLetter("");
+        setLetter(emptyStructuredFromContext(p, job));
       }
     })();
     return () => {
@@ -90,12 +119,14 @@ export function Popup() {
   }, [job?.pageUrl]);
 
   useEffect(() => {
-    if (!job?.pageUrl || !letter.trim()) return;
+    if (!job?.pageUrl) return;
+    const has = letter.bodyParagraphs.some((p) => p.trim()) || letter.greeting.trim();
+    if (!has) return;
     const id = window.setTimeout(() => {
       void saveCachedLetter({
         pageUrl: job.pageUrl,
-        coverLetter: letter,
         updatedAt: Date.now(),
+        structured: letter,
       });
     }, 900);
     return () => window.clearTimeout(id);
@@ -111,12 +142,21 @@ export function Popup() {
     return () => chrome.storage.onChanged.removeListener(onStorage);
   }, []);
 
-  const persistPrefs = useCallback(async (next: { tone: DefaultTone; emphasis: Emphasis; length: LetterLength }) => {
-    setTone(next.tone);
-    setEmphasis(next.emphasis);
-    setLength(next.length);
-    await saveGenerationPrefs(next);
-  }, []);
+  const persistPrefs = useCallback(
+    async (next: {
+      tone: DefaultTone;
+      emphasis: Emphasis;
+      length: LetterLength;
+      responseShape: ResponseShapePreference;
+    }) => {
+      setTone(next.tone);
+      setEmphasis(next.emphasis);
+      setLength(next.length);
+      setResponseShape(next.responseShape);
+      await saveGenerationPrefs(next);
+    },
+    [],
+  );
 
   const runGeneration = useCallback(async () => {
     if (!job) return;
@@ -125,16 +165,17 @@ export function Popup() {
     setStatus(null);
     try {
       const settings = await loadSettings();
-      const res = await generateCoverLetter(settings, {
+      const result = await generateCoverLetter(settings, {
         profile,
         job,
         tone,
         emphasis,
         length,
+        responseShape,
       });
-      const normalized = normalizeLetterText(res.coverLetter);
-      setLetter(normalized);
-      await saveCachedLetter({ pageUrl: job.pageUrl, coverLetter: normalized, updatedAt: Date.now() });
+      const structured = resolveStructuredLetter(result, profile, job);
+      setLetter(structured);
+      await saveCachedLetter({ pageUrl: job.pageUrl, structured, updatedAt: Date.now() });
       setStatus("Done");
       window.setTimeout(() => setStatus(null), 1200);
     } catch (e) {
@@ -142,11 +183,11 @@ export function Popup() {
     } finally {
       setGenBusy(false);
     }
-  }, [profile, job, tone, emphasis, length]);
+  }, [profile, job, tone, emphasis, length, responseShape]);
 
   const onCopy = useCallback(async () => {
     try {
-      await navigator.clipboard.writeText(letter);
+      await navigator.clipboard.writeText(structuredLetterToPlainText(letter));
       setError(null);
       setStatus("Copied");
       window.setTimeout(() => setStatus(null), 900);
@@ -155,22 +196,40 @@ export function Popup() {
     }
   }, [letter]);
 
-  const onDownload = useCallback(async () => {
+  const onDocx = useCallback(async () => {
     if (!job) return;
     try {
       setError(null);
-      await downloadCoverLetterDocx({
+      await downloadStructuredCoverLetterDocx({
         fullName: profile.fullName,
         companyName: job.companyName,
         jobTitle: job.jobTitle,
-        letterText: letter,
+        letter,
       });
-      setStatus("Saved");
+      setStatus("DOCX saved");
       window.setTimeout(() => setStatus(null), 900);
     } catch (e) {
       setError(e instanceof Error ? e.message : "DOCX failed");
     }
   }, [letter, profile.fullName, job]);
+
+  const onPdf = useCallback(async () => {
+    if (!job || !previewRef.current) return;
+    try {
+      setError(null);
+      const { downloadLetterPreviewPdf } = await import("../lib/exportPdf");
+      await downloadLetterPreviewPdf({
+        element: previewRef.current,
+        fullName: profile.fullName,
+        companyName: job.companyName,
+        jobTitle: job.jobTitle,
+      });
+      setStatus("PDF saved");
+      window.setTimeout(() => setStatus(null), 900);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "PDF failed");
+    }
+  }, [profile.fullName, job]);
 
   const openProfile = useCallback(() => {
     void chrome.runtime.openOptionsPage();
@@ -179,37 +238,48 @@ export function Popup() {
   return (
     <div
       className={cn(
-        "w-[384px] max-h-[620px] overflow-y-auto",
-        "divide-y divide-slate-200/80 bg-white text-slate-900 antialiased",
+        "flex h-[680px] w-[800px] flex-col overflow-hidden",
+        "bg-slate-50 text-slate-900 antialiased",
       )}
     >
-      <Header />
+      <header className="flex shrink-0 items-center justify-between border-b border-slate-200/90 bg-white px-4 py-2">
+        <div>
+          <h1 className="text-[14px] font-semibold tracking-tight">CoverClick</h1>
+          <p className="text-[10px] text-slate-500">Job pane · letter pane</p>
+        </div>
+      </header>
 
-      {error ? (
-        <div className="px-3.5 py-2 text-[11px] leading-snug text-red-700">{error}</div>
-      ) : null}
+      {error ? <div className="shrink-0 bg-red-50 px-4 py-1.5 text-[11px] text-red-800">{error}</div> : null}
 
-      <JobSection job={job} busy={scrapeBusy} error={scrapeError} onRefresh={() => void refreshScrape()} />
-
-      <ProfileSection profile={profile} onEdit={openProfile} />
-
-      <GenerationControls
-        tone={tone}
-        emphasis={emphasis}
-        length={length}
-        onChange={(next) => void persistPrefs(next)}
-      />
-
-      <OutputSection
-        letter={letter}
-        onLetterChange={setLetter}
-        busy={genBusy}
-        status={status}
-        onGenerate={() => void runGeneration()}
-        onRegenerate={() => void runGeneration()}
-        onCopy={() => void onCopy()}
-        onDownload={() => void onDownload()}
-      />
+      <div className="flex min-h-0 flex-1 divide-x divide-slate-200/90">
+        <JobPane
+          job={job}
+          profile={profile}
+          busy={scrapeBusy}
+          error={scrapeError}
+          onRefresh={() => void refreshScrape()}
+        />
+        <LetterPane
+          letter={letter}
+          onLetterChange={setLetter}
+          previewRef={previewRef}
+          tone={tone}
+          emphasis={emphasis}
+          length={length}
+          responseShape={responseShape}
+          onPrefsChange={(n) => void persistPrefs(n)}
+          genBusy={genBusy}
+          status={status}
+          onGenerate={() => void runGeneration()}
+          onRegenerate={() => void runGeneration()}
+          onCopy={() => void onCopy()}
+          onDocx={() => void onDocx()}
+          onPdf={() => void onPdf()}
+          onEditProfile={openProfile}
+          profile={profile}
+          job={job}
+        />
+      </div>
     </div>
   );
 }

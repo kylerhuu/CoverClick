@@ -5,6 +5,7 @@ import type {
   UserProfile,
 } from "./types";
 import { DEFAULT_GENERATION_PREFS, DEFAULT_SETTINGS, EMPTY_PROFILE } from "./types";
+import { parseStructuredLetter } from "./generationNormalize";
 import { STORAGE_KEYS } from "./storageKeys";
 
 export { STORAGE_KEYS };
@@ -87,7 +88,11 @@ function normalizePrefs(raw: unknown): GenerationPreferences {
     g.tone === "professional"
       ? g.tone
       : DEFAULT_GENERATION_PREFS.tone;
-  return { tone, emphasis, length };
+  const responseShape =
+    g.responseShape === "plain" || g.responseShape === "structured" || g.responseShape === "auto"
+      ? g.responseShape
+      : DEFAULT_GENERATION_PREFS.responseShape;
+  return { tone, emphasis, length, responseShape };
 }
 
 export async function loadProfile(): Promise<UserProfile> {
@@ -129,12 +134,16 @@ export async function loadCachedLetter(): Promise<CachedLetter | null> {
   const raw = data[LETTER_CACHE_KEY];
   if (!raw || typeof raw !== "object") return null;
   const c = raw as Record<string, unknown>;
-  if (typeof c.pageUrl !== "string" || typeof c.coverLetter !== "string") return null;
-  return {
-    pageUrl: c.pageUrl,
-    coverLetter: c.coverLetter,
-    updatedAt: typeof c.updatedAt === "number" ? c.updatedAt : Date.now(),
-  };
+  if (typeof c.pageUrl !== "string") return null;
+  const updatedAt = typeof c.updatedAt === "number" ? c.updatedAt : Date.now();
+  const structured = parseStructuredLetter(c.structured);
+  if (structured) {
+    return { pageUrl: c.pageUrl, updatedAt, structured };
+  }
+  if (typeof c.coverLetter === "string" && c.coverLetter.trim()) {
+    return { pageUrl: c.pageUrl, updatedAt, coverLetter: c.coverLetter };
+  }
+  return null;
 }
 
 export async function saveCachedLetter(cache: CachedLetter): Promise<void> {

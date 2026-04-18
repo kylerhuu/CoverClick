@@ -8,4 +8,4 @@ export type JobExtractionPartial = {
   descriptionText?: string;
 };
 
-export type JobBoardId = "linkedin" | "greenhouse" | "lever" | "generic";
+export type JobBoardId = "linkedin" | "greenhouse" | "lever" | "handshake" | "generic";

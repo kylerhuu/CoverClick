@@ -4,6 +4,7 @@ import { extractJsonLdJob } from "./jsonLd";
 import { mergeJobExtractions } from "./merge";
 import { extractGreenhouse } from "./strategies/greenhouse";
 import { extractGenericCareersPage } from "./strategies/generic";
+import { extractHandshake } from "./strategies/handshake";
 import { extractLever } from "./strategies/lever";
 import { extractLinkedIn } from "./strategies/linkedin";
 import type { JobExtractionPartial } from "./types";
@@ -18,6 +19,7 @@ export function extractJobContext(): JobContext {
   partials.push(extractJsonLdJob(doc));
 
   if (board === "linkedin") partials.push(extractLinkedIn(doc));
+  if (board === "handshake") partials.push(extractHandshake(doc));
   if (board === "greenhouse") partials.push(extractGreenhouse(doc, url));
   if (board === "lever") partials.push(extractLever(doc, url));
 

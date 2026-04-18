@@ -1,5 +1,6 @@
 import type { JobExtractionPartial } from "../types";
-import { asPartial, companyFromFirstPathSegment, firstMatchText, longestTextAmong, pickText } from "../dom";
+import { asPartial, companyFromFirstPathSegment, firstMatchText, pickText } from "../dom";
+import { longestDescriptionFromRoots, readDescriptionFromRoot } from "../descriptionDom";
 
 export function extractLever(doc: Document, url: URL): JobExtractionPartial {
   const pathCompany = companyFromFirstPathSegment(url);
@@ -27,7 +28,7 @@ export function extractLever(doc: Document, url: URL): JobExtractionPartial {
   if (!company && pathCompany) company = pathCompany;
 
   const description =
-    longestTextAmong(
+    longestDescriptionFromRoots(
       doc,
       [
         ".section-wrapper.full-width-wrapper .content",
@@ -37,7 +38,7 @@ export function extractLever(doc: Document, url: URL): JobExtractionPartial {
         "main",
       ],
       120,
-    ) || pickText(doc.querySelector("main"));
+    ) || readDescriptionFromRoot(doc.querySelector("main"));
 
   return asPartial({ jobTitle: title, companyName: company, descriptionText: description });
 }
