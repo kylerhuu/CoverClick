@@ -117,6 +117,10 @@ export interface CachedLetter {
 export interface AppSettings {
   apiBaseUrl: string;
   useMock: boolean;
+  /** Optional Bearer from the CoverClick server (`/api/login` or `/api/register`). */
+  authToken?: string;
+  /** Display only — which account last signed in. */
+  authEmail?: string;
 }
 
 export const EMPTY_PROFILE: UserProfile = {

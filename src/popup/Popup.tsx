@@ -50,6 +50,7 @@ export function Popup() {
   const profileRef = useRef(profile);
   profileRef.current = profile;
   const [genBusy, setGenBusy] = useState(false);
+  const [pdfBusy, setPdfBusy] = useState(false);
   const [scrapeBusy, setScrapeBusy] = useState(false);
   const [scrapeError, setScrapeError] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
@@ -214,12 +215,14 @@ export function Popup() {
   }, [letter, profile.fullName, job]);
 
   const onPdf = useCallback(async () => {
-    if (!job || !previewRef.current) return;
+    if (!job) return;
+    setPdfBusy(true);
+    setError(null);
+    setStatus(null);
     try {
-      setError(null);
-      const { downloadLetterPreviewPdf } = await import("../lib/exportPdf");
-      await downloadLetterPreviewPdf({
-        element: previewRef.current,
+      const { downloadStructuredCoverLetterPdf } = await import("../lib/exportPdf");
+      await downloadStructuredCoverLetterPdf({
+        letter,
         fullName: profile.fullName,
         companyName: job.companyName,
         jobTitle: job.jobTitle,
@@ -228,8 +231,10 @@ export function Popup() {
       window.setTimeout(() => setStatus(null), 900);
     } catch (e) {
       setError(e instanceof Error ? e.message : "PDF failed");
+    } finally {
+      setPdfBusy(false);
     }
-  }, [profile.fullName, job]);
+  }, [letter, profile.fullName, job]);
 
   const openProfile = useCallback(() => {
     void chrome.runtime.openOptionsPage();
@@ -239,19 +244,36 @@ export function Popup() {
     <div
       className={cn(
         "flex h-[680px] w-[800px] flex-col overflow-hidden",
-        "bg-slate-50 text-slate-900 antialiased",
+        "bg-slate-100 text-slate-900 antialiased",
       )}
     >
-      <header className="flex shrink-0 items-center justify-between border-b border-slate-200/90 bg-white px-4 py-2">
-        <div>
-          <h1 className="text-[14px] font-semibold tracking-tight">CoverClick</h1>
-          <p className="text-[10px] text-slate-500">Job pane · letter pane</p>
+      <header
+        className={cn(
+          "flex shrink-0 items-center justify-between gap-4 border-b border-white/10 px-4 py-2.5",
+          "bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white shadow-md",
+        )}
+      >
+        <div className="flex min-w-0 items-center gap-3">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-400 to-sky-400 text-[13px] font-black tracking-tight text-white shadow-lg shadow-indigo-900/40">
+            CC
+          </div>
+          <div className="min-w-0">
+            <h1 className="text-[15px] font-bold tracking-tight">CoverClick</h1>
+            <p className="truncate text-[10px] font-medium text-indigo-100/90">Job-aware cover letters · local-first</p>
+          </div>
+        </div>
+        <div className="hidden shrink-0 items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 sm:flex">
+          <span className="text-[9px] font-semibold uppercase tracking-wider text-indigo-200/90">Beta</span>
         </div>
       </header>
 
-      {error ? <div className="shrink-0 bg-red-50 px-4 py-1.5 text-[11px] text-red-800">{error}</div> : null}
+      {error ? (
+        <div className="shrink-0 border-b border-red-200/80 bg-red-50 px-4 py-2 text-[11px] font-medium text-red-900">
+          {error}
+        </div>
+      ) : null}
 
-      <div className="flex min-h-0 flex-1 divide-x divide-slate-200/90">
+      <div className="flex min-h-0 flex-1 divide-x divide-slate-200/80 shadow-inner">
         <JobPane
           job={job}
           profile={profile}
@@ -269,6 +291,7 @@ export function Popup() {
           responseShape={responseShape}
           onPrefsChange={(n) => void persistPrefs(n)}
           genBusy={genBusy}
+          pdfBusy={pdfBusy}
           status={status}
           onGenerate={() => void runGeneration()}
           onRegenerate={() => void runGeneration()}

@@ -61,6 +61,10 @@ function normalizeSettings(raw: unknown): AppSettings {
         ? s.apiBaseUrl.replace(/\/$/, "")
         : DEFAULT_SETTINGS.apiBaseUrl,
     useMock: typeof s.useMock === "boolean" ? s.useMock : DEFAULT_SETTINGS.useMock,
+    authToken:
+      typeof s.authToken === "string" && s.authToken.trim().length > 0 ? s.authToken.trim() : undefined,
+    authEmail:
+      typeof s.authEmail === "string" && s.authEmail.trim().length > 0 ? s.authEmail.trim() : undefined,
   };
 }
 

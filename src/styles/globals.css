@@ -22,3 +22,91 @@ textarea {
     @apply text-[10px] font-semibold uppercase tracking-wider text-slate-500;
   }
 }
+
+@keyframes cc-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes cc-shimmer {
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+@keyframes cc-fade {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes cc-bar {
+  0% {
+    transform: translateX(-40%);
+  }
+  100% {
+    transform: translateX(220%);
+  }
+}
+
+.cc-spinner {
+  display: inline-block;
+  width: 18px;
+  height: 18px;
+  border: 2px solid rgba(99, 102, 241, 0.22);
+  border-top-color: rgb(79, 70, 229);
+  border-radius: 9999px;
+  animation: cc-spin 0.72s linear infinite;
+}
+
+.cc-spinner-light {
+  display: inline-block;
+  width: 20px;
+  height: 20px;
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  border-top-color: #fff;
+  border-radius: 9999px;
+  animation: cc-spin 0.62s linear infinite;
+}
+
+.cc-fade-in {
+  animation: cc-fade 0.48s ease-out both;
+}
+
+.cc-skeleton {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(90deg, #f1f5f9 0%, #e2e8f0 50%, #f1f5f9 100%);
+  background-size: 200% 100%;
+}
+
+.cc-skeleton::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.65), transparent);
+  animation: cc-shimmer 1.35s ease-in-out infinite;
+}
+
+.cc-pdf-bar {
+  height: 2px;
+  overflow: hidden;
+  border-radius: 9999px;
+  background: #e2e8f0;
+}
+
+.cc-pdf-bar > span {
+  display: block;
+  height: 100%;
+  width: 38%;
+  border-radius: 9999px;
+  background: linear-gradient(90deg, #6366f1, #0ea5e9);
+  animation: cc-bar 1.1s ease-in-out infinite;
+}

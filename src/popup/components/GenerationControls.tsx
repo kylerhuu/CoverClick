@@ -44,17 +44,20 @@ const shapes: { value: ResponseShapePreference; label: string }[] = [
 ];
 
 const selectClass = cn(
-  "max-w-full min-w-0 flex-1 rounded border border-slate-200/90 bg-white py-1 pl-1.5 pr-6",
-  "text-[11px] font-medium text-slate-800",
-  "focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-900/10",
+  "max-w-full min-w-0 flex-1 rounded-lg border border-slate-200/90 bg-white py-1.5 pl-2 pr-7",
+  "text-[11px] font-medium text-slate-800 shadow-sm",
+  "focus:border-indigo-300 focus:outline-none focus:ring-2 focus:ring-indigo-500/20",
 );
 
 export function GenerationControls({ tone, emphasis, length, responseShape, onChange }: Props) {
   return (
-    <section className="border-b border-slate-200/60 px-4 py-2">
-      <div className="cc-label mb-1.5">Draft settings</div>
+    <section className="border-b border-slate-200/70 bg-gradient-to-b from-white to-slate-50/80 px-4 py-3">
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <span className="cc-label text-indigo-600/90">Draft settings</span>
+        <span className="text-[9px] font-medium uppercase tracking-wider text-slate-400">Model</span>
+      </div>
       <div className="flex flex-wrap gap-2">
-        <label className="flex min-w-[100px] flex-1">
+        <label className="flex min-w-[104px] flex-1">
           <span className="sr-only">Tone</span>
           <select
             className={selectClass}
@@ -69,7 +72,7 @@ export function GenerationControls({ tone, emphasis, length, responseShape, onCh
             ))}
           </select>
         </label>
-        <label className="flex min-w-[100px] flex-1">
+        <label className="flex min-w-[104px] flex-1">
           <span className="sr-only">Emphasis</span>
           <select
             className={selectClass}
@@ -84,7 +87,7 @@ export function GenerationControls({ tone, emphasis, length, responseShape, onCh
             ))}
           </select>
         </label>
-        <label className="flex w-[84px] shrink-0">
+        <label className="flex w-[92px] shrink-0">
           <span className="sr-only">Length</span>
           <select
             className={selectClass}
@@ -99,7 +102,7 @@ export function GenerationControls({ tone, emphasis, length, responseShape, onCh
             ))}
           </select>
         </label>
-        <label className="flex min-w-[88px] shrink-0">
+        <label className="flex min-w-[92px] shrink-0">
           <span className="sr-only">API shape</span>
           <select
             className={selectClass}

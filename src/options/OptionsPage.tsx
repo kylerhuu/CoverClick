@@ -7,6 +7,7 @@ import { loadProfile, loadSettings, saveProfile, saveSettings } from "../lib/sto
 import { AutosaveStatus, type SaveStatus } from "./components/AutosaveStatus";
 import { BulletListEditor } from "./components/BulletListEditor";
 import { Field } from "./components/Field";
+import { ServerPanels } from "./components/ServerPanels";
 
 const AUTOSAVE_MS = 700;
 
@@ -84,11 +85,16 @@ export function OptionsPage() {
 
   return (
     <div className="min-h-full bg-[#fafbfc] text-slate-900">
-      <div className="sticky top-0 z-10 border-b border-slate-200/80 bg-white/90 px-6 py-3 backdrop-blur-md">
+      <div className="sticky top-0 z-10 border-b border-white/10 bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 px-6 py-3 text-white shadow-md backdrop-blur-md">
         <div className="mx-auto flex max-w-4xl items-center justify-between gap-4">
-          <div>
-            <div className="text-[15px] font-semibold tracking-tight text-slate-900">CoverClick</div>
-            <div className="text-[11px] text-slate-500">Profile · autosaved</div>
+          <div className="flex items-center gap-3">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-400 to-sky-400 text-[11px] font-black text-white shadow-md">
+              CC
+            </div>
+            <div>
+              <div className="text-[15px] font-bold tracking-tight">CoverClick</div>
+              <div className="text-[11px] font-medium text-indigo-100/85">Profile · autosaved</div>
+            </div>
           </div>
           <AutosaveStatus profile={profileSave} settings={settingsSave} />
         </div>
@@ -254,9 +260,10 @@ export function OptionsPage() {
         <section className="mt-14 border-t border-slate-200/90 pt-10">
           <h2 className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Backend</h2>
           <p className="mt-2 max-w-2xl text-[13px] leading-relaxed text-slate-600">
-            No API keys in the extension. Your server should call the model and return{" "}
-            <code className="rounded bg-slate-100 px-1 py-0.5 font-mono text-[12px] text-slate-800">{`{ "coverLetter": "..." }`}</code>
-            .
+            No API keys in the extension. Point this at the included Node server (see repo <code className="font-mono text-[12px]">server/</code>
+            ) or your own backend. The server returns structured JSON (
+            <code className="rounded bg-slate-100 px-1 py-0.5 font-mono text-[12px] text-slate-800">{`{ "format": "structured", "letter": {…} }`}</code>
+            ) or plain text — see README.
           </p>
           <div className="mt-6 grid max-w-2xl grid-cols-1 gap-5">
             <Field
@@ -286,6 +293,8 @@ export function OptionsPage() {
             </label>
           </div>
         </section>
+
+        <ServerPanels hydrated={hydrated} settings={settings} setSettings={setSettings} profile={profile} setProfile={setProfile} />
       </div>
     </div>
   );

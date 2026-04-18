@@ -18,8 +18,8 @@ export function AutosaveStatus({ profile, settings }: Props) {
   const parts = [p && `Profile ${p}`, s && `Settings ${s}`].filter(Boolean);
   if (!parts.length) return null;
   return (
-    <div className="flex items-center gap-2 text-[11px] text-slate-500 tabular-nums">
-      <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-500/80" aria-hidden />
+    <div className="flex items-center gap-2 text-[11px] font-medium tabular-nums text-indigo-100/95">
+      <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-300 shadow-[0_0_8px_rgba(52,211,153,0.5)]" aria-hidden />
       {parts.join(" · ")}
     </div>
   );

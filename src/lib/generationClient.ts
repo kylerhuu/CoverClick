@@ -1,4 +1,11 @@
-import type { GenerationRequest, GenerationResult, JobContext, StructuredCoverLetter, UserProfile } from "./types";
+import type {
+  AppSettings,
+  GenerationRequest,
+  GenerationResult,
+  JobContext,
+  StructuredCoverLetter,
+  UserProfile,
+} from "./types";
 import { buildCoverLetterPromptBrief } from "./prompts";
 import { generationResultToStructured, normalizeGenerationResponse } from "./generationNormalize";
 import {
@@ -8,10 +15,17 @@ import {
   structuredLetterToPlainText,
 } from "./letterModel";
 
+function hashSeed(s: string): number {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (Math.imul(31, h) + s.charCodeAt(i)) | 0;
+  return Math.abs(h);
+}
+
 function mockStructuredLetter(req: GenerationRequest): StructuredCoverLetter {
   const name = req.profile.fullName.trim() || "Your Name";
   const role = req.job.jobTitle.trim() || "this role";
   const company = req.job.companyName.trim() || "your team";
+  const seed = hashSeed(`${req.job.pageUrl}|${role}|${company}`);
   const bullets = [
     ...req.profile.experienceBullets.slice(0, 2),
     ...req.profile.projectBullets.slice(0, 1),
@@ -19,17 +33,52 @@ function mockStructuredLetter(req: GenerationRequest): StructuredCoverLetter {
     .map((b) => b.trim())
     .filter(Boolean);
 
-  const proof =
-    bullets.length > 0
-      ? `In recent work, I’ve focused on outcomes like: ${bullets.join(" ")}`
-      : req.profile.summary.trim()
-        ? `My background aligns with what you’re hiring for—${req.profile.summary.trim().slice(0, 280)}${req.profile.summary.length > 280 ? "…" : ""}`
-        : "I’m excited to bring a careful, collaborative approach to how I scope problems, ship iteratively, and communicate clearly with stakeholders.";
+  const openings = [
+    () =>
+      `The ${role} opening at ${company} lines up with the work I’ve been doing lately—especially where ownership, clarity, and iteration speed matter as much as the final ship.`,
+    () =>
+      `I’m reaching out about the ${role} role at ${company}. The posting reads like a team that cares about craft and communication, which is the environment I do my best work in.`,
+    () =>
+      `After reading the ${role} description at ${company}, I’m confident my recent projects map closely to what you’re trying to accomplish this year.`,
+  ];
+  const p0 = openings[seed % openings.length]();
 
-  const b2 = `What draws me to ${company} is the combination of depth and pace: ${req.emphasis} work with a ${req.tone} tone, with room to contribute end-to-end. I’m especially motivated by teams that value pragmatic tradeoffs, crisp writing, and respectful debate.`;
+  const proofVariants = [
+    () =>
+      bullets.length > 0
+        ? `Lately I’ve been leaning on work like this: ${bullets.join(" ")}`
+        : req.profile.summary.trim()
+          ? `In my background, the through-line is: ${req.profile.summary.trim().slice(0, 300)}${req.profile.summary.length > 300 ? "…" : ""}`
+          : "I’m strongest when I’m pairing clear problem framing with tight execution loops and honest stakeholder updates.",
+    () =>
+      bullets.length > 0
+        ? `A few outcomes I’m comfortable speaking to: ${bullets.join(" ")}`
+        : req.profile.summary.trim()
+          ? `What I bring isn’t generic “passion”—it’s repeated practice with: ${req.profile.summary.trim().slice(0, 300)}${req.profile.summary.length > 300 ? "…" : ""}`
+          : "I like ambiguous scopes, measurable outcomes, and teams that argue kindly until the best idea wins.",
+  ];
+  const proof = proofVariants[(seed >> 3) % proofVariants.length]();
 
-  const b3 =
-    "If there’s a fit, I’d love a conversation to learn more about the team’s roadmap and how I can help you ship confidently in the next chapter.";
+  const bridgeVariants = [
+    `The ${req.emphasis} angle in this role matches how I like to contribute—${req.tone} communication, pragmatic tradeoffs, and end-to-end responsibility where it helps the team.`,
+    `I’m especially interested in how ${company} is positioning this ${req.emphasis} work; I tend to operate in a ${req.tone} register while still being precise about risks and timelines.`,
+    `What stands out is the bar for quality at ${company}. That fits how I work: ${req.tone}, detail-aware, and biased toward shipping learning milestones—not just decks.`,
+  ];
+  const b2 = bridgeVariants[(seed >> 5) % bridgeVariants.length];
+
+  const closers = [
+    "If it sounds like there’s overlap, I’d welcome a short conversation to compare notes on priorities and how I could help in the next few months.",
+    "Happy to share a couple concrete examples in a conversation—especially where my experience intersects your roadmap.",
+    "I’d appreciate the chance to learn what “great” looks like on your team for this hire, and where an extra pair of hands would move the needle fastest.",
+  ];
+  const b3 = closers[(seed >> 7) % closers.length];
+
+  const greetings = [
+    `Dear ${company} hiring team,`,
+    `Dear ${company} team,`,
+    `Hello ${company} recruiting team,`,
+  ];
+  const greeting = greetings[seed % greetings.length];
 
   const sig = req.profile.signatureBlock.trim() || `Sincerely,\n${name}`;
 
@@ -37,21 +86,14 @@ function mockStructuredLetter(req: GenerationRequest): StructuredCoverLetter {
     senderBlock: buildSenderBlockFromProfile(req.profile) || name,
     dateLine: defaultDateLine(),
     recipientBlock: buildRecipientBlock(req.job),
-    greeting: `Dear ${company} hiring team,`,
-    bodyParagraphs: [
-      `I’m writing to express my strong interest in the ${role} opportunity. I’ve been following ${company} and appreciate the clarity of the problems you’re solving—and the bar you set for craft and ownership.`,
-      proof,
-      `${b2} ${b3}`,
-    ],
+    greeting,
+    bodyParagraphs: [p0, `${proof} ${b2}`, b3],
     closing: "Sincerely,",
     signature: sig,
   };
 }
 
-export async function requestCoverLetterGeneration(
-  settings: { apiBaseUrl: string; useMock: boolean },
-  body: GenerationRequest,
-): Promise<GenerationResult> {
+export async function requestCoverLetterGeneration(settings: AppSettings, body: GenerationRequest): Promise<GenerationResult> {
   if (settings.useMock) {
     await new Promise((r) => setTimeout(r, 400));
     if (body.responseShape === "plain") {
@@ -64,9 +106,14 @@ export async function requestCoverLetterGeneration(
   const url = `${settings.apiBaseUrl}/api/generate-cover-letter`;
   const promptBrief = buildCoverLetterPromptBrief(body);
 
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (settings.authToken?.trim()) {
+    headers.Authorization = `Bearer ${settings.authToken.trim()}`;
+  }
+
   const res = await fetch(url, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers,
     body: JSON.stringify({
       ...body,
       promptBrief,
@@ -74,8 +121,14 @@ export async function requestCoverLetterGeneration(
   });
 
   if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(text || `Generation failed (${res.status})`);
+    let msg = await res.text().catch(() => "");
+    try {
+      const j = JSON.parse(msg) as { error?: string };
+      if (typeof j.error === "string" && j.error.trim()) msg = j.error.trim();
+    } catch {
+      // keep text
+    }
+    throw new Error(msg || `Generation failed (${res.status})`);
   }
 
   const json: unknown = await res.json();
