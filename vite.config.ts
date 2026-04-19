@@ -28,6 +28,25 @@ function copyManifest() {
  * `vite.content.config.ts` so a single `vite build` always leaves manifest paths valid.
  * Skipped in watch mode — use `npm run dev` (runs app + content watchers in parallel).
  */
+/** Fresh timestamp each Vite build so Options can show “am I running the latest bundle?”. */
+function extensionBuildMeta(): Plugin {
+  let stamp = "";
+  return {
+    name: "extension-build-meta",
+    buildStart() {
+      stamp = new Date().toISOString();
+    },
+    resolveId(id) {
+      if (id === "virtual:coverclick-build") return "\0virtual:coverclick-build";
+    },
+    load(id) {
+      if (id === "\0virtual:coverclick-build") {
+        return `export const EXTENSION_BUILD_ID = ${JSON.stringify(stamp)};\n`;
+      }
+    },
+  };
+}
+
 function buildContentScript(): Plugin {
   return {
     name: "build-content-script",
@@ -45,7 +64,7 @@ function buildContentScript(): Plugin {
 
 export default defineConfig({
   base: "./",
-  plugins: [react(), copyManifest(), buildContentScript()],
+  plugins: [react(), extensionBuildMeta(), copyManifest(), buildContentScript()],
   build: {
     outDir: "dist",
     emptyDirBeforeWrite: true,

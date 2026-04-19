@@ -1,10 +1,26 @@
 import type { Dispatch, SetStateAction } from "react";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import type { AppSettings, UserProfile } from "../../lib/types";
 import { apiParseResume } from "../../lib/backendApi";
 import { mergeProfileFromExtraction, replaceProfileFromExtraction } from "../../lib/mergeProfile";
+import { compactProfileArrays } from "../../lib/profileArrays";
+import {
+  getProfileImportConflicts,
+  isProfileImportBaselineEmpty,
+} from "../../lib/profileImportReview";
 import { cn } from "../../lib/classNames";
-import { ccBtnDangerOutlineSm, ccBtnPrimarySm, ccBtnSecondarySm, ccEyebrow, ccMuted, ccSectionTitle, ccSurfaceQuiet } from "../../ui/ccUi";
+import {
+  ccBtnDangerOutlineSm,
+  ccBtnPrimarySm,
+  ccBtnSecondarySm,
+  ccEyebrow,
+  ccMuted,
+  ccSectionTitle,
+  ccSurfaceQuiet,
+} from "../../ui/ccUi";
+import type { OptionsMainTab } from "./OptionsSectionNav";
+import { ResumeExtractionProgress, type ResumeExtractionOutcome } from "./ResumeExtractionProgress";
+import { ResumeImportComparePanel } from "./ResumeImportComparePanel";
 
 type Props = {
   settings: AppSettings;
@@ -12,17 +28,32 @@ type Props = {
   setProfile: Dispatch<SetStateAction<UserProfile>>;
   hydrated: boolean;
   serverFeaturesEnabled: boolean;
+  /** After auto-import, switch to Profile (or stay on import for manual review). */
+  onNavigateToTab?: (tab: OptionsMainTab) => void;
 };
 
-export function ResumeImportSection({ settings, profile, setProfile, hydrated, serverFeaturesEnabled }: Props) {
+export function ResumeImportSection({
+  settings,
+  profile,
+  setProfile,
+  hydrated,
+  serverFeaturesEnabled,
+  onNavigateToTab,
+}: Props) {
   const [resumeBusy, setResumeBusy] = useState(false);
   const [resumeMsg, setResumeMsg] = useState<string | null>(null);
   const [lastExtracted, setLastExtracted] = useState<UserProfile | null>(null);
+  const [extractOutcome, setExtractOutcome] = useState<ResumeExtractionOutcome>("neutral");
   const fileRef = useRef<HTMLInputElement>(null);
 
   const base = settings.apiBaseUrl.trim();
   const token = settings.authToken?.trim();
   const canNetwork = hydrated && serverFeaturesEnabled && base.length > 0 && Boolean(token);
+
+  const conflicts = useMemo(
+    () => (lastExtracted ? getProfileImportConflicts(profile, lastExtracted) : []),
+    [profile, lastExtracted],
+  );
 
   const onParseResume = useCallback(async () => {
     if (!canNetwork || !token) return;
@@ -32,23 +63,70 @@ export function ResumeImportSection({ settings, profile, setProfile, hydrated, s
       setResumeMsg("Choose a PDF, DOCX, or TXT file first.");
       return;
     }
+
+    setExtractOutcome("neutral");
     setResumeBusy(true);
     setResumeMsg(null);
+    setLastExtracted(null);
+
+    let ok = false;
     try {
-      const { profile: extracted, warnings } = await apiParseResume(base, token, file);
+      const { profile: extractedRaw, warnings } = await apiParseResume(base, token, file);
+      const extracted = compactProfileArrays(extractedRaw);
+      ok = true;
+
+      const warnText = warnings?.length ? warnings.join(" ") : "";
+      const baselineEmpty = isProfileImportBaselineEmpty(profile);
+      const fieldConflicts = getProfileImportConflicts(profile, extracted);
+
+      if (baselineEmpty) {
+        setProfile(compactProfileArrays(replaceProfileFromExtraction(extracted)));
+        setLastExtracted(null);
+        setResumeMsg(
+          [warnText, "Your profile was empty — we filled every section from your resume. Review the Profile tab."].filter(Boolean).join(" "),
+        );
+        onNavigateToTab?.("profile");
+        return;
+      }
+
+      if (fieldConflicts.length === 0) {
+        setProfile(compactProfileArrays(mergeProfileFromExtraction(profile, extracted)));
+        setLastExtracted(null);
+        setResumeMsg(
+          [warnText, "No conflicting fields — we merged resume suggestions into your profile. Review the Profile tab."].filter(Boolean).join(" "),
+        );
+        onNavigateToTab?.("profile");
+        return;
+      }
+
       setLastExtracted(extracted);
       setResumeMsg(
-        ["Extraction complete — review carefully, then merge or replace.", ...(warnings?.length ? warnings : [])].join(
-          " ",
-        ),
+        [warnText, "Compare your current values with the import below, then choose Merge or Replace all."].filter(Boolean).join(" "),
       );
     } catch (e) {
       setLastExtracted(null);
       setResumeMsg(e instanceof Error ? e.message : "Import failed");
     } finally {
       setResumeBusy(false);
+      setExtractOutcome(ok ? "success" : "error");
     }
-  }, [base, canNetwork, token]);
+  }, [base, canNetwork, onNavigateToTab, profile, setProfile, token]);
+
+  const onMerge = useCallback(() => {
+    if (!lastExtracted) return;
+    setProfile(compactProfileArrays(mergeProfileFromExtraction(profile, lastExtracted)));
+    setLastExtracted(null);
+    setResumeMsg("Merged import into your profile. Autosave will run — review the Profile tab.");
+    onNavigateToTab?.("profile");
+  }, [lastExtracted, onNavigateToTab, profile, setProfile]);
+
+  const onReplace = useCallback(() => {
+    if (!lastExtracted) return;
+    setProfile(compactProfileArrays(replaceProfileFromExtraction(lastExtracted)));
+    setLastExtracted(null);
+    setResumeMsg("Replaced your profile with this import. Autosave will run — review the Profile tab.");
+    onNavigateToTab?.("profile");
+  }, [lastExtracted, onNavigateToTab, setProfile]);
 
   if (settings.useMock) {
     return (
@@ -80,6 +158,8 @@ export function ResumeImportSection({ settings, profile, setProfile, hydrated, s
         </p>
       ) : null}
 
+      <ResumeExtractionProgress active={resumeBusy} outcome={extractOutcome} />
+
       <div className={cn(ccSurfaceQuiet, "space-y-4 px-4 py-4")}>
         <div>
           <label className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">File</label>
@@ -107,30 +187,6 @@ export function ResumeImportSection({ settings, profile, setProfile, hydrated, s
               "Extract with AI"
             )}
           </button>
-          <button
-            type="button"
-            className={ccBtnSecondarySm}
-            disabled={!lastExtracted}
-            onClick={() => {
-              if (!lastExtracted) return;
-              setProfile(mergeProfileFromExtraction(profile, lastExtracted));
-              setResumeMsg("Merged into your profile. Autosave will run.");
-            }}
-          >
-            Merge
-          </button>
-          <button
-            type="button"
-            className={ccBtnDangerOutlineSm}
-            disabled={!lastExtracted}
-            onClick={() => {
-              if (!lastExtracted) return;
-              setProfile(replaceProfileFromExtraction(lastExtracted));
-              setResumeMsg("Replaced profile from extraction. Autosave will run.");
-            }}
-          >
-            Replace all
-          </button>
         </div>
         {resumeMsg ? (
           <p className="text-[12px] leading-snug text-slate-600" role="status">
@@ -138,6 +194,20 @@ export function ResumeImportSection({ settings, profile, setProfile, hydrated, s
           </p>
         ) : null}
       </div>
+
+      {lastExtracted && conflicts.length > 0 ? (
+        <>
+          <ResumeImportComparePanel conflicts={conflicts} />
+          <div className={cn(ccSurfaceQuiet, "flex flex-wrap gap-2 px-4 py-3")}>
+            <button type="button" className={ccBtnSecondarySm} disabled={resumeBusy} onClick={onMerge}>
+              Merge into profile
+            </button>
+            <button type="button" className={ccBtnDangerOutlineSm} disabled={resumeBusy} onClick={onReplace}>
+              Replace entire profile
+            </button>
+          </div>
+        </>
+      ) : null}
     </div>
   );
 }

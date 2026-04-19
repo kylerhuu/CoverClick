@@ -98,7 +98,9 @@ export function CloudAndSyncSection({
         <p className={ccEyebrow}>Cloud</p>
         <h2 className={cn(ccSectionTitle, "mt-1")}>Account & sync</h2>
         <p className={cn(ccMuted, "mt-2 max-w-2xl")}>
-          Your subscription unlocks live drafting and a profile that follows you across devices. Manage billing anytime.
+          {serverFeaturesEnabled
+            ? "Your plan is active — sync your profile with the cloud and open billing if you need invoices, payment method, or cancellation."
+            : "Your subscription unlocks live drafting and a profile that follows you across devices."}
         </p>
       </header>
 
@@ -124,17 +126,23 @@ export function CloudAndSyncSection({
               </p>
             ) : null}
           </div>
-          <div className="flex shrink-0 flex-wrap gap-2">
-            <button type="button" className={ccBtnPrimarySm} disabled={accountBusy} onClick={() => void onOpenCheckout()}>
-              Subscribe
-            </button>
+          <div className="flex shrink-0 flex-wrap items-center gap-2">
+            {serverFeaturesEnabled ? (
+              <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-900 ring-1 ring-emerald-200/70">
+                Active plan
+              </span>
+            ) : (
+              <button type="button" className={ccBtnPrimarySm} disabled={accountBusy} onClick={() => void onOpenCheckout()}>
+                Subscribe
+              </button>
+            )}
             <button
               type="button"
               className={ccBtnSecondarySm}
               disabled={!token || accountBusy}
               onClick={() => void onOpenBillingPortal()}
             >
-              Billing
+              Manage billing
             </button>
           </div>
         </div>

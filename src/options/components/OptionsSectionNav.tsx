@@ -6,7 +6,7 @@ export type OptionsMainTab = "profile" | "account" | "import";
 const tabs: { id: OptionsMainTab; label: string; description: string }[] = [
   { id: "profile", label: "Profile", description: "Your details and story" },
   { id: "account", label: "Cloud & billing", description: "Connection, plan, sync" },
-  { id: "import", label: "Resume import", description: "AI extraction from a file" },
+  { id: "import", label: "Import resume", description: "Upload a file · autofill profile fields" },
 ];
 
 type Props = {

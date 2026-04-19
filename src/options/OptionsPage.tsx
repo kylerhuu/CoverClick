@@ -14,9 +14,28 @@ import { ConnectionSettings } from "./components/ConnectionSettings";
 import { Field } from "./components/Field";
 import { OptionsSectionNav, type OptionsMainTab } from "./components/OptionsSectionNav";
 import { ResumeImportSection } from "./components/ResumeImportSection";
-import { ccEyebrow, ccHairline, ccMuted, ccSectionTitle, ccSurfaceQuiet } from "../ui/ccUi";
+import { ccBtnPrimarySm, ccEyebrow, ccHairline, ccMuted, ccSectionTitle, ccSurfaceQuiet } from "../ui/ccUi";
+import { EXTENSION_BUILD_ID } from "virtual:coverclick-build";
 
 const AUTOSAVE_MS = 700;
+
+function OptionsBuildFootnote() {
+  return (
+    <footer className="mx-auto max-w-5xl border-t border-slate-200/80 px-4 py-4 text-center text-[10px] leading-relaxed text-slate-400 sm:px-5">
+      <span className="font-mono text-[10px] text-slate-500" title="Changes after this time require rebuild + reload">
+        Build {EXTENSION_BUILD_ID}
+      </span>
+      <span className="mx-2 text-slate-300">·</span>
+      Chrome runs the compiled copy in <strong className="text-slate-500">dist/</strong>, not your source tree. After pulling
+      or editing code: run{" "}
+      <code className="rounded bg-slate-100 px-1 py-0.5 font-mono text-slate-600">npm run build</code> (or keep{" "}
+      <code className="rounded bg-slate-100 px-1 font-mono text-slate-600">npm run dev</code>
+      ), open <code className="rounded bg-slate-100 px-1 font-mono text-slate-600">chrome://extensions</code>, click{" "}
+      <strong className="text-slate-500">Reload</strong> on CoverClick, then reopen this tab. Unpacked extension path must be
+      the <strong className="text-slate-500">dist</strong> folder.
+    </footer>
+  );
+}
 
 export function OptionsPage() {
   const gate = useAccessGate();
@@ -145,36 +164,40 @@ export function OptionsPage() {
 
   if (!hydrated || gate.phase === "loading") {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[#f4f6f9] text-slate-600">
-        <div className="flex flex-col items-center gap-3">
+      <div className="flex min-h-screen flex-col bg-[#f4f6f9] text-slate-600">
+        <div className="flex flex-1 flex-col items-center justify-center gap-3">
           <span className="cc-spinner h-8 w-8 border-[3px]" aria-hidden />
           <p className="text-[13px] font-medium">Loading…</p>
         </div>
+        <OptionsBuildFootnote />
       </div>
     );
   }
 
   if (gate.phase === "no_api" || gate.phase === "signed_out" || gate.phase === "unpaid") {
     return (
-      <div className="min-h-full bg-[#f4f6f9] text-slate-900">
-        <AuthWall
-          variant="options"
-          mode={gate.phase === "no_api" ? "no_api" : gate.phase === "signed_out" ? "signed_out" : "unpaid"}
-          me={gate.me}
-          authBusy={gate.authBusy}
-          authError={gate.authError}
-          onGoogleSignIn={() => void gate.signInWithGoogle()}
-          onSignOut={() => void gate.signOut()}
-          onSubscribe={() => void gate.openStripeCheckout()}
-          onManageBilling={() => void gate.openCustomerPortal()}
-          onRefreshAccess={() => void gate.refresh()}
-        />
+      <div className="flex min-h-full flex-col bg-[#f4f6f9] text-slate-900">
+        <div className="min-h-0 flex-1">
+          <AuthWall
+            variant="options"
+            mode={gate.phase === "no_api" ? "no_api" : gate.phase === "signed_out" ? "signed_out" : "unpaid"}
+            me={gate.me}
+            authBusy={gate.authBusy}
+            authError={gate.authError}
+            onGoogleSignIn={() => void gate.signInWithGoogle()}
+            onSignOut={() => void gate.signOut()}
+            onSubscribe={() => void gate.openStripeCheckout()}
+            onManageBilling={() => void gate.openCustomerPortal()}
+            onRefreshAccess={() => void gate.refresh()}
+          />
+        </div>
+        <OptionsBuildFootnote />
       </div>
     );
   }
 
   return (
-    <div className="min-h-full bg-[#f4f6f9] text-slate-900">
+    <div className="flex min-h-full flex-col bg-[#f4f6f9] text-slate-900">
       <div className="sticky top-0 z-20 border-b border-white/10 bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white shadow-[0_4px_24px_rgba(15,23,42,0.35)]">
         <div className="mx-auto flex max-w-5xl items-center justify-between gap-4 px-4 py-2.5 sm:px-5">
           <div className="flex min-w-0 items-center gap-3">
@@ -221,6 +244,28 @@ export function OptionsPage() {
                 copy-paste.
               </p>
             </header>
+
+            <div
+              className={cn(
+                ccSurfaceQuiet,
+                "flex flex-col gap-3 border border-indigo-200/50 border-l-[4px] border-l-indigo-500 bg-gradient-to-br from-indigo-50/70 via-white to-sky-50/40 p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between sm:gap-4",
+              )}
+            >
+              <div className="min-w-0">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-indigo-700/90">Quick start</p>
+                <p className="mt-1 text-[13px] font-semibold text-slate-900">Autofill from your resume</p>
+                <p className="mt-0.5 text-[12px] leading-snug text-slate-600">
+                  Upload PDF, DOCX, or TXT — we suggest profile fields you can merge or replace. Always review before you
+                  apply.
+                </p>
+                {settings.useMock ? (
+                  <p className="mt-1.5 text-[11px] text-amber-900/90">Turn off demo mode under Cloud & billing to use resume import.</p>
+                ) : null}
+              </div>
+              <button type="button" className={cn(ccBtnPrimarySm, "shrink-0 self-start sm:self-center")} onClick={() => setMainTab("import")}>
+                Import resume…
+              </button>
+            </div>
 
             <div className="grid grid-cols-1 gap-8 lg:grid-cols-12 lg:gap-10">
               <div className="space-y-6 lg:col-span-5">
@@ -424,10 +469,12 @@ export function OptionsPage() {
               profile={profile}
               setProfile={setProfile}
               serverFeaturesEnabled={gate.phase === "paid"}
+              onNavigateToTab={setMainTab}
             />
           </div>
         ) : null}
       </div>
+      <OptionsBuildFootnote />
     </div>
   );
 }

@@ -53,9 +53,16 @@ export function ConnectionSettings({
       <div className={cn(ccSurfaceQuiet, "px-4 py-3.5")}>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
-            <p className="text-[11px] font-medium text-slate-500">Active endpoint</p>
+            <p className="text-[11px] font-medium text-slate-500">Your CoverClick server</p>
             <p className="mt-0.5 text-[14px] font-semibold text-slate-900">{summary.label}</p>
-            <p className="mt-1 break-all font-mono text-[11px] leading-snug text-slate-500">{summary.detail || "—"}</p>
+            <p className="mt-1.5 text-[12px] leading-snug text-slate-600">
+              This is the address of the CoverClick service your extension talks to for sign-in, saving your profile,
+              resume import, and AI letters. It is normally set when CoverClick is installed — you do not need to change
+              it unless your team gave you a different server.
+            </p>
+            <p className="mt-2 break-all font-mono text-[11px] leading-snug text-slate-500" title="Full server URL">
+              {summary.detail || "—"}
+            </p>
           </div>
           {baked ? (
             <span className="shrink-0 rounded-full bg-emerald-50 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-800 ring-1 ring-emerald-200/60">

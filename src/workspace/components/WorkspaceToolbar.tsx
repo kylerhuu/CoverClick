@@ -78,7 +78,12 @@ export function WorkspaceToolbar({
           />
         </label>
 
-        <button type="button" className={cn(toolBtn, "ml-auto shrink-0")} onClick={onOpenProfile}>
+        <button
+          type="button"
+          className={cn(toolBtn, "ml-auto shrink-0")}
+          onClick={onOpenProfile}
+          title="Opens CoverClick Options in a new tab — profile, resume import, billing"
+        >
           Profile
         </button>
       </div>
