@@ -115,12 +115,33 @@ export interface CachedLetter {
 }
 
 export interface AppSettings {
+  /** Resolved API origin (baked `VITE_COVERCLICK_API_ORIGIN` ± optional override). */
   apiBaseUrl: string;
+  /** Optional override only; empty means “use baked default from build.” */
+  apiOriginOverride?: string;
   useMock: boolean;
-  /** Optional Bearer from the CoverClick server (`/api/login` or `/api/register`). */
+  /** Bearer session from CoverClick server (Google sign-in exchange). */
   authToken?: string;
   /** Display only — which account last signed in. */
   authEmail?: string;
+}
+
+/** `GET /api/me` — subscription gate for the extension shell. */
+export interface AccountMeResponse {
+  id: string;
+  email: string;
+  subscriptionStatus: string;
+  hasPaidAccess: boolean;
+  subscriptionPeriodEnd: string | null;
+}
+
+/** `POST /api/auth/exchange` */
+export interface AuthExchangeResponse {
+  token: string;
+  user: { id: string; email: string };
+  hasPaidAccess: boolean;
+  subscriptionStatus: string;
+  subscriptionPeriodEnd?: string | null;
 }
 
 export const EMPTY_PROFILE: UserProfile = {
@@ -143,7 +164,9 @@ export const EMPTY_PROFILE: UserProfile = {
 };
 
 export const DEFAULT_SETTINGS: AppSettings = {
-  apiBaseUrl: "https://api.example.com",
+  /** Resolved against `VITE_COVERCLICK_API_ORIGIN` on load; may be empty until first load. */
+  apiBaseUrl: "",
+  apiOriginOverride: undefined,
   useMock: true,
 };
 

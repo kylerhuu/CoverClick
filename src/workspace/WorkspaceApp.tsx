@@ -25,6 +25,7 @@ import {
   saveCachedLetter,
   saveGenerationPrefs,
 } from "../lib/storage";
+import type { AppSettings } from "../lib/types";
 import { requestJobContextFromActiveTab } from "../lib/tabScrape";
 import { requestCleanJobDescription } from "../lib/jobDescriptionCleanApi";
 import { shouldUseAiDescriptionClean } from "../lib/jobDescriptionQuality";
@@ -98,6 +99,11 @@ export function WorkspaceApp() {
   const [jobDescriptionAiBusy, setJobDescriptionAiBusy] = useState(false);
   const aiCleanAttemptedRef = useRef<string>("");
   const aiCleanGenerationRef = useRef(0);
+  const [liveSettings, setLiveSettings] = useState<Pick<AppSettings, "useMock" | "authToken" | "apiBaseUrl">>(() => ({
+    useMock: true,
+    authToken: undefined,
+    apiBaseUrl: "",
+  }));
 
   const refreshScrape = useCallback(async () => {
     setScrapeBusy(true);
@@ -129,16 +135,35 @@ export function WorkspaceApp() {
   }, [job?.pageUrl, job?.scrapedAt]);
 
   useEffect(() => {
+    void loadSettings().then((s) =>
+      setLiveSettings({
+        useMock: s.useMock,
+        authToken: s.authToken,
+        apiBaseUrl: s.apiBaseUrl,
+      }),
+    );
+  }, []);
+
+  useEffect(() => {
     if (!job?.pageUrl) {
       setJobDescriptionAiBusy(false);
       return;
     }
-    const key = `${job.pageUrl}|${job.scrapedAt}`;
     const raw = job.descriptionText;
     if (!shouldUseAiDescriptionClean(raw)) {
       setJobDescriptionAiBusy(false);
       return;
     }
+    if (liveSettings.useMock) {
+      setJobDescriptionAiBusy(false);
+      return;
+    }
+    if (!liveSettings.authToken?.trim() || !liveSettings.apiBaseUrl.trim()) {
+      aiCleanAttemptedRef.current = "";
+      setJobDescriptionAiBusy(false);
+      return;
+    }
+    const key = `${job.pageUrl}|${job.scrapedAt}`;
     if (aiCleanAttemptedRef.current === key) return;
 
     const gen = ++aiCleanGenerationRef.current;
@@ -148,10 +173,8 @@ export function WorkspaceApp() {
 
     void (async () => {
       try {
-        const settings = await loadSettings();
         if (cancelled) return;
-        if (settings.useMock) return;
-        const cleaned = await requestCleanJobDescription(settings.apiBaseUrl, raw);
+        const cleaned = await requestCleanJobDescription(liveSettings.apiBaseUrl, raw, liveSettings.authToken);
         if (cancelled || !cleaned.trim()) return;
         setJob((j) => (j && j.pageUrl === job.pageUrl && j.scrapedAt === job.scrapedAt ? { ...j, descriptionText: cleaned } : j));
       } catch {
@@ -169,7 +192,7 @@ export function WorkspaceApp() {
         setJobDescriptionAiBusy(false);
       }
     };
-  }, [job?.pageUrl, job?.scrapedAt]);
+  }, [job?.pageUrl, job?.scrapedAt, liveSettings.useMock, liveSettings.authToken, liveSettings.apiBaseUrl]);
 
   useEffect(() => {
     let cancelled = false;
@@ -252,13 +275,23 @@ export function WorkspaceApp() {
   useEffect(() => {
     const onStorage = (changes: Record<string, chrome.storage.StorageChange>, areaName: string) => {
       if (areaName !== "local") return;
-      if (!changes[STORAGE_KEYS.profile]) return;
-      void loadProfile().then((p) => {
-        setProfile(p);
-        if (!exportDirtyRef.current) {
-          setExportBasename(buildDefaultExportBasename(p, jobRef.current));
-        }
-      });
+      if (changes[STORAGE_KEYS.profile]) {
+        void loadProfile().then((p) => {
+          setProfile(p);
+          if (!exportDirtyRef.current) {
+            setExportBasename(buildDefaultExportBasename(p, jobRef.current));
+          }
+        });
+      }
+      if (changes[STORAGE_KEYS.settings]) {
+        void loadSettings().then((s) =>
+          setLiveSettings({
+            useMock: s.useMock,
+            authToken: s.authToken,
+            apiBaseUrl: s.apiBaseUrl,
+          }),
+        );
+      }
     };
     chrome.storage.onChanged.addListener(onStorage);
     return () => chrome.storage.onChanged.removeListener(onStorage);

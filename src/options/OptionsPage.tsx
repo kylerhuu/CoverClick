@@ -3,8 +3,12 @@ import type { AppSettings, DefaultTone, UserProfile } from "../lib/types";
 import { DEFAULT_SETTINGS, EMPTY_PROFILE } from "../lib/types";
 import { fieldInputClass, fieldSelectClass, fieldTextareaClass } from "../lib/classNames";
 import { compactProfileArrays } from "../lib/profileArrays";
+import { hasBuiltInApiOrigin, resolveApiBaseUrl, VITE_COVERCLICK_API_ORIGIN } from "../lib/apiOrigin";
+import { apiGetServerProfile, apiPutServerProfile } from "../lib/backendApi";
 import { loadProfile, loadSettings, saveProfile, saveSettings } from "../lib/storage";
-import { AutosaveStatus, type SaveStatus } from "./components/AutosaveStatus";
+import { AuthWall } from "../auth/AuthWall";
+import { useAccessGate } from "../auth/useAccessGate";
+import { AutosaveStatus, type SaveStatus, type ServerSyncStatus } from "./components/AutosaveStatus";
 import { BulletListEditor } from "./components/BulletListEditor";
 import { Field } from "./components/Field";
 import { ServerPanels } from "./components/ServerPanels";
@@ -12,12 +16,16 @@ import { ServerPanels } from "./components/ServerPanels";
 const AUTOSAVE_MS = 700;
 
 export function OptionsPage() {
+  const gate = useAccessGate();
   const [profile, setProfile] = useState<UserProfile>(EMPTY_PROFILE);
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
   const [hydrated, setHydrated] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [profileSave, setProfileSave] = useState<SaveStatus>("idle");
   const [settingsSave, setSettingsSave] = useState<SaveStatus>("idle");
+  const [serverSync, setServerSync] = useState<ServerSyncStatus>("idle");
+  const [serverSyncMsg, setServerSyncMsg] = useState<string | null>(null);
+  const [showApiAdvanced, setShowApiAdvanced] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -36,6 +44,30 @@ export function OptionsPage() {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    if (!hydrated) return;
+    if (gate.phase !== "paid") return;
+    let cancelled = false;
+    void (async () => {
+      const s = await loadSettings();
+      const token = s.authToken?.trim();
+      const base = s.apiBaseUrl.trim();
+      if (!token || s.useMock || !base) return;
+      try {
+        const { profile: remote } = await apiGetServerProfile(base, token);
+        if (cancelled || !remote) return;
+        const next = compactProfileArrays(remote);
+        setProfile(next);
+        await saveProfile(next);
+      } catch {
+        // keep local profile
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [hydrated, gate.phase]);
 
   useEffect(() => {
     if (!hydrated) return;
@@ -71,6 +103,30 @@ export function OptionsPage() {
     return () => window.clearTimeout(id);
   }, [settings, hydrated]);
 
+  useEffect(() => {
+    if (!hydrated) return;
+    if (gate.phase !== "paid") return;
+    const token = settings.authToken?.trim();
+    const base = settings.apiBaseUrl.trim();
+    if (!token || settings.useMock || !base) return;
+    const id = window.setTimeout(() => {
+      void (async () => {
+        try {
+          setServerSync("syncing");
+          await apiPutServerProfile(base, token, compactProfileArrays(profile));
+          setServerSync("ok");
+          setServerSyncMsg(null);
+          window.setTimeout(() => setServerSync("idle"), 1400);
+        } catch (e) {
+          setServerSync("error");
+          setServerSyncMsg(e instanceof Error ? e.message : "Could not sync profile to server");
+          window.setTimeout(() => setServerSync("idle"), 6000);
+        }
+      })();
+    }, 1100);
+    return () => window.clearTimeout(id);
+  }, [profile, hydrated, gate.phase, settings.authToken, settings.useMock, settings.apiBaseUrl]);
+
   const tones = useMemo(
     () =>
       [
@@ -82,6 +138,36 @@ export function OptionsPage() {
       ] satisfies { value: DefaultTone; label: string }[],
     [],
   );
+
+  if (!hydrated || gate.phase === "loading") {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[#fafbfc] text-slate-600">
+        <div className="flex flex-col items-center gap-3">
+          <span className="cc-spinner h-8 w-8 border-[3px]" aria-hidden />
+          <p className="text-[13px] font-medium">Loading…</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (gate.phase === "no_api" || gate.phase === "signed_out" || gate.phase === "unpaid") {
+    return (
+      <div className="min-h-full bg-[#fafbfc] text-slate-900">
+        <AuthWall
+          variant="options"
+          mode={gate.phase === "no_api" ? "no_api" : gate.phase === "signed_out" ? "signed_out" : "unpaid"}
+          me={gate.me}
+          authBusy={gate.authBusy}
+          authError={gate.authError}
+          onGoogleSignIn={() => void gate.signInWithGoogle()}
+          onSignOut={() => void gate.signOut()}
+          onSubscribe={() => void gate.openStripeCheckout()}
+          onManageBilling={() => void gate.openCustomerPortal()}
+          onRefreshAccess={() => void gate.refresh()}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-full bg-[#fafbfc] text-slate-900">
@@ -96,7 +182,7 @@ export function OptionsPage() {
               <div className="text-[11px] font-medium text-indigo-100/85">Profile · autosaved</div>
             </div>
           </div>
-          <AutosaveStatus profile={profileSave} settings={settingsSave} />
+          <AutosaveStatus profile={profileSave} settings={settingsSave} server={serverSync} />
         </div>
       </div>
 
@@ -260,23 +346,33 @@ export function OptionsPage() {
         <section className="mt-14 border-t border-slate-200/90 pt-10">
           <h2 className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Backend</h2>
           <p className="mt-2 max-w-2xl text-[13px] leading-relaxed text-slate-600">
-            No API keys in the extension. Point this at the included Node server (see repo <code className="font-mono text-[12px]">server/</code>
-            ) or your own backend. The server returns structured JSON (
-            <code className="rounded bg-slate-100 px-1 py-0.5 font-mono text-[12px] text-slate-800">{`{ "format": "structured", "letter": {…} }`}</code>
-            ) or plain text — see README.
+            No OpenAI keys ship in the extension. Live mode calls your CoverClick API (see <code className="font-mono text-[12px]">server/</code>
+            ). The default API origin is set at <strong>build time</strong> with{" "}
+            <code className="rounded bg-slate-100 px-1 py-0.5 font-mono text-[12px] text-slate-800">VITE_COVERCLICK_API_ORIGIN</code> in
+            the repo root <code className="font-mono text-[12px]">.env</code> — see <code className="font-mono text-[12px]">.env.example</code>.
           </p>
+          <div className="mt-4 rounded-lg border border-slate-200/90 bg-white px-4 py-3 text-[12px] text-slate-700">
+            <div className="font-semibold text-slate-900">Effective API origin</div>
+            <div className="mt-1 break-all font-mono text-[11px] text-slate-600">
+              {settings.apiBaseUrl.trim() || "(none — set VITE_COVERCLICK_API_ORIGIN or use advanced override)"}
+            </div>
+            {VITE_COVERCLICK_API_ORIGIN ? (
+              <p className="mt-2 text-[11px] text-slate-500">
+                Baked default: <span className="font-mono">{VITE_COVERCLICK_API_ORIGIN}</span>
+              </p>
+            ) : (
+              <p className="mt-2 text-[11px] text-amber-800">
+                No baked API URL in this build — use mock mode, or set <span className="font-mono">VITE_COVERCLICK_API_ORIGIN</span>, or add an
+                override below.
+              </p>
+            )}
+          </div>
+          {serverSyncMsg ? (
+            <p className="mt-3 max-w-2xl text-[12px] text-red-700" role="alert">
+              {serverSyncMsg}
+            </p>
+          ) : null}
           <div className="mt-6 grid max-w-2xl grid-cols-1 gap-5">
-            <Field
-              label="API base URL"
-              hint="POST to /api/generate-cover-letter on this origin (no trailing slash)."
-            >
-              <input
-                className={fieldInputClass}
-                value={settings.apiBaseUrl}
-                onChange={(e) => setSettings({ ...settings, apiBaseUrl: e.target.value.replace(/\/$/, "") })}
-                placeholder="https://api.yourdomain.com"
-              />
-            </Field>
             <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-slate-200/90 bg-white px-3 py-2.5">
               <input
                 type="checkbox"
@@ -287,14 +383,57 @@ export function OptionsPage() {
               <span>
                 <span className="text-[13px] font-medium text-slate-900">Mock generation</span>
                 <span className="mt-0.5 block text-[12px] leading-snug text-slate-600">
-                  Skip the network for local UI testing.
+                  Skip the network for local UI testing. Turn off when using the real API (requires sign-in for live generation).
                 </span>
               </span>
             </label>
+            <div>
+              <button
+                type="button"
+                className="text-[12px] font-semibold text-indigo-700 underline decoration-indigo-300 underline-offset-2 hover:text-indigo-900"
+                onClick={() => setShowApiAdvanced((v) => !v)}
+              >
+                {showApiAdvanced ? "Hide advanced API override" : "Advanced: override API origin"}
+              </button>
+              {showApiAdvanced ? (
+                <div className="mt-3">
+                  <Field
+                    label="API origin override"
+                    hint="Leave empty to use the baked VITE_COVERCLICK_API_ORIGIN. No trailing slash."
+                  >
+                    <input
+                      className={fieldInputClass}
+                      value={settings.apiOriginOverride ?? ""}
+                      onChange={(e) => {
+                        const raw = e.target.value.trim().replace(/\/+$/, "");
+                        setSettings({
+                          ...settings,
+                          apiOriginOverride: raw.length > 0 ? raw : undefined,
+                          apiBaseUrl: resolveApiBaseUrl(raw),
+                        });
+                      }}
+                      placeholder={hasBuiltInApiOrigin() ? VITE_COVERCLICK_API_ORIGIN : "https://localhost:8787"}
+                    />
+                  </Field>
+                </div>
+              ) : null}
+            </div>
           </div>
         </section>
 
-        <ServerPanels hydrated={hydrated} settings={settings} setSettings={setSettings} profile={profile} setProfile={setProfile} />
+        <ServerPanels
+          hydrated={hydrated}
+          settings={settings}
+          profile={profile}
+          setProfile={setProfile}
+          serverFeaturesEnabled={gate.phase === "paid"}
+          onSignOut={async () => {
+            await gate.signOut();
+            setSettings(await loadSettings());
+          }}
+          onOpenCheckout={() => void gate.openStripeCheckout()}
+          onOpenBillingPortal={() => void gate.openCustomerPortal()}
+        />
       </div>
     </div>
   );

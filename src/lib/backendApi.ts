@@ -1,4 +1,4 @@
-import type { UserProfile } from "./types";
+import type { AccountMeResponse, AuthExchangeResponse, UserProfile } from "./types";
 
 /** Normalize saved origin: trim and strip trailing slashes so paths join cleanly. */
 export function normalizeApiOrigin(raw: string): string {
@@ -22,8 +22,7 @@ async function apiFetch(url: string, init?: RequestInit): Promise<Response> {
     if (e instanceof TypeError) {
       const origin = url.split("/api")[0] || url;
       throw new Error(
-        `Could not reach the server (${origin}). Check Options → API base URL, that the Node server is running, ` +
-          `and your network. If you use Chrome 102+, local HTTP may require the server to allow private-network access (already enabled on CoverClick’s server).`,
+        `Could not reach the server (${origin}). Check your network and that the API is running.`,
       );
     }
     throw e;
@@ -41,30 +40,42 @@ async function readError(res: Response): Promise<string> {
   return text.trim() || `Request failed (${res.status})`;
 }
 
-export async function apiRegister(
-  apiBaseUrl: string,
-  body: { email: string; password: string },
-): Promise<{ token: string; user: { id: string; email: string } }> {
-  const res = await apiFetch(apiUrl(apiBaseUrl, "/api/register"), {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
+export async function apiGetMe(apiBaseUrl: string, token: string): Promise<AccountMeResponse> {
+  const res = await apiFetch(apiUrl(apiBaseUrl, "/api/me"), {
+    headers: { Authorization: `Bearer ${token}` },
   });
   if (!res.ok) throw new Error(await readError(res));
-  return res.json() as Promise<{ token: string; user: { id: string; email: string } }>;
+  return res.json() as Promise<AccountMeResponse>;
 }
 
-export async function apiLogin(
-  apiBaseUrl: string,
-  body: { email: string; password: string },
-): Promise<{ token: string; user: { id: string; email: string } }> {
-  const res = await apiFetch(apiUrl(apiBaseUrl, "/api/login"), {
+export async function apiAuthExchangeWithCode(apiBaseUrl: string, code: string): Promise<AuthExchangeResponse> {
+  const res = await apiFetch(apiUrl(apiBaseUrl, "/api/auth/exchange"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
+    body: JSON.stringify({ code }),
   });
   if (!res.ok) throw new Error(await readError(res));
-  return res.json() as Promise<{ token: string; user: { id: string; email: string } }>;
+  return res.json() as Promise<AuthExchangeResponse>;
+}
+
+export async function apiCreateCheckoutSession(apiBaseUrl: string, token: string): Promise<{ url: string }> {
+  const res = await apiFetch(apiUrl(apiBaseUrl, "/api/billing/checkout-session"), {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: JSON.stringify({}),
+  });
+  if (!res.ok) throw new Error(await readError(res));
+  return res.json() as Promise<{ url: string }>;
+}
+
+export async function apiCreatePortalSession(apiBaseUrl: string, token: string): Promise<{ url: string }> {
+  const res = await apiFetch(apiUrl(apiBaseUrl, "/api/billing/portal-session"), {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: JSON.stringify({}),
+  });
+  if (!res.ok) throw new Error(await readError(res));
+  return res.json() as Promise<{ url: string }>;
 }
 
 export async function apiGetServerProfile(

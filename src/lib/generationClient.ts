@@ -104,13 +104,24 @@ export async function requestCoverLetterGeneration(settings: AppSettings, body: 
     return { shape: "structured", letter: mockStructuredLetter(body) };
   }
 
-  const url = `${normalizeApiOrigin(settings.apiBaseUrl)}/api/generate-cover-letter`;
+  const token = settings.authToken?.trim();
+  if (!token) {
+    throw new Error("Sign in with Google in the CoverClick side panel (and an active subscription) to generate letters.");
+  }
+  const base = normalizeApiOrigin(settings.apiBaseUrl);
+  if (!base) {
+    throw new Error(
+      "No API URL is configured. Set VITE_COVERCLICK_API_ORIGIN when building the extension, or add an override in Options → Backend (advanced).",
+    );
+  }
+
+  const url = `${base}/api/generate-cover-letter`;
   const promptBrief = buildCoverLetterPromptBrief(body);
 
-  const headers: Record<string, string> = { "Content-Type": "application/json" };
-  if (settings.authToken?.trim()) {
-    headers.Authorization = `Bearer ${settings.authToken.trim()}`;
-  }
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${token}`,
+  };
 
   const res = await fetch(url, {
     method: "POST",

@@ -3,17 +3,34 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
+enum SubscriptionStatus {
+  NONE
+  ACTIVE
+  TRIALING
+  PAST_DUE
+  CANCELED
+}
+
 model User {
-  id           String        @id @default(cuid())
-  email        String        @unique
-  passwordHash String
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
-  profile      StoredProfile?
+  id           String  @id @default(cuid())
+  email        String  @unique
+  /// Legacy email/password sign-in (optional when using Google only).
+  passwordHash String?
+  googleSub    String? @unique
+  stripeCustomerId     String? @unique
+  stripeSubscriptionId String?
+  subscriptionStatus   SubscriptionStatus @default(NONE)
+  subscriptionPeriodEnd DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  profile       StoredProfile?
+  authExchanges AuthExchange[]
 }
 
 model StoredProfile {
@@ -22,4 +39,15 @@ model StoredProfile {
   /// Full CoverClick `UserProfile` JSON (mirrors extension shape).
   data      Json
   updatedAt DateTime @updatedAt
+}
+
+/// One-time code returned to the extension after Google OAuth (exchanged for JWT).
+model AuthExchange {
+  code      String   @id
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([expiresAt])
 }

@@ -1,23 +1,32 @@
 import { useCallback, useRef, useState } from "react";
 import type { AppSettings, UserProfile } from "../../lib/types";
-import { fieldInputClass } from "../../lib/classNames";
-import { Field } from "./Field";
-import { apiGetServerProfile, apiLogin, apiParseResume, apiPutServerProfile, apiRegister } from "../../lib/backendApi";
+import { apiGetServerProfile, apiParseResume, apiPutServerProfile } from "../../lib/backendApi";
 import { mergeProfileFromExtraction, replaceProfileFromExtraction } from "../../lib/mergeProfile";
 import { compactProfileArrays } from "../../lib/profileArrays";
 import { saveProfile } from "../../lib/storage";
 
 type Props = {
   settings: AppSettings;
-  setSettings: (next: AppSettings) => void;
   profile: UserProfile;
   setProfile: (next: UserProfile) => void;
   hydrated: boolean;
+  /** Live server + paid subscription (not mock). */
+  serverFeaturesEnabled: boolean;
+  onSignOut: () => void | Promise<void>;
+  onOpenCheckout: () => void | Promise<void>;
+  onOpenBillingPortal: () => void | Promise<void>;
 };
 
-export function ServerPanels({ settings, setSettings, profile, setProfile, hydrated }: Props) {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+export function ServerPanels({
+  settings,
+  profile,
+  setProfile,
+  hydrated,
+  serverFeaturesEnabled,
+  onSignOut,
+  onOpenCheckout,
+  onOpenBillingPortal,
+}: Props) {
   const [accountBusy, setAccountBusy] = useState(false);
   const [accountMsg, setAccountMsg] = useState<string | null>(null);
   const [resumeBusy, setResumeBusy] = useState(false);
@@ -26,46 +35,15 @@ export function ServerPanels({ settings, setSettings, profile, setProfile, hydra
   const fileRef = useRef<HTMLInputElement>(null);
 
   const base = settings.apiBaseUrl.trim();
-  const canNetwork = hydrated && !settings.useMock && base.length > 0;
   const token = settings.authToken?.trim();
+  const canNetwork = hydrated && serverFeaturesEnabled && base.length > 0 && Boolean(token);
 
-  const onRegister = useCallback(async () => {
-    if (!canNetwork) return;
-    setAccountBusy(true);
+  const onLogout = useCallback(async () => {
     setAccountMsg(null);
-    try {
-      const { token: t, user } = await apiRegister(base, { email: email.trim(), password });
-      setSettings({ ...settings, authToken: t, authEmail: user.email });
-      setAccountMsg("Account created. You can pull/push profile or parse a resume.");
-      setPassword("");
-    } catch (e) {
-      setAccountMsg(e instanceof Error ? e.message : "Register failed");
-    } finally {
-      setAccountBusy(false);
-    }
-  }, [base, canNetwork, email, password, setSettings, settings]);
-
-  const onLogin = useCallback(async () => {
-    if (!canNetwork) return;
-    setAccountBusy(true);
-    setAccountMsg(null);
-    try {
-      const { token: t, user } = await apiLogin(base, { email: email.trim(), password });
-      setSettings({ ...settings, authToken: t, authEmail: user.email });
-      setAccountMsg("Signed in.");
-      setPassword("");
-    } catch (e) {
-      setAccountMsg(e instanceof Error ? e.message : "Login failed");
-    } finally {
-      setAccountBusy(false);
-    }
-  }, [base, canNetwork, email, password, setSettings, settings]);
-
-  const onLogout = useCallback(() => {
-    setSettings({ ...settings, authToken: undefined, authEmail: undefined });
+    await onSignOut();
     setAccountMsg("Signed out.");
     setLastExtracted(null);
-  }, [setSettings, settings]);
+  }, [onSignOut]);
 
   const onPull = useCallback(async () => {
     if (!canNetwork || !token) return;
@@ -122,29 +100,33 @@ export function ServerPanels({ settings, setSettings, profile, setProfile, hydra
       );
     } catch (e) {
       setLastExtracted(null);
-      let msg = e instanceof Error ? e.message : "Parse failed";
-      if (/example\.com/i.test(base)) {
-        msg +=
-          " Your API base URL still looks like a placeholder — set it to your running server (e.g. http://localhost:8787), turn off mock mode, and sign in again.";
-      }
-      setResumeMsg(msg);
+      setResumeMsg(e instanceof Error ? e.message : "Parse failed");
     } finally {
       setResumeBusy(false);
     }
   }, [base, canNetwork, token]);
 
+  if (settings.useMock) {
+    return (
+      <section className="mt-14 border-t border-slate-200/90 pt-10">
+        <h2 className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Cloud account</h2>
+        <p className="mt-2 max-w-2xl text-[13px] leading-relaxed text-slate-600">
+          <strong>Mock mode</strong> is on — the extension does not call your API. Turn off mock under Backend to use Google sign-in, Stripe billing, and server-backed profile sync from the side panel.
+        </p>
+      </section>
+    );
+  }
+
   return (
     <>
       <section className="mt-14 border-t border-slate-200/90 pt-10">
-        <h2 className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Server account</h2>
+        <h2 className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Cloud account</h2>
         <p className="mt-2 max-w-2xl text-[13px] leading-relaxed text-slate-600">
-          Optional: create an account on your CoverClick server to sync your profile and run AI resume import. The
-          extension still keeps a local copy in Chrome; the server stores another copy in its database.
+          Sign in and subscribe from the <strong>side panel</strong>. When you have an active plan, you can pull/push your profile and run resume import here.
         </p>
         {!canNetwork ? (
           <p className="mt-3 text-[12px] text-amber-800">
-            Turn off <strong>Mock generation</strong> and set a valid <strong>API base URL</strong> in the Backend
-            section above to use account features.
+            You need an active subscription to use server features. Open the CoverClick side panel to sign in with Google and subscribe.
           </p>
         ) : null}
         {settings.authEmail ? (
@@ -157,57 +139,35 @@ export function ServerPanels({ settings, setSettings, profile, setProfile, hydra
             {accountMsg}
           </p>
         ) : null}
-        <div className="mt-5 grid max-w-2xl grid-cols-1 gap-4 sm:grid-cols-2">
-          <Field label="Account email">
-            <input
-              className={fieldInputClass}
-              type="email"
-              autoComplete="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              disabled={!canNetwork || accountBusy}
-            />
-          </Field>
-          <Field label="Password">
-            <input
-              className={fieldInputClass}
-              type="password"
-              autoComplete="new-password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              disabled={!canNetwork || accountBusy}
-            />
-          </Field>
-        </div>
         <div className="mt-4 flex flex-wrap gap-2">
-          <button
-            type="button"
-            className="rounded-md bg-slate-900 px-3 py-1.5 text-[12px] font-medium text-white disabled:opacity-40"
-            disabled={!canNetwork || accountBusy}
-            onClick={() => void onRegister()}
-          >
-            Register
-          </button>
-          <button
-            type="button"
-            className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-[12px] font-medium text-slate-800 disabled:opacity-40"
-            disabled={!canNetwork || accountBusy}
-            onClick={() => void onLogin()}
-          >
-            Log in
-          </button>
           <button
             type="button"
             className="rounded-md border border-slate-200 px-3 py-1.5 text-[12px] text-slate-600 disabled:opacity-40"
             disabled={!token || accountBusy}
-            onClick={onLogout}
+            onClick={() => void onLogout()}
           >
             Sign out
           </button>
           <button
             type="button"
+            className="rounded-md border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-[12px] font-medium text-indigo-950 disabled:opacity-40"
+            disabled={accountBusy}
+            onClick={() => void onOpenCheckout()}
+          >
+            Subscribe / upgrade
+          </button>
+          <button
+            type="button"
             className="rounded-md border border-slate-200 px-3 py-1.5 text-[12px] text-slate-600 disabled:opacity-40"
-            disabled={!canNetwork || !token || accountBusy}
+            disabled={!token || accountBusy}
+            onClick={() => void onOpenBillingPortal()}
+          >
+            Manage billing
+          </button>
+          <button
+            type="button"
+            className="rounded-md border border-slate-200 px-3 py-1.5 text-[12px] text-slate-600 disabled:opacity-40"
+            disabled={!canNetwork || accountBusy}
             onClick={() => void onPull()}
           >
             Pull profile from server
@@ -215,7 +175,7 @@ export function ServerPanels({ settings, setSettings, profile, setProfile, hydra
           <button
             type="button"
             className="rounded-md border border-slate-200 px-3 py-1.5 text-[12px] text-slate-600 disabled:opacity-40"
-            disabled={!canNetwork || !token || accountBusy}
+            disabled={!canNetwork || accountBusy}
             onClick={() => void onPush()}
           >
             Push profile to server
@@ -226,22 +186,21 @@ export function ServerPanels({ settings, setSettings, profile, setProfile, hydra
       <section className="mt-10 border-t border-slate-200/90 pt-10">
         <h2 className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Resume → profile (AI)</h2>
         <p className="mt-2 max-w-2xl text-[13px] leading-relaxed text-slate-600">
-          Upload a resume and let the server extract fields with OpenAI. Accuracy varies by layout; always review before
-          applying. Merge keeps your existing values when the model leaves a field blank.
+          Upload a resume and let the server extract fields with OpenAI. Accuracy varies by layout; always review before applying.
         </p>
         <div className="mt-4 max-w-2xl space-y-3">
           <input
             ref={fileRef}
             type="file"
             accept=".pdf,.docx,.txt,.md"
-            disabled={!canNetwork || !token || resumeBusy}
+            disabled={!canNetwork || resumeBusy}
             className="block w-full text-[12px] text-slate-700 file:mr-3 file:rounded-md file:border-0 file:bg-slate-100 file:px-3 file:py-1.5 file:text-[12px] file:font-medium file:text-slate-800"
           />
           <div className="flex flex-wrap gap-2">
             <button
               type="button"
               className="inline-flex items-center gap-2 rounded-md bg-indigo-600 px-3 py-1.5 text-[12px] font-medium text-white disabled:opacity-40"
-              disabled={!canNetwork || !token || resumeBusy}
+              disabled={!canNetwork || resumeBusy}
               onClick={() => void onParseResume()}
             >
               {resumeBusy ? <span className="cc-spinner" aria-hidden /> : null}

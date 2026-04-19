@@ -1,8 +1,11 @@
 export type SaveStatus = "idle" | "saving" | "saved" | "error";
 
+export type ServerSyncStatus = "idle" | "syncing" | "ok" | "error";
+
 type Props = {
   profile: SaveStatus;
   settings: SaveStatus;
+  server?: ServerSyncStatus;
 };
 
 function dot(status: SaveStatus): string {
@@ -12,10 +15,18 @@ function dot(status: SaveStatus): string {
   return "";
 }
 
-export function AutosaveStatus({ profile, settings }: Props) {
+function serverDot(status: ServerSyncStatus): string {
+  if (status === "syncing") return "Syncing account…";
+  if (status === "ok") return "Account synced";
+  if (status === "error") return "Account sync failed";
+  return "";
+}
+
+export function AutosaveStatus({ profile, settings, server = "idle" }: Props) {
   const p = dot(profile);
   const s = dot(settings);
-  const parts = [p && `Profile ${p}`, s && `Settings ${s}`].filter(Boolean);
+  const srv = serverDot(server);
+  const parts = [p && `Profile ${p}`, s && `Settings ${s}`, srv && `Server ${srv}`].filter(Boolean);
   if (!parts.length) return null;
   return (
     <div className="flex items-center gap-2 text-[11px] font-medium tabular-nums text-indigo-100/95">

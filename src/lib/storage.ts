@@ -7,6 +7,7 @@ import type {
 import { DEFAULT_GENERATION_PREFS, DEFAULT_SETTINGS, EMPTY_PROFILE } from "./types";
 import { parseStructuredLetter } from "./generationNormalize";
 import { STORAGE_KEYS } from "./storageKeys";
+import { hasBuiltInApiOrigin, resolveApiBaseUrl, VITE_COVERCLICK_API_ORIGIN } from "./apiOrigin";
 
 export { STORAGE_KEYS };
 
@@ -52,15 +53,37 @@ function normalizeProfile(raw: unknown): UserProfile {
   };
 }
 
+function pickStoredApiOverride(s: Record<string, unknown>): string {
+  const direct = typeof s.apiOriginOverride === "string" ? s.apiOriginOverride.trim().replace(/\/+$/, "") : "";
+  if (direct.length > 0) return direct;
+  const legacy = typeof s.apiBaseUrl === "string" ? s.apiBaseUrl.trim().replace(/\/+$/, "") : "";
+  if (!legacy || legacy === "https://api.example.com") return "";
+  const built = VITE_COVERCLICK_API_ORIGIN.replace(/\/+$/, "");
+  if (built.length > 0 && legacy === built) return "";
+  return legacy;
+}
+
 function normalizeSettings(raw: unknown): AppSettings {
-  if (!raw || typeof raw !== "object") return { ...DEFAULT_SETTINGS };
+  const useMockDefault = hasBuiltInApiOrigin() ? false : DEFAULT_SETTINGS.useMock;
+  if (!raw || typeof raw !== "object") {
+    const apiOriginOverride = undefined;
+    const apiBaseUrl = resolveApiBaseUrl("");
+    return {
+      apiBaseUrl,
+      apiOriginOverride,
+      useMock: useMockDefault,
+      authToken: undefined,
+      authEmail: undefined,
+    };
+  }
   const s = raw as Record<string, unknown>;
+  const apiOriginOverrideRaw = pickStoredApiOverride(s);
+  const apiOriginOverride = apiOriginOverrideRaw.length > 0 ? apiOriginOverrideRaw : undefined;
+  const apiBaseUrl = resolveApiBaseUrl(apiOriginOverrideRaw);
   return {
-    apiBaseUrl:
-      typeof s.apiBaseUrl === "string" && s.apiBaseUrl.length > 0
-        ? s.apiBaseUrl.replace(/\/$/, "")
-        : DEFAULT_SETTINGS.apiBaseUrl,
-    useMock: typeof s.useMock === "boolean" ? s.useMock : DEFAULT_SETTINGS.useMock,
+    apiBaseUrl,
+    apiOriginOverride,
+    useMock: typeof s.useMock === "boolean" ? s.useMock : useMockDefault,
     authToken:
       typeof s.authToken === "string" && s.authToken.trim().length > 0 ? s.authToken.trim() : undefined,
     authEmail:
@@ -118,7 +141,14 @@ export async function loadSettings(): Promise<AppSettings> {
 }
 
 export async function saveSettings(settings: AppSettings): Promise<void> {
-  await chrome.storage.local.set({ [SETTINGS_KEY]: settings });
+  await chrome.storage.local.set({
+    [SETTINGS_KEY]: {
+      useMock: settings.useMock,
+      authToken: settings.authToken,
+      authEmail: settings.authEmail,
+      apiOriginOverride: settings.apiOriginOverride,
+    },
+  });
 }
 
 export async function loadGenerationPrefs(profile?: UserProfile): Promise<GenerationPreferences> {
