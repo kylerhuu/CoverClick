@@ -1,5 +1,15 @@
 import { apiAuthExchangeWithCode, normalizeApiOrigin } from "./backendApi";
 
+/**
+ * Google sign-in for MV3 extensions using chrome.identity.launchWebAuthFlow.
+ *
+ * The extension never talks to accounts.google.com directly for OAuth parameters.
+ * It opens the CoverClick API `/api/auth/google/start`, which redirects to Google with
+ * redirect_uri = the server’s `/api/auth/google/callback` (never the chromiumapp.org URL).
+ * After Google finishes, the server redirects back to chrome.identity.getRedirectURL()
+ * with `cc_exchange`, which we swap for a CoverClick JWT via POST /api/auth/exchange.
+ */
+
 export function getGoogleAuthStartUrl(apiBaseUrl: string): string {
   const origin = normalizeApiOrigin(apiBaseUrl);
   const chromeRedirect = chrome.identity.getRedirectURL();

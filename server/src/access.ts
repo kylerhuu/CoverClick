@@ -15,7 +15,10 @@ export function subscriptionStatusFromStripe(stripeStatus: string | null | undef
     case "canceled":
     case "unpaid":
     case "incomplete_expired":
+    case "paused":
       return "CANCELED";
+    case "incomplete":
+      return "NONE";
     default:
       return "NONE";
   }

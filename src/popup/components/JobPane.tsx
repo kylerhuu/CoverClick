@@ -97,7 +97,7 @@ export function JobPane({
   return (
     <div
       className={cn(
-        "flex min-h-0 min-w-0 flex-1 flex-col bg-gradient-to-b from-white via-slate-50/40 to-slate-50/90",
+        "flex min-h-0 min-w-0 flex-1 flex-col overflow-x-hidden bg-gradient-to-b from-white via-slate-50/40 to-slate-50/90",
         stackedInSplit ? "border-b border-slate-200/70" : "border-r border-slate-200/70",
       )}
     >
@@ -215,7 +215,7 @@ export function JobPane({
       </div>
 
       <div className="cc-label shrink-0 px-4 pb-1 pt-3 text-indigo-600/90">Job description</div>
-      <div className="relative min-h-0 flex-1">
+      <div className="relative min-h-0 min-w-0 flex-1">
         {busy ? (
           <div className="absolute inset-0 z-10 flex flex-col bg-slate-50/85 p-4 backdrop-blur-[1px]">
             <CognitiveLoader open={busy} variant="compact" headline="Understanding this page" lines={SCRAPE_LINES} />
@@ -248,7 +248,7 @@ export function JobPane({
         {editable ? (
           <textarea
             className={cn(
-              "box-border h-full min-h-[8rem] w-full resize-none overflow-y-auto px-4 py-2 pb-6",
+              "box-border h-full min-h-[8rem] min-w-0 w-full resize-none overflow-y-auto break-words px-4 py-2 pb-6",
               "text-[12px] leading-relaxed text-slate-800",
               "border-0 bg-transparent outline-none focus-visible:bg-white/40",
             )}
@@ -261,7 +261,7 @@ export function JobPane({
         ) : (
           <div
             className={cn(
-              "h-full overflow-y-auto px-4 py-2 pb-6",
+              "h-full min-w-0 overflow-y-auto overflow-x-hidden break-words px-4 py-2 pb-6",
               "text-[12px] leading-relaxed text-slate-700",
               "whitespace-pre-wrap",
             )}

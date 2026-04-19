@@ -10,4 +10,4 @@ export function panelDensityFromWidth(w: number): PanelDensity {
 }
 
 /** Below this width, split uses stacked job/letter so the letter gets full panel width. */
-export const SPLIT_STACK_MAX_WIDTH = 560;
+export const SPLIT_STACK_MAX_WIDTH = 640;

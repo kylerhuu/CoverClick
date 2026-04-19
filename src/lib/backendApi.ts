@@ -1,5 +1,15 @@
 import type { AccountMeResponse, AuthExchangeResponse, UserProfile } from "./types";
 
+/** Thrown on non-2xx API responses so callers can distinguish 401 (clear session) from transient errors. */
+export class ApiHttpError extends Error {
+  readonly status: number;
+  constructor(status: number, message: string) {
+    super(message);
+    this.name = "ApiHttpError";
+    this.status = status;
+  }
+}
+
 /** Normalize saved origin: trim and strip trailing slashes so paths join cleanly. */
 export function normalizeApiOrigin(raw: string): string {
   return raw.trim().replace(/\/+$/, "");
@@ -29,7 +39,7 @@ async function apiFetch(url: string, init?: RequestInit): Promise<Response> {
   }
 }
 
-async function readError(res: Response): Promise<string> {
+export async function readApiErrorBody(res: Response): Promise<string> {
   const text = await res.text().catch(() => "");
   try {
     const j = JSON.parse(text) as { error?: string };
@@ -40,11 +50,16 @@ async function readError(res: Response): Promise<string> {
   return text.trim() || `Request failed (${res.status})`;
 }
 
+async function requireOk(res: Response): Promise<void> {
+  if (res.ok) return;
+  throw new ApiHttpError(res.status, await readApiErrorBody(res));
+}
+
 export async function apiGetMe(apiBaseUrl: string, token: string): Promise<AccountMeResponse> {
   const res = await apiFetch(apiUrl(apiBaseUrl, "/api/me"), {
     headers: { Authorization: `Bearer ${token}` },
   });
-  if (!res.ok) throw new Error(await readError(res));
+  await requireOk(res);
   return res.json() as Promise<AccountMeResponse>;
 }
 
@@ -54,7 +69,7 @@ export async function apiAuthExchangeWithCode(apiBaseUrl: string, code: string):
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ code }),
   });
-  if (!res.ok) throw new Error(await readError(res));
+  await requireOk(res);
   return res.json() as Promise<AuthExchangeResponse>;
 }
 
@@ -64,7 +79,7 @@ export async function apiCreateCheckoutSession(apiBaseUrl: string, token: string
     headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
     body: JSON.stringify({}),
   });
-  if (!res.ok) throw new Error(await readError(res));
+  await requireOk(res);
   return res.json() as Promise<{ url: string }>;
 }
 
@@ -74,7 +89,7 @@ export async function apiCreatePortalSession(apiBaseUrl: string, token: string):
     headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
     body: JSON.stringify({}),
   });
-  if (!res.ok) throw new Error(await readError(res));
+  await requireOk(res);
   return res.json() as Promise<{ url: string }>;
 }
 
@@ -85,7 +100,7 @@ export async function apiGetServerProfile(
   const res = await apiFetch(apiUrl(apiBaseUrl, "/api/me/profile"), {
     headers: { Authorization: `Bearer ${token}` },
   });
-  if (!res.ok) throw new Error(await readError(res));
+  await requireOk(res);
   return res.json() as Promise<{ profile: UserProfile | null }>;
 }
 
@@ -102,7 +117,7 @@ export async function apiPutServerProfile(
     },
     body: JSON.stringify({ profile }),
   });
-  if (!res.ok) throw new Error(await readError(res));
+  await requireOk(res);
 }
 
 export async function apiParseResume(
@@ -117,6 +132,6 @@ export async function apiParseResume(
     headers: { Authorization: `Bearer ${token}` },
     body: fd,
   });
-  if (!res.ok) throw new Error(await readError(res));
+  await requireOk(res);
   return res.json() as Promise<{ profile: UserProfile; warnings?: string[] }>;
 }

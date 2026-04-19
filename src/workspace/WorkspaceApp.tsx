@@ -482,25 +482,23 @@ export function WorkspaceApp() {
         ) : workspaceTab === "letter" ? (
           renderLetterPane()
         ) : stackedSplit ? (
-          <div className="flex min-h-0 flex-1 flex-col">
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-x-hidden">
             <div className="flex min-h-0 max-h-[min(38vh,320px)] shrink-0 flex-col">
               <JobPane {...jobPaneBase} stackedInSplit />
             </div>
             <div className="flex min-h-0 min-w-0 flex-1 flex-col">{renderLetterPane()}</div>
           </div>
         ) : (
-          <div className="flex min-h-0 flex-1 flex-row">
+          <div className="flex min-h-0 min-w-0 flex-1 flex-row overflow-x-hidden">
             <div
               className={cn(
-                "flex min-h-0 shrink-0 flex-col",
-                panelDensity === "wide"
-                  ? "w-[min(34%,380px)] min-w-[240px]"
-                  : "w-[min(38%,320px)] min-w-[200px]",
+                "flex min-h-0 min-w-0 shrink-0 flex-col overflow-x-hidden",
+                panelDensity === "wide" ? "w-[min(34%,380px)]" : "w-[min(38%,320px)]",
               )}
             >
               <JobPane {...jobPaneBase} stackedInSplit={false} />
             </div>
-            <div className="flex min-h-0 min-w-0 flex-1 flex-col">{renderLetterPane()}</div>
+            <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-x-hidden">{renderLetterPane()}</div>
           </div>
         )}
       </div>

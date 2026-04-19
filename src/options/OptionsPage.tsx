@@ -174,13 +174,21 @@ export function OptionsPage() {
     );
   }
 
-  if (gate.phase === "no_api" || gate.phase === "signed_out" || gate.phase === "unpaid") {
+  if (gate.phase === "no_api" || gate.phase === "signed_out" || gate.phase === "unpaid" || gate.phase === "account_error") {
     return (
       <div className="flex min-h-full flex-col bg-[#f4f6f9] text-slate-900">
         <div className="min-h-0 flex-1">
           <AuthWall
             variant="options"
-            mode={gate.phase === "no_api" ? "no_api" : gate.phase === "signed_out" ? "signed_out" : "unpaid"}
+            mode={
+              gate.phase === "no_api"
+                ? "no_api"
+                : gate.phase === "signed_out"
+                  ? "signed_out"
+                  : gate.phase === "account_error"
+                    ? "account_error"
+                    : "unpaid"
+            }
             me={gate.me}
             authBusy={gate.authBusy}
             authError={gate.authError}

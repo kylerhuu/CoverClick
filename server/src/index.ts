@@ -4,10 +4,10 @@ import express from "express";
 import multer from "multer";
 import jwt from "jsonwebtoken";
 import rateLimit from "express-rate-limit";
-import { PrismaClient, type SubscriptionStatus } from "@prisma/client";
-import { OAuth2Client } from "google-auth-library";
+import { Prisma, PrismaClient, type SubscriptionStatus } from "@prisma/client";
+import { CodeChallengeMethod, OAuth2Client } from "google-auth-library";
 import Stripe from "stripe";
-import { randomBytes } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import type { GenerationRequest } from "./contract.js";
 import { extractTextFromResumeBuffer } from "./textExtract.js";
 import { extractProfileFromResumeText } from "./extractProfileWithOpenAI.js";
@@ -23,9 +23,75 @@ const upload = multer({
 
 const PORT = Number(process.env.PORT || 8787);
 const JWT_SECRET = process.env.JWT_SECRET?.trim() || "";
+
+/**
+ * Google redirect URIs must match the Cloud Console entry byte-for-byte. Values copied from
+ * some dashboards arrive percent-encoded once (e.g. https%3A%2F%2F...), which breaks the
+ * token exchange and can surface as a vague OAuth "policy" / invalid_request error.
+ */
+function normalizeGoogleOAuthRedirectUri(raw: string): string {
+  const t = raw.trim();
+  if (!t) return "";
+  if (t.includes("%3A") || t.includes("%3a")) {
+    try {
+      return decodeURIComponent(t).trim();
+    } catch {
+      return t;
+    }
+  }
+  return t;
+}
+
+/**
+ * Final hop after Google → this must be chrome.identity.getRedirectURL() (MV3:
+ * https://<extension-id>.chromiumapp.org/... ). Never register this on Google's OAuth client
+ * for this architecture — Google only redirects to GOOGLE_REDIRECT_URI (this API's /callback).
+ */
+function isValidChromeIdentityRedirectUrl(u: URL): boolean {
+  if (u.protocol !== "https:") return false;
+  if (u.username || u.password) return false;
+  if (u.hash) return false;
+  // Extension IDs use 32 chars from [a-p] (not full hex).
+  return /^[a-p]{32}\.chromiumapp\.org$/i.test(u.hostname);
+}
+
+function parseValidatedChromeRedirect(raw: string): string {
+  const trimmed = raw.trim();
+  let u: URL;
+  try {
+    u = new URL(trimmed);
+  } catch {
+    throw new Error("Invalid chrome_redirect URL.");
+  }
+  if (!isValidChromeIdentityRedirectUrl(u)) {
+    throw new Error("Invalid chrome_redirect (expected https://<extension-id>.chromiumapp.org/...).");
+  }
+  return u.toString();
+}
+
+/** RFC 7636 PKCE code_verifier (43–128 chars). */
+function randomPkceVerifier(): string {
+  const v = randomBytes(32)
+    .toString("base64")
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=/g, "");
+  if (v.length < 43 || v.length > 128) throw new Error("PKCE verifier length out of range.");
+  return v;
+}
+
+function pkceS256ChallengeFromVerifier(verifier: string): string {
+  return createHash("sha256")
+    .update(verifier)
+    .digest("base64")
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=/g, "");
+}
+
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID?.trim() || "";
 const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET?.trim() || "";
-const GOOGLE_REDIRECT_URI = process.env.GOOGLE_REDIRECT_URI?.trim() || "";
+const GOOGLE_REDIRECT_URI = normalizeGoogleOAuthRedirectUri(process.env.GOOGLE_REDIRECT_URI?.trim() || "");
 const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY?.trim() || "";
 const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET?.trim() || "";
 const STRIPE_PRICE_ID = process.env.STRIPE_PRICE_ID?.trim() || "";
@@ -42,6 +108,29 @@ const allowedExtraOrigins =
   process.env.ALLOWED_ORIGINS?.split(",")
     .map((s) => s.trim())
     .filter(Boolean) ?? [];
+
+/** When true, avoid returning raw exception text to API clients (Stripe/OpenAI messages, paths, etc.). */
+const IS_PRODUCTION =
+  process.env.NODE_ENV === "production" || Boolean(process.env.RAILWAY_ENVIRONMENT?.trim());
+
+function publicApiError(err: unknown): string {
+  return IS_PRODUCTION ? "Something went wrong. Please try again." : err instanceof Error ? err.message : "Something went wrong.";
+}
+
+/**
+ * Optional comma-separated Chrome extension IDs (32-char id only, no `chrome-extension://` prefix).
+ * In production, set this so other extensions cannot call your API with a stolen JWT (CORS + browser).
+ */
+const allowedChromeExtensionOrigins: string[] | null = (() => {
+  const raw = process.env.CHROME_EXTENSION_IDS?.trim();
+  if (!raw) return null;
+  const ids = raw
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  if (!ids.length) return null;
+  return ids.map((id) => `chrome-extension://${id}`);
+})();
 
 const app = express();
 
@@ -68,16 +157,23 @@ app.post(
     try {
       event = stripe.webhooks.constructEvent(req.body as Buffer, sig, STRIPE_WEBHOOK_SECRET);
     } catch (e) {
-      const msg = e instanceof Error ? e.message : "Invalid signature";
-      res.status(400).send(msg);
+      res.status(400).send(IS_PRODUCTION ? "Invalid webhook signature." : e instanceof Error ? e.message : "Invalid signature");
       return;
     }
 
     try {
+      const already = await prisma.processedStripeEvent.findUnique({ where: { eventId: event.id } });
+      if (already) {
+        res.json({ received: true });
+        return;
+      }
+
       switch (event.type) {
         case "checkout.session.completed": {
           const session = event.data.object as Stripe.Checkout.Session;
           if (session.mode !== "subscription" || !session.subscription) break;
+          // Do not activate on abandoned/failed first payment; other statuses depend on Stripe product mode.
+          if (session.payment_status === "unpaid") break;
           const customerId = typeof session.customer === "string" ? session.customer : session.customer?.id;
           if (!customerId) break;
           const user = await prisma.user.findFirst({ where: { stripeCustomerId: customerId } });
@@ -124,6 +220,16 @@ app.post(
         default:
           break;
       }
+
+      try {
+        await prisma.processedStripeEvent.create({ data: { eventId: event.id } });
+      } catch (e) {
+        if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
+          res.json({ received: true });
+          return;
+        }
+        throw e;
+      }
     } catch (e) {
       console.error("[stripe webhook]", e);
       res.status(500).json({ error: "Webhook handler failed" });
@@ -146,6 +252,10 @@ app.use(
         return;
       }
       if (origin.startsWith("chrome-extension://")) {
+        if (allowedChromeExtensionOrigins?.length) {
+          callback(null, allowedChromeExtensionOrigins.includes(origin));
+          return;
+        }
         callback(null, true);
         return;
       }
@@ -205,7 +315,7 @@ function authMiddleware(req: express.Request, res: express.Response, next: expre
     return;
   }
   try {
-    const payload = jwt.verify(token, secret) as jwt.JwtPayload;
+    const payload = jwt.verify(token, secret, { algorithms: ["HS256"] }) as jwt.JwtPayload;
     const sub = typeof payload.sub === "string" ? payload.sub : "";
     if (!sub) {
       res.status(401).json({ error: "Invalid token." });
@@ -228,13 +338,9 @@ async function requirePaidMiddleware(req: express.Request, res: express.Response
   next();
 }
 
+/** Public probe — keep payload minimal (no integration fingerprints). */
 app.get("/api/health", (_req, res) => {
-  res.json({
-    ok: true,
-    hasOpenAI: Boolean(process.env.OPENAI_API_KEY?.trim()),
-    hasGoogleOAuth: Boolean(oauth2Client),
-    hasStripe: Boolean(stripe && STRIPE_PRICE_ID),
-  });
+  res.json({ ok: true });
 });
 
 /** After Google OAuth, Stripe redirects here — user closes tab and returns to the extension. */
@@ -251,38 +357,69 @@ app.get("/billing/return", (req, res) => {
     );
 });
 
+/**
+ * Chrome extension OAuth entrypoint (used with chrome.identity.launchWebAuthFlow).
+ *
+ * Flow:
+ * 1) Extension opens this URL with ?chrome_redirect=<chrome.identity.getRedirectURL()>.
+ * 2) We validate chrome_redirect (must be https://<id>.chromiumapp.org — never sent to Google).
+ * 3) We stash chrome_redirect + a PKCE verifier inside a short-lived signed JWT (`state`).
+ * 4) We redirect the user to Google with redirect_uri = GOOGLE_REDIRECT_URI only (backend /callback).
+ */
 app.get("/api/auth/google/start", authIpLimiter, (req, res) => {
   const secret = jwtSecretOr503(res);
   if (!secret) return;
-  if (!oauth2Client || !GOOGLE_CLIENT_ID) {
+  if (!oauth2Client || !GOOGLE_CLIENT_ID || !GOOGLE_REDIRECT_URI) {
     res.status(503).send("Google OAuth is not configured (GOOGLE_CLIENT_ID / SECRET / REDIRECT_URI).");
     return;
   }
-  const chromeRedirect = typeof req.query.chrome_redirect === "string" ? req.query.chrome_redirect.trim() : "";
-  if (!chromeRedirect.startsWith("https://") || !chromeRedirect.includes(".chromiumapp.org")) {
-    res.status(400).send("Invalid chrome_redirect (must be https://…chromiumapp.org… from chrome.identity.getRedirectURL).");
+  const chromeRedirectRaw = typeof req.query.chrome_redirect === "string" ? req.query.chrome_redirect.trim() : "";
+  let chromeRedirect: string;
+  try {
+    chromeRedirect = parseValidatedChromeRedirect(chromeRedirectRaw);
+  } catch {
+    res
+      .status(400)
+      .send("Invalid chrome_redirect (must be https://<extension-id>.chromiumapp.org/... from chrome.identity.getRedirectURL).");
     return;
   }
-  const state = jwt.sign({ typ: "g", cr: chromeRedirect }, secret, { expiresIn: "10m" });
+  const codeVerifier = randomPkceVerifier();
+  const codeChallenge = pkceS256ChallengeFromVerifier(codeVerifier);
+  const state = jwt.sign(
+    { typ: "g", cr: chromeRedirect, pv: codeVerifier },
+    secret,
+    { expiresIn: "10m", jwtid: randomBytes(16).toString("hex") },
+  );
   const url = oauth2Client.generateAuthUrl({
     access_type: "offline",
     scope: ["openid", "email", "profile"],
     prompt: "select_account",
     state,
+    redirect_uri: GOOGLE_REDIRECT_URI,
+    code_challenge_method: CodeChallengeMethod.S256,
+    code_challenge: codeChallenge,
   });
   res.redirect(302, url);
 });
 
+/**
+ * Google redirects here only (authorized redirect URI in Cloud Console = GOOGLE_REDIRECT_URI).
+ * We verify `state`, exchange the auth `code` at Google (with PKCE verifier + same redirect_uri),
+ * mint a CoverClick user, then redirect the browser to the extension chromiumapp.org URL with
+ * ?cc_exchange=<one-time server code> for the extension to POST /api/auth/exchange.
+ */
 app.get("/api/auth/google/callback", authIpLimiter, async (req, res) => {
   const err = typeof req.query.error === "string" ? req.query.error : "";
   const secret = jwtSecretOr503(res);
   if (!secret) return;
   let chromeRedirect = "";
+  let codeVerifier: string | undefined;
   try {
     const stateRaw = typeof req.query.state === "string" ? req.query.state : "";
-    const payload = jwt.verify(stateRaw, secret) as jwt.JwtPayload;
-    if (payload.typ !== "g" || typeof payload.cr !== "string") throw new Error("bad state");
-    chromeRedirect = payload.cr;
+    const payload = jwt.verify(stateRaw, secret, { algorithms: ["HS256"] }) as jwt.JwtPayload;
+    if (payload.typ !== "g" || typeof payload.cr !== "string" || typeof payload.pv !== "string") throw new Error("bad state");
+    chromeRedirect = parseValidatedChromeRedirect(payload.cr);
+    codeVerifier = payload.pv;
   } catch {
     res.status(400).send("Invalid OAuth state.");
     return;
@@ -298,7 +435,11 @@ app.get("/api/auth/google/callback", authIpLimiter, async (req, res) => {
     return;
   }
   try {
-    const { tokens } = await oauth2Client.getToken(code);
+    const { tokens } = await oauth2Client.getToken({
+      code,
+      codeVerifier,
+      redirect_uri: GOOGLE_REDIRECT_URI,
+    });
     let sub: string | undefined;
     let email: string | undefined;
     if (tokens.id_token) {
@@ -411,7 +552,7 @@ app.get("/api/me", authMiddleware, async (req, res) => {
       subscriptionPeriodEnd: user.subscriptionPeriodEnd?.toISOString() ?? null,
     });
   } catch (e) {
-    res.status(500).json({ error: e instanceof Error ? e.message : "Failed." });
+    res.status(500).json({ error: publicApiError(e) });
   }
 });
 
@@ -438,12 +579,12 @@ app.post("/api/billing/checkout-session", authMiddleware, async (req, res) => {
       allow_promotion_codes: true,
     });
     if (!session.url) {
-      res.status(500).json({ error: "No checkout URL." });
+      res.status(500).json({ error: publicApiError(new Error("No checkout URL.")) });
       return;
     }
     res.json({ url: session.url });
   } catch (e) {
-    res.status(500).json({ error: e instanceof Error ? e.message : "Checkout failed" });
+    res.status(500).json({ error: publicApiError(e) });
   }
 });
 
@@ -466,7 +607,7 @@ app.post("/api/billing/portal-session", authMiddleware, async (req, res) => {
     });
     res.json({ url: portal.url });
   } catch (e) {
-    res.status(500).json({ error: e instanceof Error ? e.message : "Portal failed" });
+    res.status(500).json({ error: publicApiError(e) });
   }
 });
 
@@ -480,7 +621,7 @@ app.get("/api/me/profile", authMiddleware, requirePaidMiddleware, async (req, re
     }
     res.json({ profile: row.data });
   } catch (e) {
-    res.status(500).json({ error: e instanceof Error ? e.message : "Failed to load profile." });
+    res.status(500).json({ error: publicApiError(e) });
   }
 });
 
@@ -499,7 +640,7 @@ app.put("/api/me/profile", authMiddleware, requirePaidMiddleware, async (req, re
     });
     res.json({ ok: true });
   } catch (e) {
-    res.status(500).json({ error: e instanceof Error ? e.message : "Failed to save profile." });
+    res.status(500).json({ error: publicApiError(e) });
   }
 });
 
@@ -521,7 +662,7 @@ app.post("/api/me/parse-resume", authMiddleware, requirePaidMiddleware, authedAi
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Parse failed";
     const code = msg.includes("OPENAI_API_KEY") ? 503 : 400;
-    res.status(code).json({ error: msg });
+    res.status(code).json({ error: code === 503 || !IS_PRODUCTION ? msg : publicApiError(e) });
   }
 });
 
@@ -547,7 +688,7 @@ app.post("/api/clean-job-description", authMiddleware, requirePaidMiddleware, au
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Clean failed";
     const status = msg.includes("OPENAI_API_KEY") ? 503 : 500;
-    res.status(status).json({ error: msg });
+    res.status(status).json({ error: status === 503 || !IS_PRODUCTION ? msg : publicApiError(e) });
   }
 });
 
@@ -563,7 +704,7 @@ app.post("/api/generate-cover-letter", authMiddleware, requirePaidMiddleware, au
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Generation failed";
     const status = msg.includes("OPENAI_API_KEY") ? 503 : 500;
-    res.status(status).json({ error: msg });
+    res.status(status).json({ error: status === 503 || !IS_PRODUCTION ? msg : publicApiError(e) });
   }
 });
 
@@ -577,8 +718,27 @@ app.listen(PORT, () => {
   }
   if (!oauth2Client) {
     console.warn("[warn] Google OAuth not configured — set GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REDIRECT_URI.");
+  } else {
+    try {
+      const u = new URL(GOOGLE_REDIRECT_URI);
+      if (!u.pathname.endsWith("/api/auth/google/callback")) {
+        console.warn(
+          `[warn] GOOGLE_REDIRECT_URI should end with /api/auth/google/callback (currently ${u.pathname}). Must match Google Cloud Console exactly.`,
+        );
+      }
+      if (u.protocol === "http:" && !/^localhost$|^127\.0\.0\.1$/i.test(u.hostname)) {
+        console.warn("[warn] GOOGLE_REDIRECT_URI uses http on a non-loopback host — Google requires https for public deployments.");
+      }
+    } catch {
+      console.warn("[warn] GOOGLE_REDIRECT_URI is not a valid absolute URL.");
+    }
   }
   if (!stripe || !STRIPE_PRICE_ID) {
     console.warn("[warn] Stripe checkout not fully configured — set STRIPE_SECRET_KEY and STRIPE_PRICE_ID.");
+  }
+  if (IS_PRODUCTION && !allowedChromeExtensionOrigins?.length) {
+    console.warn(
+      "[warn] CHROME_EXTENSION_IDS is unset — CORS allows any chrome-extension:// origin. Set CHROME_EXTENSION_IDS to your published extension id for tighter production access.",
+    );
   }
 });

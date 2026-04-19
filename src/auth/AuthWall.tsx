@@ -4,7 +4,7 @@ import { ccBtnPrimary, ccBtnSecondary, ccFocusRing } from "../ui/ccUi";
 
 type Props = {
   variant: "sidepanel" | "options";
-  mode: "signed_out" | "unpaid" | "no_api";
+  mode: "signed_out" | "unpaid" | "no_api" | "account_error";
   me: AccountMeResponse | null;
   authBusy: boolean;
   authError: string | null;
@@ -97,6 +97,48 @@ export function AuthWall({
             {authBusy ? <span className="cc-spinner h-4 w-4 shrink-0 border-2" aria-hidden /> : null}
             Continue with Google
           </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (mode === "account_error") {
+    return (
+      <div className={shell(compact)}>
+        <div className={panel(compact)}>
+          {topAccent}
+          <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-sky-800/90">Connection</p>
+          <h1 className="mt-1.5 text-[17px] font-bold tracking-tight text-slate-900">Can’t verify your session</h1>
+          <p className="mt-2 text-[13px] leading-relaxed text-slate-600">
+            You’re still signed in, but CoverClick couldn’t reach the server or load your account. Check your network,
+            confirm the API is up, then try again.
+          </p>
+          {authError ? (
+            <p
+              className="mt-4 rounded-lg border border-amber-200/90 bg-amber-50 px-3 py-2 text-left text-[12px] text-amber-950"
+              role="status"
+            >
+              {authError}
+            </p>
+          ) : null}
+          <div className="mt-6 flex flex-col gap-2">
+            <button
+              type="button"
+              disabled={authBusy}
+              onClick={() => onRefreshAccess()}
+              className={cn(ccBtnPrimary, "w-full py-2.5")}
+            >
+              {authBusy ? <span className="cc-spinner h-4 w-4 shrink-0 border-2 border-white/40 border-t-white" aria-hidden /> : null}
+              Try again
+            </button>
+            <button
+              type="button"
+              onClick={() => onSignOut()}
+              className={cn(ccBtnSecondary, "w-full py-2.5")}
+            >
+              Sign out
+            </button>
+          </div>
         </div>
       </div>
     );

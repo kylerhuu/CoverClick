@@ -51,3 +51,11 @@ model AuthExchange {
 
   @@index([expiresAt])
 }
+
+/// Processed Stripe webhook event ids — duplicates are acknowledged without re-running handlers.
+model ProcessedStripeEvent {
+  eventId    String   @id @map("event_id")
+  receivedAt DateTime @default(now()) @map("received_at")
+
+  @@map("processed_stripe_event")
+}

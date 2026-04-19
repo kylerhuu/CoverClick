@@ -31,11 +31,13 @@ export function SidePanelRoot() {
     );
   }
 
-  if (gate.phase === "signed_out" || gate.phase === "unpaid") {
+  if (gate.phase === "signed_out" || gate.phase === "unpaid" || gate.phase === "account_error") {
     return (
       <AuthWall
         variant="sidepanel"
-        mode={gate.phase === "signed_out" ? "signed_out" : "unpaid"}
+        mode={
+          gate.phase === "signed_out" ? "signed_out" : gate.phase === "account_error" ? "account_error" : "unpaid"
+        }
         me={gate.me}
         authBusy={gate.authBusy}
         authError={gate.authError}

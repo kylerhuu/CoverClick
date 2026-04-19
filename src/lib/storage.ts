@@ -183,3 +183,8 @@ export async function loadCachedLetter(): Promise<CachedLetter | null> {
 export async function saveCachedLetter(cache: CachedLetter): Promise<void> {
   await chrome.storage.local.set({ [LETTER_CACHE_KEY]: cache });
 }
+
+/** Clears the last generated letter cache (call on sign-out to avoid showing another account’s letter). */
+export async function clearCachedLetter(): Promise<void> {
+  await chrome.storage.local.remove(LETTER_CACHE_KEY);
+}

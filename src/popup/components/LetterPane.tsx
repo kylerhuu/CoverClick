@@ -277,10 +277,14 @@ export function LetterPane({
         </p>
       </div>
 
-      <div className="relative min-h-0 flex-1 overflow-y-auto bg-gradient-to-b from-slate-200/30 via-slate-50/80 to-slate-200/25">
+      <div className="relative min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-auto bg-gradient-to-b from-slate-200/30 via-slate-50/80 to-slate-200/25">
         <CognitiveLoader open={genBusy} headline="Drafting your cover letter" lines={GEN_LINES} />
         {mode === "preview" ? (
-          <div className="flex justify-center px-3 py-10 sm:px-6">
+          /*
+           * US Letter is 8.5in wide — wider than a split side panel. Horizontal scroll + start alignment keeps
+           * the sender block (top-left of the page) in view; centering would clip the left margin and address.
+           */
+          <div className="flex justify-start px-3 py-10 sm:px-6">
             <div className="letter-doc-preview-mount shadow-[0_12px_40px_rgba(15,23,42,0.1)] ring-1 ring-slate-300/50">
               <LetterDocument variant="preview" letter={letter} />
             </div>

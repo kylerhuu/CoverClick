@@ -1,10 +1,18 @@
 import { useCallback, useEffect, useState } from "react";
 import type { AccountMeResponse } from "../lib/types";
-import { apiCreateCheckoutSession, apiCreatePortalSession, apiGetMe } from "../lib/backendApi";
+import { ApiHttpError, apiCreateCheckoutSession, apiCreatePortalSession, apiGetMe } from "../lib/backendApi";
 import { signInWithGoogleChrome } from "../lib/googleChromeAuth";
-import { loadSettings, saveSettings } from "../lib/storage";
+import { STORAGE_KEYS, clearCachedLetter, loadSettings, saveSettings } from "../lib/storage";
 
-export type AccessPhase = "loading" | "no_api" | "mock" | "signed_out" | "unpaid" | "paid";
+export type AccessPhase =
+  | "loading"
+  | "no_api"
+  | "mock"
+  | "signed_out"
+  | "unpaid"
+  | "paid"
+  /** Valid token in storage but /api/me failed (network/5xx) — do not clear the session. */
+  | "account_error";
 
 export function useAccessGate() {
   const [phase, setPhase] = useState<AccessPhase>("loading");
@@ -34,16 +42,37 @@ export function useAccessGate() {
       const m = await apiGetMe(s.apiBaseUrl, s.authToken);
       setMe(m);
       setPhase(m.hasPaidAccess ? "paid" : "unpaid");
-    } catch {
-      const cur = await loadSettings();
-      await saveSettings({ ...cur, authToken: undefined, authEmail: undefined });
-      setPhase("signed_out");
+    } catch (e) {
+      if (e instanceof ApiHttpError && (e.status === 401 || e.status === 404)) {
+        const cur = await loadSettings();
+        await clearCachedLetter();
+        await saveSettings({ ...cur, authToken: undefined, authEmail: undefined });
+        setAuthError(
+          e.status === 404 ? "Your account is no longer available. Please sign in again." : "Session expired. Please sign in again.",
+        );
+        setPhase("signed_out");
+        setMe(null);
+        return;
+      }
+      const msg = e instanceof Error ? e.message : "Could not verify your account.";
       setMe(null);
+      setAuthError(msg);
+      setPhase("account_error");
     }
   }, []);
 
   useEffect(() => {
     void refresh();
+  }, [refresh]);
+
+  useEffect(() => {
+    const onStorage = (changes: Record<string, chrome.storage.StorageChange>, area: string) => {
+      if (area !== "local") return;
+      if (!changes[STORAGE_KEYS.settings]) return;
+      void refresh();
+    };
+    chrome.storage.onChanged.addListener(onStorage);
+    return () => chrome.storage.onChanged.removeListener(onStorage);
   }, [refresh]);
 
   const signInWithGoogle = useCallback(async () => {
@@ -72,8 +101,10 @@ export function useAccessGate() {
 
   const signOut = useCallback(async () => {
     const s = await loadSettings();
+    await clearCachedLetter();
     await saveSettings({ ...s, authToken: undefined, authEmail: undefined });
     setMe(null);
+    setAuthError(null);
     setPhase(s.useMock ? "mock" : "signed_out");
   }, []);
 
