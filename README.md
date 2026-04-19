@@ -219,3 +219,7 @@ Tighten `host_permissions` in `manifest.json` once you know your API origin.
 ```bash
 npm run typecheck
 ```
+
+## Deploy (production)
+
+See **[DEPLOY.md](./DEPLOY.md)** for API hosting (Docker, env vars, Postgres migrations), Stripe and Google OAuth in production, and building or publishing the Chrome extension (`VITE_COVERCLICK_API_ORIGIN`, `store:zip`, Web Store checklist).

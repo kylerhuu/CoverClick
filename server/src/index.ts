@@ -45,6 +45,11 @@ const allowedExtraOrigins =
 
 const app = express();
 
+/** Behind Fly.io / Railway / Render / nginx, set TRUST_PROXY=1 so rate limits and logs see the real client IP. */
+if (process.env.TRUST_PROXY === "1") {
+  app.set("trust proxy", 1);
+}
+
 /** Stripe webhook must receive raw body for signature verification. */
 app.post(
   "/api/stripe/webhook",

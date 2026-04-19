@@ -1,0 +1,10 @@
+# Railway (service root = `server/`)
+# If Railway auto-detects `Dockerfile`, image CMD runs `npm run start:deploy` (migrate + node).
+# If you use Railpack/Nixpacks instead, set Start Command in the dashboard to: npm run start:deploy
+# https://docs.railway.com/config-as-code
+
+[deploy]
+healthcheckPath = "/api/health"
+healthcheckTimeout = 120
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 3
