@@ -19,9 +19,23 @@ import { EXTENSION_BUILD_ID } from "virtual:coverclick-build";
 
 const AUTOSAVE_MS = 700;
 
+/** Published Google Doc — linked from Options for users and store review. */
+const COVERCLICK_PRIVACY_POLICY_URL =
+  "https://docs.google.com/document/d/e/2PACX-1vR9MqoEtybZBmumYWfHCn4Jy70AlZOi6O8KUSHn6Tfpre-d5FEunSK4BdCqx04U8OKounmZHDwtY72C/pub";
+
 function OptionsBuildFootnote() {
   return (
     <footer className="mx-auto max-w-5xl border-t border-slate-200/80 px-4 py-4 text-center text-[10px] leading-relaxed text-slate-400 sm:px-5">
+      <p className="mb-3">
+        <a
+          href={COVERCLICK_PRIVACY_POLICY_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-[11px] font-semibold text-indigo-600 underline decoration-indigo-300/60 underline-offset-2 hover:text-indigo-800"
+        >
+          Privacy policy
+        </a>
+      </p>
       <span className="font-mono text-[10px] text-slate-500" title="Changes after this time require rebuild + reload">
         Build {EXTENSION_BUILD_ID}
       </span>
