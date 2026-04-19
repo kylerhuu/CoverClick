@@ -441,21 +441,21 @@ export function WorkspaceApp() {
   );
 
   return (
-    <div className={cn("flex h-screen min-h-[360px] w-full min-w-0 flex-col overflow-hidden bg-slate-100 text-slate-900 antialiased")}>
+    <div className={cn("flex h-screen min-h-[360px] w-full min-w-0 flex-col overflow-hidden bg-[#f0f2f6] text-slate-900 antialiased")}>
       <header
         className={cn(
           "flex shrink-0 items-center justify-between gap-3 border-b border-white/10 px-3 py-2",
-          "bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white shadow-sm",
+          "bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white shadow-[0_4px_20px_rgba(15,23,42,0.28)]",
         )}
       >
         <div className="flex min-w-0 items-center gap-2.5">
-          <WorkspaceBrandMark className="h-8 w-8 shrink-0 rounded-lg shadow-md shadow-indigo-900/35" />
+          <WorkspaceBrandMark className="h-8 w-8 shrink-0 rounded-xl shadow-lg shadow-indigo-950/40" />
           <div className="min-w-0">
             <h1 className="text-[14px] font-bold tracking-tight">CoverClick</h1>
-            <p className="truncate text-[10px] font-medium text-indigo-100/85">Job-aware letters · side panel</p>
+            <p className="truncate text-[10px] font-medium text-indigo-100/80">From this tab · edit & export</p>
           </div>
         </div>
-        <span className="hidden shrink-0 rounded-md border border-white/10 bg-white/5 px-2 py-1 text-[9px] font-semibold uppercase tracking-wide text-indigo-200/90 sm:inline">
+        <span className="hidden shrink-0 rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-indigo-100/90 sm:inline">
           Beta
         </span>
       </header>

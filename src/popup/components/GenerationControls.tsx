@@ -51,7 +51,7 @@ const selectClass = cn(
 
 export function GenerationControls({ tone, emphasis, length, responseShape, onChange }: Props) {
   return (
-    <section className="border-b border-slate-200/70 bg-gradient-to-b from-white to-slate-50/80 px-4 py-3">
+    <section className="border-b border-slate-200/70 bg-gradient-to-b from-white to-slate-50/80 px-3 py-2.5 sm:px-4">
       <div className="mb-2 flex items-center justify-between gap-2">
         <span className="cc-label text-indigo-600/90">Draft settings</span>
         <span className="text-[9px] font-medium uppercase tracking-wider text-slate-400">Model</span>

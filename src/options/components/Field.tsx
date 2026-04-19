@@ -12,7 +12,7 @@ export function Field({ label, hint, children, className }: FieldProps) {
   return (
     <div className={cn("space-y-1.5 text-left", className)}>
       <div>
-        <div className="text-[12px] font-medium text-slate-800">{label}</div>
+        <div className="text-[11px] font-semibold tracking-wide text-slate-700">{label}</div>
         {hint ? <p className="mt-0.5 text-[11px] leading-snug text-slate-500">{hint}</p> : null}
       </div>
       {children}

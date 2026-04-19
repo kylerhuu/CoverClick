@@ -89,8 +89,8 @@ export function JobPane({
   }
 
   const inputCls = cn(
-    "min-w-0 rounded-md border border-slate-200/90 bg-white px-2 py-1.5 text-[12px] font-medium text-slate-900 shadow-sm",
-    "outline-none focus:border-indigo-300 focus:ring-2 focus:ring-indigo-500/15",
+    "min-w-0 rounded-lg border border-slate-200/90 bg-white px-2.5 py-1.5 text-[12px] font-medium text-slate-900 shadow-sm",
+    "outline-none transition focus:border-indigo-300 focus:ring-2 focus:ring-indigo-500/15",
     !editable && "cursor-default bg-slate-50/80 text-slate-700",
   );
 
@@ -101,7 +101,7 @@ export function JobPane({
         stackedInSplit ? "border-b border-slate-200/70" : "border-r border-slate-200/70",
       )}
     >
-      <div className="flex shrink-0 items-center justify-between gap-3 border-b border-slate-200/80 bg-white/90 px-4 py-3 backdrop-blur-sm">
+      <div className="flex shrink-0 items-center justify-between gap-3 border-b border-slate-200/80 bg-white/90 px-3 py-2.5 backdrop-blur-sm sm:px-4">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             <span className="inline-flex h-2 w-2 rounded-full bg-emerald-500 shadow-[0_0_0_3px_rgba(16,185,129,0.25)]" />

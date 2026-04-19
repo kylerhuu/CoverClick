@@ -9,6 +9,7 @@ import type {
   UserProfile,
 } from "../../lib/types";
 import { cn } from "../../lib/classNames";
+import { ccBtnPrimary, ccBtnSecondary, ccFocusRing, ccSegmentTab, ccSegmentTrack } from "../../ui/ccUi";
 import {
   canonicalPlainFromStructured,
   structuredFromCanonicalPlain,
@@ -53,24 +54,6 @@ type Props = {
   /** Bump when the letter should reload from structured (new job scrape or new generation). */
   docEditEpoch: number;
 };
-
-const btnPrimary = cn(
-  "inline-flex items-center justify-center rounded-lg px-3 py-1.5 text-[11px] font-semibold text-white shadow-md",
-  "bg-gradient-to-r from-indigo-600 to-sky-600 hover:from-indigo-500 hover:to-sky-500",
-  "disabled:pointer-events-none disabled:opacity-40",
-);
-
-const btnSecondary = cn(
-  "inline-flex items-center justify-center rounded-lg border border-slate-200/90 bg-white px-3 py-1.5 text-[11px] font-semibold text-slate-800 shadow-sm",
-  "hover:border-indigo-200 hover:bg-indigo-50/40 hover:text-indigo-950",
-  "disabled:pointer-events-none disabled:opacity-40",
-);
-
-const seg = (active: boolean) =>
-  cn(
-    "rounded-md px-2.5 py-1.5 text-[11px] font-semibold transition",
-    active ? "bg-white text-slate-900 shadow-sm ring-1 ring-slate-200/80" : "text-slate-500 hover:text-slate-800",
-  );
 
 const FALLBACK_JOB: JobContext = {
   jobTitle: "",
@@ -179,14 +162,29 @@ export function LetterPane({
       />
 
       <div className="shrink-0 border-b border-slate-200/70 bg-white/80">
-        <div className="flex flex-wrap items-center gap-2 px-4 py-3">
-          <button type="button" className={btnPrimary} onClick={onGenerate} disabled={genBusy || pdfBusy || !job}>
+        <div className="flex flex-wrap items-center gap-2 px-3 py-2.5 sm:px-4">
+          <button
+            type="button"
+            className={cn(ccBtnPrimary, "px-3 py-1.5 text-[11px]")}
+            onClick={onGenerate}
+            disabled={genBusy || pdfBusy || !job}
+          >
             {genBusy ? "Drafting…" : "Generate"}
           </button>
-          <button type="button" className={btnSecondary} onClick={onRegenerate} disabled={genBusy || pdfBusy || !job}>
+          <button
+            type="button"
+            className={cn(ccBtnSecondary, "px-3 py-1.5 text-[11px]")}
+            onClick={onRegenerate}
+            disabled={genBusy || pdfBusy || !job}
+          >
             Regenerate
           </button>
-          <button type="button" className={btnSecondary} onClick={onCopy} disabled={!hasLetter || genBusy || pdfBusy}>
+          <button
+            type="button"
+            className={cn(ccBtnSecondary, "px-3 py-1.5 text-[11px]")}
+            onClick={onCopy}
+            disabled={!hasLetter || genBusy || pdfBusy}
+          >
             Copy
           </button>
           <div className="relative" ref={exportMenuRef}>
@@ -196,9 +194,10 @@ export function LetterPane({
               aria-expanded={exportMenuOpen}
               aria-haspopup="menu"
               className={cn(
-                "inline-flex h-[31px] w-[31px] shrink-0 items-center justify-center rounded-lg border border-slate-200/90 bg-white text-slate-700 shadow-sm",
+                "inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-slate-200/90 bg-white text-slate-700 shadow-sm",
                 "hover:border-indigo-200 hover:bg-indigo-50/40 hover:text-indigo-950",
                 "disabled:pointer-events-none disabled:opacity-40",
+                ccFocusRing,
               )}
               disabled={!hasLetter || genBusy || pdfBusy}
               onClick={() => setExportMenuOpen((o) => !o)}
@@ -252,21 +251,29 @@ export function LetterPane({
         ) : null}
       </div>
 
-      <div className="flex shrink-0 items-center justify-between gap-2 border-b border-slate-200/60 bg-white/90 px-4 py-2">
-        <div
-          className="inline-flex rounded-lg border border-slate-200/90 bg-slate-100/90 p-0.5 shadow-inner"
-          role="tablist"
-          aria-label="Letter view"
-        >
-          <button type="button" role="tab" aria-selected={mode === "preview"} className={seg(mode === "preview")} onClick={() => setLetterMode("preview")}>
+      <div className="flex shrink-0 items-center justify-between gap-2 border-b border-slate-200/60 bg-white/90 px-3 py-1.5 sm:px-4">
+        <div className={cn(ccSegmentTrack)} role="tablist" aria-label="Letter view">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={mode === "preview"}
+            className={cn("px-2.5 py-1.5 text-[11px]", ccSegmentTab(mode === "preview"), ccFocusRing)}
+            onClick={() => setLetterMode("preview")}
+          >
             Preview
           </button>
-          <button type="button" role="tab" aria-selected={mode === "edit"} className={seg(mode === "edit")} onClick={() => setLetterMode("edit")}>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={mode === "edit"}
+            className={cn("px-2.5 py-1.5 text-[11px]", ccSegmentTab(mode === "edit"), ccFocusRing)}
+            onClick={() => setLetterMode("edit")}
+          >
             Edit
           </button>
         </div>
         <p className="hidden max-w-[200px] text-right text-[10px] leading-snug text-slate-400 sm:block">
-          {mode === "edit" ? "One document · edits sync to PDF/DOCX" : "Print-style layout"}
+          {mode === "edit" ? "Plain text · syncs to exports" : "Print-style layout"}
         </p>
       </div>
 

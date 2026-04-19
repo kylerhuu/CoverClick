@@ -7,7 +7,7 @@ export function SidePanelRoot() {
 
   if (gate.phase === "loading") {
     return (
-      <div className="flex min-h-[200px] flex-1 flex-col items-center justify-center gap-3 bg-slate-100 text-slate-600">
+      <div className="flex min-h-[200px] flex-1 flex-col items-center justify-center gap-3 bg-[#f4f6f9] text-slate-600">
         <span className="cc-spinner h-8 w-8 border-[3px]" aria-hidden />
         <p className="text-[12px] font-medium">Loading…</p>
       </div>

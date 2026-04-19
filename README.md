@@ -18,12 +18,15 @@ npm install
 cp .env.example .env
 ```
 
-Edit `server/.env`:
+Edit `server/.env` (copy from `server/.env.example` if you do not already have a local file):
 
-- `OPENAI_API_KEY` — required for live generation and resume parsing.
-- `JWT_SECRET` — long random string; required for register/login and `/api/me/*`.
-- `DATABASE_URL` — **PostgreSQL** connection string (see `server/.env.example`).
+- `DATABASE_URL` — **PostgreSQL** connection string (create the DB first, e.g. `createdb coverclick`).
+- `OPENAI_API_KEY` — required for AI routes.
+- `JWT_SECRET` — long random string for signing sessions.
+- `PUBLIC_API_URL`, `GOOGLE_*`, `STRIPE_*` — see `server/.env.example` and the **Auth, billing** section below.
 - `PORT` — default `8787`.
+
+For the **extension** to hit the same machine, copy the repo root `.env.example` to **`.env`** and set `VITE_COVERCLICK_API_ORIGIN=http://localhost:8787`, then run `npm run dev` or `npm run build` from the repo root.
 
 Create / migrate the database:
 
