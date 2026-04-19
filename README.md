@@ -53,13 +53,15 @@ Default local URL: `http://localhost:8787`.
 npm run dev
 ```
 
-This runs `vite build --watch` and writes to `dist/`. Reload the unpacked extension in Chrome when files change.
+This runs **two watchers in parallel**: the main UI bundle and the IIFE `content.js` bundle (both write to `dist/`). Reload the unpacked extension in Chrome when files change.
 
 ## Build (extension)
 
 ```bash
 npm run build
 ```
+
+One `vite build` produces the popup/options/background bundle, then automatically runs the content-script build so **`dist/content.js`** always exists for `manifest.json`.
 
 Output is written to `dist/` as a loadable unpacked extension:
 

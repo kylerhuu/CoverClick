@@ -5,12 +5,14 @@ import { longestDescriptionFromRoots, readDescriptionFromRoot } from "../descrip
 const DESCRIPTION_SELECTORS = [
   '[itemprop="description"]',
   '[data-testid="jobsearch-JobComponent-description"]',
+  '[data-testid="jobDetailedDescription"]',
   ".job-description",
   ".jobDescription",
   "#job-description",
   "#jobDescription",
   '[class*="job-description"]',
   '[id*="job-description"]',
+  '[class*="JobDescription"]',
   "article",
   "main",
 ] as const;
@@ -30,10 +32,16 @@ export function extractGenericCareersPage(doc: Document): JobExtractionPartial {
 
   let companyName = firstMatchText(doc, [
     '[data-testid="jobsearch-CompanyName"]',
+    ".jobs-unified-top-card__company-name a",
+    ".jobs-unified-top-card__company-name",
+    'a[data-tracking-control-name="public_jobs_topcard-org-name"]',
     '[itemprop="hiringOrganization"]',
+    '[class*="company-name"]',
+    '[class*="CompanyName"]',
     ".company",
     ".employer",
     ".employer-name",
+    'header [class*="company"] a',
   ]);
 
   const ogSite = doc.querySelector('meta[property="og:site_name"]')?.getAttribute("content")?.trim();

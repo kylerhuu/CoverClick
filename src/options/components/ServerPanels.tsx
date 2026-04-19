@@ -122,7 +122,12 @@ export function ServerPanels({ settings, setSettings, profile, setProfile, hydra
       );
     } catch (e) {
       setLastExtracted(null);
-      setResumeMsg(e instanceof Error ? e.message : "Parse failed");
+      let msg = e instanceof Error ? e.message : "Parse failed";
+      if (/example\.com/i.test(base)) {
+        msg +=
+          " Your API base URL still looks like a placeholder — set it to your running server (e.g. http://localhost:8787), turn off mock mode, and sign in again.";
+      }
+      setResumeMsg(msg);
     } finally {
       setResumeBusy(false);
     }

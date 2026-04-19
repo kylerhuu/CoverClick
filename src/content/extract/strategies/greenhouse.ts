@@ -38,6 +38,7 @@ export function extractGreenhouse(doc: Document, url: URL): JobExtractionPartial
       doc,
       [
         "#content .body",
+        ".content--hosted",
         "#content",
         ".content",
         ".opening",

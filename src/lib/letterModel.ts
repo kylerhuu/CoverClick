@@ -37,6 +37,89 @@ export function buildRecipientBlock(job: JobContext): string {
   return `${company}\nRe: Open role`;
 }
 
+const CANON_BLOCK_SEP = "\n\n";
+
+/**
+ * Canonical 9-block plain representation for the continuous editor (double-newline delimited).
+ * Order: sender, date, recipient, greeting, body×3, closing, signature.
+ */
+export function canonicalPlainFromStructured(letter: StructuredCoverLetter): string {
+  const [a, b, c] = letter.bodyParagraphs;
+  return [
+    letter.senderBlock,
+    letter.dateLine,
+    letter.recipientBlock,
+    letter.greeting,
+    a,
+    b,
+    c,
+    letter.closing,
+    letter.signature,
+  ].join(CANON_BLOCK_SEP);
+}
+
+/**
+ * Parse canonical 9-block plain text back into a structured letter.
+ * If a user inserts extra `\n\n` inside the body region, extra segments are merged into the third body paragraph.
+ */
+export function structuredFromCanonicalPlain(
+  text: string,
+  profile: UserProfile,
+  job: JobContext,
+): StructuredCoverLetter {
+  const raw = text.replace(/\r\n/g, "\n");
+  const parts = raw.split(/\n\n/);
+  if (parts.length <= 9) {
+    while (parts.length < 9) parts.push("");
+    return {
+      senderBlock: parts[0] ?? "",
+      dateLine: (parts[1] ?? "").trim() ? (parts[1] as string) : defaultDateLine(),
+      recipientBlock: (parts[2] ?? "").trim() ? (parts[2] as string) : buildRecipientBlock(job),
+      greeting: parts[3] ?? "",
+      bodyParagraphs: [
+        parts[4] ?? "",
+        parts[5] ?? "",
+        (parts[6] ?? "").trim().length ? (parts[6] as string).trim() : " ",
+      ],
+      closing: (parts[7] ?? "").trim() ? (parts[7] as string) : "Sincerely,",
+      signature: (parts[8] ?? "").trim()
+        ? (parts[8] as string)
+        : profile.signatureBlock.trim() || profile.fullName.trim(),
+    };
+  }
+
+  const sender = parts[0] ?? "";
+  const date = parts[1] ?? "";
+  const recipient = parts[2] ?? "";
+  const greeting = parts[3] ?? "";
+  const closing = parts[parts.length - 2] ?? "Sincerely,";
+  const signature = parts[parts.length - 1] ?? profile.fullName.trim();
+  const mid = parts.slice(4, parts.length - 2);
+  let b1 = "";
+  let b2 = "";
+  let b3 = " ";
+  if (mid.length >= 3) {
+    b1 = mid[0] ?? "";
+    b2 = mid[1] ?? "";
+    b3 = mid.slice(2).join(CANON_BLOCK_SEP) || " ";
+  } else if (mid.length === 2) {
+    b1 = mid[0] ?? "";
+    b2 = mid[1] ?? "";
+  } else if (mid.length === 1) {
+    b1 = mid[0] ?? "";
+  }
+
+  return {
+    senderBlock: sender,
+    dateLine: date.trim() ? date : defaultDateLine(),
+    recipientBlock: recipient.trim() ? recipient : buildRecipientBlock(job),
+    greeting,
+    bodyParagraphs: [b1, b2, b3.trim() ? b3 : " "],
+    closing: closing.trim() ? closing : "Sincerely,",
+    signature: signature.trim() ? signature : profile.signatureBlock.trim() || profile.fullName.trim(),
+  };
+}
+
 export function structuredLetterToPlainText(letter: StructuredCoverLetter): string {
   const [a, b, c] = letter.bodyParagraphs;
   return [

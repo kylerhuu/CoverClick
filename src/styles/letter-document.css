@@ -1,0 +1,188 @@
+/**
+ * US Letter cover letter — shared by #letter-container (PDF) and the live editor.
+ * Stable 8.5×11 in logical layout (no transform on this root). Left-aligned body, natural wraps.
+ */
+
+.letter-doc-page {
+  box-sizing: border-box;
+  width: 8.5in;
+  min-height: 11in;
+  margin: 0;
+  padding: 0.95in 1in 1in 1in;
+  background: #ffffff;
+  color: #121212;
+  font-family: "Times New Roman", Times, Georgia, serif;
+  font-size: 12pt;
+  line-height: 1.56;
+  word-break: normal;
+  overflow-wrap: normal;
+  hyphens: manual;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: auto;
+}
+
+/* Preview chrome: holds the page at real dimensions; viewport scrolls — no scaling of text. */
+.letter-doc-preview-mount {
+  flex-shrink: 0;
+  width: 8.5in;
+}
+
+/* Sender / contact — tight block, natural breaks (no break-all) */
+.letter-doc-sender {
+  margin: 0;
+  padding: 0;
+  white-space: pre-wrap;
+  word-break: normal;
+  overflow-wrap: break-word;
+  line-height: 1.36;
+}
+
+.letter-doc-date {
+  margin: 0.85em 0 0;
+  padding: 0;
+  white-space: pre-wrap;
+  line-height: 1.45;
+  word-break: normal;
+  overflow-wrap: normal;
+}
+
+.letter-doc-recipient {
+  margin: 0.95em 0 0;
+  padding: 0;
+  white-space: pre-wrap;
+  word-break: normal;
+  overflow-wrap: break-word;
+  line-height: 1.48;
+}
+
+.letter-doc-greeting {
+  margin: 1.65em 0 0;
+  padding: 0;
+  line-height: 1.45;
+  text-align: left;
+}
+
+.letter-doc-body {
+  display: block;
+  margin: 0.92em 0 0;
+  padding: 0;
+  text-align: left;
+  line-height: 1.56;
+  word-break: normal;
+  overflow-wrap: normal;
+  hyphens: manual;
+}
+
+.letter-doc-body--lead {
+  margin-top: 1.05em;
+}
+
+.letter-doc-closing-wrap {
+  margin: 1.45em 0 0;
+  padding: 0;
+}
+
+.letter-doc-closing-line {
+  margin: 0;
+  padding: 0;
+  line-height: 1.45;
+  text-align: left;
+}
+
+.letter-doc-signature {
+  margin: 2.65em 0 0;
+  padding: 0;
+  white-space: pre-wrap;
+  word-break: normal;
+  overflow-wrap: break-word;
+  line-height: 1.45;
+  text-align: left;
+}
+
+/* ---- Editable fields: block flow, same metrics as static ---- */
+.letter-doc-field {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: #121212;
+  font-family: inherit;
+  font-size: inherit;
+  line-height: inherit;
+  word-break: normal;
+  overflow-wrap: normal;
+  resize: vertical;
+  outline: none;
+  box-shadow: none;
+}
+
+.letter-doc-field::placeholder {
+  color: #9ca3af;
+}
+
+.letter-doc-page[data-variant="editor"] .letter-doc-field:focus {
+  background: rgba(0, 0, 0, 0.028);
+  box-shadow: none;
+}
+
+textarea.letter-doc-field {
+  min-height: 2.85em;
+}
+
+textarea.letter-doc-field.letter-doc-body-field {
+  min-height: 5.25em;
+  line-height: 1.56;
+  text-align: left;
+}
+
+input.letter-doc-field.letter-doc-greeting-field,
+input.letter-doc-field.letter-doc-closing-field {
+  min-height: 1.45em;
+  text-align: left;
+}
+
+textarea.letter-doc-field.letter-doc-sender {
+  min-height: 3.1em;
+}
+
+textarea.letter-doc-field.letter-doc-recipient {
+  min-height: 2.6em;
+}
+
+/* Block wrappers — vertical rhythm only (no flex) */
+.letter-doc-block-sender {
+  margin: 0;
+}
+
+.letter-doc-block-date {
+  margin: 0.85em 0 0;
+}
+
+.letter-doc-block-recipient {
+  margin: 0.95em 0 0;
+}
+
+.letter-doc-block-greeting {
+  margin: 1.65em 0 0;
+}
+
+.letter-doc-block-body {
+  margin: 0.92em 0 0;
+}
+
+.letter-doc-block-body.letter-doc-block-body--lead {
+  margin-top: 1.05em;
+}
+
+.letter-doc-block-close {
+  margin: 1.45em 0 0;
+}
+
+.letter-doc-block-signature {
+  margin: 2.65em 0 0;
+}

@@ -6,6 +6,7 @@ import type {
   StructuredCoverLetter,
   UserProfile,
 } from "./types";
+import { normalizeApiOrigin } from "./backendApi";
 import { buildCoverLetterPromptBrief } from "./prompts";
 import { generationResultToStructured, normalizeGenerationResponse } from "./generationNormalize";
 import {
@@ -103,7 +104,7 @@ export async function requestCoverLetterGeneration(settings: AppSettings, body: 
     return { shape: "structured", letter: mockStructuredLetter(body) };
   }
 
-  const url = `${settings.apiBaseUrl}/api/generate-cover-letter`;
+  const url = `${normalizeApiOrigin(settings.apiBaseUrl)}/api/generate-cover-letter`;
   const promptBrief = buildCoverLetterPromptBrief(body);
 
   const headers: Record<string, string> = { "Content-Type": "application/json" };

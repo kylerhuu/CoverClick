@@ -31,6 +31,7 @@ export function extractLever(doc: Document, url: URL): JobExtractionPartial {
     longestDescriptionFromRoots(
       doc,
       [
+        ".posting-description",
         ".section-wrapper.full-width-wrapper .content",
         ".section.page-centered",
         ".posting-content",

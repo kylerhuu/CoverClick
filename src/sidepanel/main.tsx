@@ -1,13 +1,14 @@
 import React from "react";
 import { createRoot } from "react-dom/client";
 import "../styles/globals.css";
-import { Popup } from "./Popup";
+import "../styles/letter-document.css";
+import { WorkspaceApp } from "../workspace/WorkspaceApp";
 
 const root = document.getElementById("root");
 if (root) {
   createRoot(root).render(
     <React.StrictMode>
-      <Popup />
+      <WorkspaceApp />
     </React.StrictMode>,
   );
 }

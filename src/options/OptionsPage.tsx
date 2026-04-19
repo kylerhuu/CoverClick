@@ -103,7 +103,7 @@ export function OptionsPage() {
       <div className="mx-auto max-w-4xl px-6 py-10">
         <header className="max-w-2xl">
           <p className="text-[14px] leading-relaxed text-slate-600">
-            Save your background once. The popup reads the job tab and drafts a letter you can edit, copy, or export
+            Save your background once. The side panel reads the job tab and drafts a letter you can edit, copy, or export
             — without pasting into ChatGPT first.
           </p>
         </header>
@@ -186,7 +186,7 @@ export function OptionsPage() {
                   onChange={(e) => setProfile({ ...profile, graduationYear: e.target.value })}
                 />
               </Field>
-              <Field label="Default tone in popup">
+              <Field label="Default tone in side panel">
                 <select
                   className={fieldSelectClass}
                   value={profile.defaultTone}

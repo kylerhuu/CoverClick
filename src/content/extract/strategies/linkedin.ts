@@ -15,6 +15,7 @@ export function extractLinkedIn(doc: Document): JobExtractionPartial {
   ]);
 
   const company = firstMatchText(doc, [
+    ".jobs-company__name",
     ".jobs-unified-top-card__company-name a",
     ".jobs-unified-top-card__company-name button",
     ".jobs-unified-top-card__company-name",
@@ -22,19 +23,23 @@ export function extractLinkedIn(doc: Document): JobExtractionPartial {
     ".top-card-layout__entity-info .topcard__flavor-title",
     "[data-test-job-card-container] .job-card-container__company-name",
     'a[data-tracking-control-name="public_jobs_topcard-org-name"]',
+    'a[data-view-name="job-details-about-company-name"]',
   ]);
 
   const description =
     longestDescriptionFromRoots(
       doc,
       [
-        ".jobs-description-content__text",
         ".jobs-description__text",
+        ".jobs-description-content__text",
         ".jobs-box__html-content",
+        ".jobs-description",
         '[class*="jobs-description-content"]',
+        '[class*="description-content"]',
         "#job-details",
         ".jobs-details__main-content",
         "article.jobs-description",
+        '[role="main"] .jobs-unified-top-card + div',
       ],
       80,
     ) || readDescriptionFromRoot(doc.querySelector(".jobs-description"));

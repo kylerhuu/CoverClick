@@ -1,5 +1,35 @@
 import type { UserProfile } from "./types";
 
+/** Normalize saved origin: trim and strip trailing slashes so paths join cleanly. */
+export function normalizeApiOrigin(raw: string): string {
+  return raw.trim().replace(/\/+$/, "");
+}
+
+function apiUrl(base: string, path: string): string {
+  const origin = normalizeApiOrigin(base);
+  const p = path.startsWith("/") ? path : `/${path}`;
+  return `${origin}${p}`;
+}
+
+async function apiFetch(url: string, init?: RequestInit): Promise<Response> {
+  try {
+    return await fetch(url, {
+      ...init,
+      mode: "cors",
+      cache: "no-store",
+    });
+  } catch (e) {
+    if (e instanceof TypeError) {
+      const origin = url.split("/api")[0] || url;
+      throw new Error(
+        `Could not reach the server (${origin}). Check Options → API base URL, that the Node server is running, ` +
+          `and your network. If you use Chrome 102+, local HTTP may require the server to allow private-network access (already enabled on CoverClick’s server).`,
+      );
+    }
+    throw e;
+  }
+}
+
 async function readError(res: Response): Promise<string> {
   const text = await res.text().catch(() => "");
   try {
@@ -15,7 +45,7 @@ export async function apiRegister(
   apiBaseUrl: string,
   body: { email: string; password: string },
 ): Promise<{ token: string; user: { id: string; email: string } }> {
-  const res = await fetch(`${apiBaseUrl}/api/register`, {
+  const res = await apiFetch(apiUrl(apiBaseUrl, "/api/register"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
@@ -28,7 +58,7 @@ export async function apiLogin(
   apiBaseUrl: string,
   body: { email: string; password: string },
 ): Promise<{ token: string; user: { id: string; email: string } }> {
-  const res = await fetch(`${apiBaseUrl}/api/login`, {
+  const res = await apiFetch(apiUrl(apiBaseUrl, "/api/login"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
@@ -41,7 +71,7 @@ export async function apiGetServerProfile(
   apiBaseUrl: string,
   token: string,
 ): Promise<{ profile: UserProfile | null }> {
-  const res = await fetch(`${apiBaseUrl}/api/me/profile`, {
+  const res = await apiFetch(apiUrl(apiBaseUrl, "/api/me/profile"), {
     headers: { Authorization: `Bearer ${token}` },
   });
   if (!res.ok) throw new Error(await readError(res));
@@ -53,7 +83,7 @@ export async function apiPutServerProfile(
   token: string,
   profile: UserProfile,
 ): Promise<void> {
-  const res = await fetch(`${apiBaseUrl}/api/me/profile`, {
+  const res = await apiFetch(apiUrl(apiBaseUrl, "/api/me/profile"), {
     method: "PUT",
     headers: {
       Authorization: `Bearer ${token}`,
@@ -71,7 +101,7 @@ export async function apiParseResume(
 ): Promise<{ profile: UserProfile; warnings?: string[] }> {
   const fd = new FormData();
   fd.append("file", file);
-  const res = await fetch(`${apiBaseUrl}/api/me/parse-resume`, {
+  const res = await apiFetch(apiUrl(apiBaseUrl, "/api/me/parse-resume"), {
     method: "POST",
     headers: { Authorization: `Bearer ${token}` },
     body: fd,

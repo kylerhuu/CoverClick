@@ -1,6 +1,6 @@
 /** @type {import('tailwindcss').Config} */
 export default {
-  content: ["./popup.html", "./options.html", "./src/**/*.{ts,tsx}"],
+  content: ["./sidepanel.html", "./options.html", "./src/**/*.{ts,tsx}"],
   theme: {
     extend: {
       fontFamily: {

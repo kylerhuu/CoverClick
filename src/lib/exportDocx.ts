@@ -1,6 +1,6 @@
 import { Document, Packer, Paragraph, TextRun, AlignmentType } from "docx";
 import type { StructuredCoverLetter } from "./types";
-import { sanitizeFilenamePart } from "./utils";
+import { sanitizeExportBasename, sanitizeFilenamePart } from "./utils";
 
 function triggerDownload(blob: Blob, filename: string): void {
   const url = URL.createObjectURL(blob);
@@ -44,11 +44,17 @@ export async function downloadStructuredCoverLetterDocx(params: {
   companyName: string;
   jobTitle: string;
   letter: StructuredCoverLetter;
+  /** Optional basename without extension; overrides auto naming when non-empty after sanitize. */
+  fileBaseName?: string;
 }): Promise<void> {
   const namePart = sanitizeFilenamePart(params.fullName, "Applicant");
   const companyPart = sanitizeFilenamePart(params.companyName, "Company");
   const rolePart = sanitizeFilenamePart(params.jobTitle, "Role");
-  const filename = `${namePart}_CoverLetter_${companyPart}_${rolePart}.docx`;
+  const legacyBase = `${namePart}_CoverLetter_${companyPart}_${rolePart}`;
+  const base = params.fileBaseName?.trim()
+    ? sanitizeExportBasename(params.fileBaseName, legacyBase)
+    : legacyBase;
+  const filename = `${base}.docx`;
 
   const L = params.letter;
   const children: Paragraph[] = [

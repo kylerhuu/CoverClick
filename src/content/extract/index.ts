@@ -1,6 +1,7 @@
 import type { JobContext } from "../../lib/types";
 import { detectJobBoard } from "./board";
 import { extractJsonLdJob } from "./jsonLd";
+import { finalizeDescriptionForJob } from "./finalizeDescription";
 import { mergeJobExtractions } from "./merge";
 import { extractGreenhouse } from "./strategies/greenhouse";
 import { extractGenericCareersPage } from "./strategies/generic";
@@ -29,6 +30,7 @@ export function extractJobContext(): JobContext {
 
   return {
     ...merged,
+    descriptionText: finalizeDescriptionForJob(merged.descriptionText),
     pageUrl: location.href,
     scrapedAt: Date.now(),
   };

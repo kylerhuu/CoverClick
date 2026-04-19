@@ -4,9 +4,12 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "dev": "vite build --watch",
+    "dev": "concurrently -k \"vite build --watch\" \"vite build --watch --config vite.content.config.ts\"",
+    "dev:app": "vite build --watch",
     "dev:content": "vite build --watch --config vite.content.config.ts",
-    "build": "vite build && vite build --config vite.content.config.ts",
+    "build": "vite build",
+    "build:content": "vite build --config vite.content.config.ts",
+    "store:zip": "npm run build && rm -f coverclick-extension.zip && cd dist && zip -r ../coverclick-extension.zip .",
     "typecheck": "tsc --noEmit",
     "server:dev": "npm run dev --prefix server",
     "server:build": "npm run build --prefix server"
@@ -27,6 +30,7 @@
     "postcss": "^8.4.49",
     "tailwindcss": "^3.4.15",
     "typescript": "^5.6.3",
-    "vite": "^5.4.11"
+    "vite": "^5.4.11",
+    "concurrently": "^9.1.2"
   }
 }

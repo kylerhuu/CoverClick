@@ -1,5 +1,17 @@
 export {};
 
+async function ensureSidePanelOpensWithAction(): Promise<void> {
+  try {
+    await chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true });
+  } catch {
+    // Older Chromium / missing API — ignore.
+  }
+}
+
 chrome.runtime.onInstalled.addListener(() => {
-  // Reserved for migrations / defaults. Intentionally minimal for MVP.
+  void ensureSidePanelOpensWithAction();
+});
+
+chrome.runtime.onStartup.addListener(() => {
+  void ensureSidePanelOpensWithAction();
 });

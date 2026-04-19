@@ -1,7 +1,6 @@
 import type { JobContext } from "../../lib/types";
 import type { JobExtractionPartial } from "./types";
 import { bodyInnerTextFallback } from "./dom";
-import { stripBoilerplateLines } from "./sanitizeDescription";
 
 const MAX_DESCRIPTION = 24_000;
 
@@ -34,14 +33,40 @@ function scoreTitleLike(s: string): number {
   return Math.abs(len - ideal) + (s.includes("\n") ? 40 : 0);
 }
 
-function pickCompany(candidates: string[]): string {
-  const c = uniquePreservingOrder(candidates).filter((t) => {
-    if (t.length < 2 || t.length > 120) return false;
-    if (/^https?:\/\//i.test(t)) return false;
-    return true;
-  });
+const GENERIC_COMPANY = /^(careers|jobs|home|about|apply|company|sign in|log in|linkedin|indeed|glassdoor)$/i;
+
+function isPlausibleCompanyName(s: string): boolean {
+  const t = s.trim();
+  if (t.length < 2 || t.length > 120) return false;
+  if (/^https?:\/\//i.test(t)) return false;
+  if (GENERIC_COMPANY.test(t)) return false;
+  return true;
+}
+
+/** Prefer structured / board extractors in array order; avoid “shortest string wins” picking junk. */
+function pickCompanyFromPartials(partials: JobExtractionPartial[]): string {
+  for (const p of partials) {
+    const c = p.companyName?.trim();
+    if (c && isPlausibleCompanyName(c)) return c;
+  }
+  return "";
+}
+
+function scoreCompanyCandidate(s: string): number {
+  let score = 0;
+  const len = s.length;
+  if (len >= 3 && len <= 80) score += 25;
+  if (len > 80) score += 10;
+  if (/\b(inc|llc|ltd|corp|corporation|company)\b/i.test(s)) score += 8;
+  if (GENERIC_COMPANY.test(s)) score -= 50;
+  if (/linkedin|indeed|glassdoor|greenhouse|lever\.co/i.test(s)) score -= 25;
+  return score;
+}
+
+function pickCompanyFromCandidates(candidates: string[]): string {
+  const c = uniquePreservingOrder(candidates).filter(isPlausibleCompanyName);
   if (!c.length) return "";
-  return [...c].sort((a, b) => a.length - b.length)[0] ?? "";
+  return [...c].sort((a, b) => scoreCompanyCandidate(b) - scoreCompanyCandidate(a))[0] ?? "";
 }
 
 function pickDescription(candidates: string[], doc: Document): string {
@@ -75,11 +100,12 @@ export function mergeJobExtractions(partials: JobExtractionPartial[], doc: Docum
     if (body.length > descriptionText.length) descriptionText = body;
   }
 
-  descriptionText = stripBoilerplateLines(descriptionText);
+  const companyFromOrder = pickCompanyFromPartials(partials);
+  const companyName = companyFromOrder || pickCompanyFromCandidates(companies);
 
   return {
     jobTitle: pickTitle(titles),
-    companyName: pickCompany(companies),
+    companyName,
     descriptionText,
   };
 }
