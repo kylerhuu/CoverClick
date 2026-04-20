@@ -84,6 +84,17 @@ export async function apiGetMe(apiBaseUrl: string, token: string): Promise<Accou
   return res.json() as Promise<AccountMeResponse>;
 }
 
+/** Reconcile subscription from Stripe API (helps when webhooks use the wrong secret or are delayed). */
+export async function apiSyncSubscription(apiBaseUrl: string, token: string): Promise<AccountMeResponse> {
+  const res = await apiFetch(apiUrl(apiBaseUrl, "/api/billing/sync-subscription"), {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: JSON.stringify({}),
+  });
+  await requireOk(res);
+  return res.json() as Promise<AccountMeResponse>;
+}
+
 export async function apiAuthExchangeWithCode(apiBaseUrl: string, code: string): Promise<AuthExchangeResponse> {
   const res = await apiFetch(apiUrl(apiBaseUrl, "/api/auth/exchange"), {
     method: "POST",

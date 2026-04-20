@@ -117,6 +117,15 @@ function publicApiError(err: unknown): string {
   return IS_PRODUCTION ? "Something went wrong. Please try again." : err instanceof Error ? err.message : "Something went wrong.";
 }
 
+function isMissingProcessedStripeEventTable(err: unknown): boolean {
+  if (!(err instanceof Prisma.PrismaClientKnownRequestError)) return false;
+  if (err.code !== "P2021") return false;
+  const meta = (err.meta ?? {}) as { table?: unknown; modelName?: unknown };
+  const table = typeof meta.table === "string" ? meta.table.toLowerCase() : "";
+  const model = typeof meta.modelName === "string" ? meta.modelName.toLowerCase() : "";
+  return table.includes("processed_stripe_event") || model.includes("processedstripeevent");
+}
+
 /**
  * Optional comma-separated Chrome extension IDs.
  * Accepts raw 32-char ids OR full origins (`chrome-extension://…`) — we normalize so pasting from
@@ -264,7 +273,14 @@ app.post(
         throw e;
       }
     } catch (e) {
-      console.error("[stripe webhook]", e);
+      if (isMissingProcessedStripeEventTable(e)) {
+        console.error(
+          "[stripe webhook] Missing table processed_stripe_event (Prisma P2021). Run `prisma migrate deploy` against production before starting the API.",
+          e,
+        );
+      } else {
+        console.error("[stripe webhook]", e);
+      }
       res.status(500).json({ error: "Webhook handler failed" });
       return;
     }
@@ -590,6 +606,71 @@ app.get("/api/me", authMiddleware, async (req, res) => {
       subscriptionPeriodEnd: user.subscriptionPeriodEnd?.toISOString() ?? null,
     });
   } catch (e) {
+    res.status(500).json({ error: publicApiError(e) });
+  }
+});
+
+/**
+ * Pull subscription state from Stripe for this user’s customer and mirror it into the DB.
+ * Use after checkout when webhooks are delayed or misconfigured (e.g. live vs test webhook secret).
+ */
+app.post("/api/billing/sync-subscription", authMiddleware, async (req, res) => {
+  try {
+    if (!stripe) {
+      res.status(503).json({ error: "Stripe is not configured." });
+      return;
+    }
+    const userId = (req as express.Request & { auth: Authed }).auth.userId;
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user?.stripeCustomerId) {
+      res.status(400).json({ error: "No Stripe customer linked to this account." });
+      return;
+    }
+
+    const list = await stripe.subscriptions.list({
+      customer: user.stripeCustomerId,
+      status: "all",
+      limit: 20,
+    });
+    const { data } = list;
+
+    const pick =
+      data.find((s) => s.status === "active") ??
+      data.find((s) => s.status === "trialing") ??
+      data.find((s) => s.status === "past_due") ??
+      data[0] ??
+      null;
+
+    if (pick) {
+      const snap = pick as unknown as { current_period_end?: number; status: string };
+      const pe = typeof snap.current_period_end === "number" ? snap.current_period_end : null;
+      await prisma.user.update({
+        where: { id: user.id },
+        data: {
+          stripeSubscriptionId: pick.id,
+          subscriptionStatus: subscriptionStatusFromStripe(snap.status),
+          subscriptionPeriodEnd: pe != null ? new Date(pe * 1000) : null,
+        },
+      });
+    } else if (data.length === 0) {
+      // Leave DB unchanged — webhook may still be in flight, or customer has no sub yet.
+      console.info("[sync-subscription] no subscription objects for customer", user.stripeCustomerId);
+    }
+
+    const updated = await prisma.user.findUnique({ where: { id: userId } });
+    if (!updated) {
+      res.status(404).json({ error: "User not found." });
+      return;
+    }
+    res.json({
+      id: updated.id,
+      email: updated.email,
+      subscriptionStatus: updated.subscriptionStatus,
+      hasPaidAccess: hasPaidSubscription(updated.subscriptionStatus),
+      subscriptionPeriodEnd: updated.subscriptionPeriodEnd?.toISOString() ?? null,
+    });
+  } catch (e) {
+    console.error("[sync-subscription]", e);
     res.status(500).json({ error: publicApiError(e) });
   }
 });

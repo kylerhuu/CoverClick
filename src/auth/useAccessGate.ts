@@ -1,6 +1,12 @@
 import { useCallback, useEffect, useState } from "react";
 import type { AccountMeResponse } from "../lib/types";
-import { ApiHttpError, apiCreateCheckoutSession, apiCreatePortalSession, apiGetMe } from "../lib/backendApi";
+import {
+  ApiHttpError,
+  apiCreateCheckoutSession,
+  apiCreatePortalSession,
+  apiGetMe,
+  apiSyncSubscription,
+} from "../lib/backendApi";
 import { signInWithGoogleChrome } from "../lib/googleChromeAuth";
 import { STORAGE_KEYS, clearCachedLetter, loadSettings, saveSettings } from "../lib/storage";
 
@@ -39,7 +45,12 @@ export function useAccessGate() {
       return;
     }
     try {
-      const m = await apiGetMe(s.apiBaseUrl, s.authToken);
+      let m: AccountMeResponse;
+      try {
+        m = await apiSyncSubscription(s.apiBaseUrl, s.authToken);
+      } catch {
+        m = await apiGetMe(s.apiBaseUrl, s.authToken);
+      }
       setMe(m);
       setPhase(m.hasPaidAccess ? "paid" : "unpaid");
     } catch (e) {
