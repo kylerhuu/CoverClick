@@ -58,14 +58,17 @@ export function AuthWall({
           {topAccent}
           <h1 className="mt-1 text-[17px] font-bold tracking-tight text-slate-900">Finish setup</h1>
           <p className="mt-3 text-[13px] leading-relaxed text-slate-600">
-            This build does not know which CoverClick server to use. Ask your team for the packaged extension, or open
-            Options and use demo mode while you test the UI.
+            {import.meta.env.PROD
+              ? "This build doesn’t include a CoverClick server address. Install the official extension from the Chrome Web Store, or contact support."
+              : "This build does not know which CoverClick server to use. Ask your team for the packaged extension, or open Options and use demo mode while you test the UI."}
           </p>
-          <p className="mt-3 rounded-lg bg-slate-50 px-3 py-2 text-left text-[11px] leading-snug text-slate-600 ring-1 ring-slate-200/80">
-            <span className="font-semibold text-slate-800">For developers:</span> set{" "}
-            <code className="rounded bg-white px-1 font-mono text-[10px] text-slate-700">VITE_COVERCLICK_API_ORIGIN</code>{" "}
-            in the project <span className="font-mono text-[10px]">.env</span>, then rebuild.
-          </p>
+          {!import.meta.env.PROD ? (
+            <p className="mt-3 rounded-lg bg-slate-50 px-3 py-2 text-left text-[11px] leading-snug text-slate-600 ring-1 ring-slate-200/80">
+              <span className="font-semibold text-slate-800">For developers:</span> set{" "}
+              <code className="rounded bg-white px-1 font-mono text-[10px] text-slate-700">VITE_COVERCLICK_API_ORIGIN</code>{" "}
+              in the project <span className="font-mono text-[10px]">.env</span>, then rebuild.
+            </p>
+          ) : null}
         </div>
       </div>
     );

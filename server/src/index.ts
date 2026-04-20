@@ -118,18 +118,51 @@ function publicApiError(err: unknown): string {
 }
 
 /**
- * Optional comma-separated Chrome extension IDs (32-char id only, no `chrome-extension://` prefix).
- * In production, set this so other extensions cannot call your API with a stolen JWT (CORS + browser).
+ * Optional comma-separated Chrome extension IDs.
+ * Accepts raw 32-char ids OR full origins (`chrome-extension://…`) — we normalize so pasting from
+ * the dashboard does not double-prefix (`chrome-extension://chrome-extension://…`).
  */
-const allowedChromeExtensionOrigins: string[] | null = (() => {
-  const raw = process.env.CHROME_EXTENSION_IDS?.trim();
+function parseChromeExtensionOriginSegment(raw: string): string | null {
+  let s = raw.trim();
+  if ((s.startsWith('"') && s.endsWith('"')) || (s.startsWith("'") && s.endsWith("'"))) {
+    s = s.slice(1, -1).trim();
+  }
+  s = s.toLowerCase();
+  if (!s) return null;
+  if (s.startsWith("chrome-extension://")) {
+    s = s.slice("chrome-extension://".length);
+  }
+  const slash = s.indexOf("/");
+  if (slash >= 0) s = s.slice(0, slash);
+  s = s.trim();
+  // Chrome extension IDs are 32 chars (a–z, 0–9); unpacked uses a–p alphabet.
+  if (!/^[a-z0-9]{32}$/.test(s)) {
+    console.warn(
+      `[cors] Ignoring CHROME_EXTENSION_IDS entry (expected 32-char id, got length ${s.length}): ${s.slice(0, 8)}…`,
+    );
+    return null;
+  }
+  return `chrome-extension://${s}`;
+}
+
+/** Non-empty if the operator set CHROME_EXTENSION_IDS in the environment (used for startup logs). */
+const CHROME_EXTENSION_IDS_ENV = process.env.CHROME_EXTENSION_IDS?.trim() ?? "";
+
+const allowedChromeExtensionOriginSet: Set<string> | null = (() => {
+  const raw = CHROME_EXTENSION_IDS_ENV;
   if (!raw) return null;
-  const ids = raw
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean);
-  if (!ids.length) return null;
-  return ids.map((id) => `chrome-extension://${id}`);
+  const set = new Set<string>();
+  for (const part of raw.split(",")) {
+    const o = parseChromeExtensionOriginSegment(part);
+    if (o) set.add(o);
+  }
+  if (!set.size) {
+    console.error(
+      "[cors] CHROME_EXTENSION_IDS is set but no valid 32-character extension ids were parsed. Use ids only (e.g. abcdef…) or full chrome-extension:// URLs — see DEPLOY.md.",
+    );
+    return null;
+  }
+  return set;
 })();
 
 const app = express();
@@ -252,8 +285,13 @@ app.use(
         return;
       }
       if (origin.startsWith("chrome-extension://")) {
-        if (allowedChromeExtensionOrigins?.length) {
-          callback(null, allowedChromeExtensionOrigins.includes(origin));
+        if (allowedChromeExtensionOriginSet?.size) {
+          const normalized = origin.toLowerCase();
+          const ok = allowedChromeExtensionOriginSet.has(normalized);
+          if (!ok) {
+            console.warn("[cors] Blocked chrome-extension Origin (not in CHROME_EXTENSION_IDS):", origin);
+          }
+          callback(null, ok);
           return;
         }
         callback(null, true);
@@ -565,7 +603,10 @@ app.post("/api/billing/checkout-session", authMiddleware, async (req, res) => {
     const userId = (req as express.Request & { auth: Authed }).auth.userId;
     const user = await prisma.user.findUnique({ where: { id: userId } });
     if (!user?.stripeCustomerId) {
-      res.status(400).json({ error: "Missing Stripe customer." });
+      res.status(400).json({
+        error:
+          "No Stripe customer is linked to this account. If billing was turned on after you signed in, sign out and sign in again. Otherwise contact support.",
+      });
       return;
     }
     const base = PUBLIC_API_URL || `http://localhost:${PORT}`;
@@ -597,7 +638,10 @@ app.post("/api/billing/portal-session", authMiddleware, async (req, res) => {
     const userId = (req as express.Request & { auth: Authed }).auth.userId;
     const user = await prisma.user.findUnique({ where: { id: userId } });
     if (!user?.stripeCustomerId) {
-      res.status(400).json({ error: "No Stripe customer on file." });
+      res.status(400).json({
+        error:
+          "No Stripe customer is linked to this account. If billing was turned on after you signed in, sign out and sign in again so the server can create your customer. Otherwise contact support.",
+      });
       return;
     }
     const base = PUBLIC_API_URL || `http://localhost:${PORT}`;
@@ -605,8 +649,27 @@ app.post("/api/billing/portal-session", authMiddleware, async (req, res) => {
       customer: user.stripeCustomerId,
       return_url: `${base}/billing/return?success=1`,
     });
+    if (!portal.url) {
+      res.status(500).json({ error: "Stripe did not return a portal URL." });
+      return;
+    }
     res.json({ url: portal.url });
   } catch (e) {
+    console.error("[billing portal-session]", e);
+    const msg = e instanceof Error ? e.message : "";
+    const lower = msg.toLowerCase();
+    if (
+      lower.includes("customer portal") ||
+      lower.includes("billing portal") ||
+      lower.includes("default configuration") ||
+      lower.includes("no configuration provided")
+    ) {
+      res.status(503).json({
+        error:
+          "Stripe Customer portal is not active. In Stripe Dashboard: Settings → Billing → Customer portal → turn it on and save, then try again.",
+      });
+      return;
+    }
     res.status(500).json({ error: publicApiError(e) });
   }
 });
@@ -736,9 +799,13 @@ app.listen(PORT, () => {
   if (!stripe || !STRIPE_PRICE_ID) {
     console.warn("[warn] Stripe checkout not fully configured — set STRIPE_SECRET_KEY and STRIPE_PRICE_ID.");
   }
-  if (IS_PRODUCTION && !allowedChromeExtensionOrigins?.length) {
-    console.warn(
-      "[warn] CHROME_EXTENSION_IDS is unset — CORS allows any chrome-extension:// origin. Set CHROME_EXTENSION_IDS to your published extension id for tighter production access.",
-    );
+  if (IS_PRODUCTION) {
+    if (allowedChromeExtensionOriginSet?.size) {
+      console.info(`[cors] CHROME_EXTENSION_IDS: ${allowedChromeExtensionOriginSet.size} extension origin(s) allowed.`);
+    } else if (!CHROME_EXTENSION_IDS_ENV) {
+      console.warn(
+        "[warn] CHROME_EXTENSION_IDS is unset — CORS allows any chrome-extension:// origin. Set CHROME_EXTENSION_IDS to your published extension id for tighter production access.",
+      );
+    }
   }
 });

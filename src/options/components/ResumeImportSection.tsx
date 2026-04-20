@@ -136,7 +136,13 @@ export function ResumeImportSection({
           <h2 className={cn(ccSectionTitle, "mt-1")}>Resume → profile</h2>
         </header>
         <p className={cn(ccMuted, "text-[13px]")}>
-          Turn off demo mode in <strong>Cloud & billing</strong> to import a resume with AI.
+          {import.meta.env.PROD ? (
+            <>Sign in with an active plan from the side panel to import a resume with AI.</>
+          ) : (
+            <>
+              Turn off demo mode in <strong>Cloud & billing</strong> to import a resume with AI.
+            </>
+          )}
         </p>
       </div>
     );

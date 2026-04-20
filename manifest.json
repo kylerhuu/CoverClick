@@ -25,16 +25,9 @@
     "open_in_tab": true
   },
   "permissions": ["activeTab", "identity", "storage", "scripting", "tabs", "sidePanel"],
-  "host_permissions": ["http://*/*", "https://*/*"],
+  "host_permissions": ["https://*/*", "http://*/*"],
   "background": {
     "service_worker": "background.js",
     "type": "module"
-  },
-  "content_scripts": [
-    {
-      "matches": ["http://*/*", "https://*/*"],
-      "js": ["content.js"],
-      "run_at": "document_idle"
-    }
-  ]
+  }
 }

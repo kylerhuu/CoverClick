@@ -111,7 +111,14 @@ export function useAccessGate() {
   const openStripeCheckout = useCallback(async () => {
     const s = await loadSettings();
     const t = s.authToken?.trim();
-    if (!t || !s.apiBaseUrl.trim()) return;
+    if (!s.apiBaseUrl.trim()) {
+      setAuthError("No API server URL. Set one under Options → Connection (Advanced), or use the official build.");
+      return;
+    }
+    if (!t) {
+      setAuthError("You’re not signed in. Sign in from the side panel, then open Options again (or click Refresh access).");
+      return;
+    }
     setAuthBusy(true);
     setAuthError(null);
     try {
@@ -127,12 +134,29 @@ export function useAccessGate() {
   const openCustomerPortal = useCallback(async () => {
     const s = await loadSettings();
     const t = s.authToken?.trim();
-    if (!t || !s.apiBaseUrl.trim()) return;
+    if (!s.apiBaseUrl.trim()) {
+      setAuthError("No API server URL. Set one under Options → Connection (Advanced), or use the official build.");
+      return;
+    }
+    if (!t) {
+      setAuthError("You’re not signed in. Sign in from the side panel, then open Options again (or click Refresh access).");
+      return;
+    }
     setAuthBusy(true);
     setAuthError(null);
     try {
       const { url } = await apiCreatePortalSession(s.apiBaseUrl, t);
-      chrome.tabs.create({ url });
+      if (!url?.trim()) {
+        setAuthError("The server did not return a billing link. Try again in a moment.");
+        return;
+      }
+      try {
+        await chrome.tabs.create({ url: url.trim() });
+      } catch (tabErr) {
+        setAuthError(
+          tabErr instanceof Error ? tabErr.message : "Could not open a new tab. Allow pop-ups for this extension.",
+        );
+      }
     } catch (e) {
       setAuthError(e instanceof Error ? e.message : "Could not open billing portal");
     } finally {

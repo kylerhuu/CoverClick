@@ -1,9 +1,11 @@
 import type { Dispatch, SetStateAction } from "react";
+import { useCallback, useState } from "react";
 import type { AppSettings } from "../../lib/types";
+import { apiGetHealth } from "../../lib/backendApi";
 import { hasBuiltInApiOrigin, resolveApiBaseUrl, VITE_COVERCLICK_API_ORIGIN } from "../../lib/apiOrigin";
 import { cn, fieldInputClass } from "../../lib/classNames";
 import { Field } from "./Field";
-import { ccBtnGhost, ccEyebrow, ccMuted, ccSectionTitle, ccSurfaceQuiet } from "../../ui/ccUi";
+import { ccBtnGhost, ccBtnSecondarySm, ccEyebrow, ccMuted, ccSectionTitle, ccSurfaceQuiet } from "../../ui/ccUi";
 
 type Props = {
   settings: AppSettings;
@@ -39,6 +41,22 @@ export function ConnectionSettings({
   const effective = settings.apiBaseUrl.trim();
   const summary = summarizeOrigin(effective);
   const baked = hasBuiltInApiOrigin();
+  const [pingBusy, setPingBusy] = useState(false);
+  const [pingResult, setPingResult] = useState<null | { ok: true } | { err: string }>(null);
+
+  const testConnection = useCallback(async () => {
+    if (!effective) return;
+    setPingBusy(true);
+    setPingResult(null);
+    try {
+      await apiGetHealth(effective);
+      setPingResult({ ok: true });
+    } catch (e) {
+      setPingResult({ err: e instanceof Error ? e.message : "Connection test failed." });
+    } finally {
+      setPingBusy(false);
+    }
+  }, [effective]);
 
   return (
     <div className="space-y-5">
@@ -63,6 +81,28 @@ export function ConnectionSettings({
             <p className="mt-2 break-all font-mono text-[11px] leading-snug text-slate-500" title="Full server URL">
               {summary.detail || "—"}
             </p>
+            {effective ? (
+              <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
+                <button
+                  type="button"
+                  className={cn(ccBtnSecondarySm, "w-fit shrink-0")}
+                  disabled={pingBusy}
+                  onClick={() => void testConnection()}
+                >
+                  {pingBusy ? "Testing…" : "Test connection from extension"}
+                </button>
+                {pingResult && "ok" in pingResult ? (
+                  <p className="text-[12px] font-medium text-emerald-800">Reachable — /api/health responded.</p>
+                ) : pingResult && "err" in pingResult ? (
+                  <p className="text-[12px] leading-snug text-red-800">{pingResult.err}</p>
+                ) : (
+                  <p className="text-[11px] leading-snug text-slate-500">
+                    Uses the same network path as sign-in and billing. If this fails but the URL works in a normal tab,
+                    something on this computer is blocking extension traffic.
+                  </p>
+                )}
+              </div>
+            ) : null}
           </div>
           {baked ? (
             <span className="shrink-0 rounded-full bg-emerald-50 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-800 ring-1 ring-emerald-200/60">
@@ -76,7 +116,9 @@ export function ConnectionSettings({
         </div>
         {!baked && !effective ? (
           <p className="mt-3 text-[12px] leading-snug text-amber-900/90">
-            This build has no default server URL. Turn on demo mode for local UI, or set a server under Advanced.
+            {import.meta.env.PROD
+              ? "This build has no default server URL. Use Advanced to set your CoverClick API URL, or install the official build from the Chrome Web Store."
+              : "This build has no default server URL. Turn on demo mode for local UI, or set a server under Advanced."}
           </p>
         ) : null}
         {baked && VITE_COVERCLICK_API_ORIGIN ? (
@@ -93,23 +135,25 @@ export function ConnectionSettings({
         </p>
       ) : null}
 
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="min-w-0 flex-1">
-          <p className="text-[13px] font-semibold text-slate-900">Demo mode</p>
-          <p className="mt-0.5 text-[12px] leading-snug text-slate-600">
-            Generate sample letters without calling your API. Turn off when you want live drafts and cloud profile.
-          </p>
+      {!import.meta.env.PROD ? (
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0 flex-1">
+            <p className="text-[13px] font-semibold text-slate-900">Demo mode</p>
+            <p className="mt-0.5 text-[12px] leading-snug text-slate-600">
+              Generate sample letters without calling your API. Turn off when you want live drafts and cloud profile.
+            </p>
+          </div>
+          <label className="inline-flex cursor-pointer items-center gap-2.5 rounded-lg border border-slate-200/80 bg-white/90 px-3 py-2 shadow-sm">
+            <span className="text-[12px] font-semibold text-slate-700">Mock generation</span>
+            <input
+              type="checkbox"
+              className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500/40"
+              checked={settings.useMock}
+              onChange={(e) => setSettings({ ...settings, useMock: e.target.checked })}
+            />
+          </label>
         </div>
-        <label className="inline-flex cursor-pointer items-center gap-2.5 rounded-lg border border-slate-200/80 bg-white/90 px-3 py-2 shadow-sm">
-          <span className="text-[12px] font-semibold text-slate-700">Mock generation</span>
-          <input
-            type="checkbox"
-            className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500/40"
-            checked={settings.useMock}
-            onChange={(e) => setSettings({ ...settings, useMock: e.target.checked })}
-          />
-        </label>
-      </div>
+      ) : null}
 
       <div className="border-t border-slate-200/60 pt-4">
         <button

@@ -19,6 +19,24 @@ function isNoReceiverError(e: unknown): boolean {
   );
 }
 
+function scrapeInjectFailureMessage(tabUrl: string | undefined, chromeMsg: string): string {
+  const u = tabUrl ?? "";
+  if (/^chrome:\/\//i.test(u) || /^about:/i.test(u) || /^edge:\/\//i.test(u) || /^devtools:/i.test(u)) {
+    return "This page can’t be scraped — internal browser pages don’t allow reading job text here.";
+  }
+  if (/chromewebstore\.google\.com/i.test(u)) {
+    return "The Chrome Web Store can’t be scripted. Open the employer’s job page in a normal tab and try again.";
+  }
+  if (/\.pdf(\?|$)/i.test(u) || u.startsWith("chrome-extension://")) {
+    return "This tab doesn’t support the reader (PDF viewer or extension page). Open the job as a normal web page.";
+  }
+  const trimmed = chromeMsg.trim();
+  if (trimmed) {
+    return `Couldn’t attach the reader to this tab (${trimmed}). Try refreshing the page, then Re-scan.`;
+  }
+  return "Couldn’t attach the reader to this tab. Try refreshing the page, then Re-scan.";
+}
+
 export async function requestJobContextFromActiveTab(): Promise<JobContext> {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   if (!tab?.id) throw new Error("No active tab.");
@@ -46,10 +64,9 @@ export async function requestJobContextFromActiveTab(): Promise<JobContext> {
       target: { tabId, allFrames: false },
       files: ["content.js"],
     });
-  } catch {
-    throw new Error(
-      "This page cannot be scraped (restricted URL). Use a normal https job page, or refresh the tab and try again.",
-    );
+  } catch (e) {
+    const chromeMsg = e instanceof Error ? e.message : String(e);
+    throw new Error(scrapeInjectFailureMessage(tab.url, chromeMsg));
   }
 
   await sleep(50);

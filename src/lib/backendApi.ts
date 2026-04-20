@@ -21,6 +21,19 @@ function apiUrl(base: string, path: string): string {
   return `${origin}${p}`;
 }
 
+function describeFetchNetworkFailure(url: string, cause: unknown): string {
+  const origin = url.split("/api")[0] || url;
+  const chromeDetail =
+    cause instanceof Error && cause.message.trim() && cause.message.trim() !== "Failed to fetch"
+      ? ` (${cause.message.trim()})`
+      : "";
+  const healthProbe = `${normalizeApiOrigin(origin)}/api/health`;
+  return (
+    `Could not reach the server (${origin})${chromeDetail}. ` +
+    `If ${healthProbe} works in a normal tab, this is usually CORS: set CHROME_EXTENSION_IDS to your 32-character id from chrome://extensions (same id as this unpacked or store build), redeploy the API, and avoid values like chrome-extension://chrome-extension://… .`
+  );
+}
+
 async function apiFetch(url: string, init?: RequestInit): Promise<Response> {
   try {
     return await fetch(url, {
@@ -30,10 +43,7 @@ async function apiFetch(url: string, init?: RequestInit): Promise<Response> {
     });
   } catch (e) {
     if (e instanceof TypeError) {
-      const origin = url.split("/api")[0] || url;
-      throw new Error(
-        `Could not reach the server (${origin}). Check your network and that the API is running.`,
-      );
+      throw new Error(describeFetchNetworkFailure(url, e));
     }
     throw e;
   }
@@ -53,6 +63,17 @@ export async function readApiErrorBody(res: Response): Promise<string> {
 async function requireOk(res: Response): Promise<void> {
   if (res.ok) return;
   throw new ApiHttpError(res.status, await readApiErrorBody(res));
+}
+
+/** Unauthenticated probe — same fetch path as other API calls (good for diagnosing extension-only failures). */
+export async function apiGetHealth(apiBaseUrl: string): Promise<{ ok: boolean }> {
+  const base = normalizeApiOrigin(apiBaseUrl);
+  if (!base) {
+    throw new Error("No API URL configured.");
+  }
+  const res = await apiFetch(apiUrl(base, "/api/health"), { method: "GET" });
+  await requireOk(res);
+  return res.json() as Promise<{ ok: boolean }>;
 }
 
 export async function apiGetMe(apiBaseUrl: string, token: string): Promise<AccountMeResponse> {

@@ -33,6 +33,8 @@ export function CloudAndSyncSection({
 
   const base = settings.apiBaseUrl.trim();
   const token = settings.authToken?.trim();
+  /** Session may exist in storage before Options `settings` state catches up — still allow billing portal. */
+  const hasLikelySession = Boolean(token) || Boolean(settings.authEmail?.trim());
   const canNetwork = hydrated && serverFeaturesEnabled && base.length > 0 && Boolean(token);
 
   const onLogout = useCallback(async () => {
@@ -84,8 +86,17 @@ export function CloudAndSyncSection({
         </header>
         <div className={cn(ccSurfaceQuiet, "border border-amber-100/80 bg-amber-50/35 px-4 py-3")}>
           <p className={cn(ccMuted, "text-[13px]")}>
-            <span className="font-semibold text-amber-950">Demo mode is on.</span> The extension stays offline. Turn off
-            demo mode under Connection to sign in, subscribe, and sync your profile.
+            {import.meta.env.PROD ? (
+              <>
+                <span className="font-semibold text-amber-950">Cloud features are off.</span> Sign in from the side panel
+                with an active plan to sync your profile and use live generation.
+              </>
+            ) : (
+              <>
+                <span className="font-semibold text-amber-950">Demo mode is on.</span> The extension stays offline. Turn off
+                demo mode under Connection to sign in, subscribe, and sync your profile.
+              </>
+            )}
           </p>
         </div>
       </div>
@@ -139,7 +150,7 @@ export function CloudAndSyncSection({
             <button
               type="button"
               className={ccBtnSecondarySm}
-              disabled={!token || accountBusy}
+              disabled={!hasLikelySession || accountBusy}
               onClick={() => void onOpenBillingPortal()}
             >
               Manage billing

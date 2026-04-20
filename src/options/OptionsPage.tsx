@@ -24,9 +24,10 @@ const COVERCLICK_PRIVACY_POLICY_URL =
   "https://docs.google.com/document/d/e/2PACX-1vR9MqoEtybZBmumYWfHCn4Jy70AlZOi6O8KUSHn6Tfpre-d5FEunSK4BdCqx04U8OKounmZHDwtY72C/pub";
 
 function OptionsBuildFootnote() {
+  const isProd = import.meta.env.PROD;
   return (
     <footer className="mx-auto max-w-5xl border-t border-slate-200/80 px-4 py-4 text-center text-[10px] leading-relaxed text-slate-400 sm:px-5">
-      <p className="mb-3">
+      <p className={isProd ? undefined : "mb-3"}>
         <a
           href={COVERCLICK_PRIVACY_POLICY_URL}
           target="_blank"
@@ -36,17 +37,21 @@ function OptionsBuildFootnote() {
           Privacy policy
         </a>
       </p>
-      <span className="font-mono text-[10px] text-slate-500" title="Changes after this time require rebuild + reload">
-        Build {EXTENSION_BUILD_ID}
-      </span>
-      <span className="mx-2 text-slate-300">·</span>
-      Chrome runs the compiled copy in <strong className="text-slate-500">dist/</strong>, not your source tree. After pulling
-      or editing code: run{" "}
-      <code className="rounded bg-slate-100 px-1 py-0.5 font-mono text-slate-600">npm run build</code> (or keep{" "}
-      <code className="rounded bg-slate-100 px-1 font-mono text-slate-600">npm run dev</code>
-      ), open <code className="rounded bg-slate-100 px-1 font-mono text-slate-600">chrome://extensions</code>, click{" "}
-      <strong className="text-slate-500">Reload</strong> on CoverClick, then reopen this tab. Unpacked extension path must be
-      the <strong className="text-slate-500">dist</strong> folder.
+      {!isProd ? (
+        <>
+          <span className="font-mono text-[10px] text-slate-500" title="Changes after this time require rebuild + reload">
+            Build {EXTENSION_BUILD_ID}
+          </span>
+          <span className="mx-2 text-slate-300">·</span>
+          Chrome runs the compiled copy in <strong className="text-slate-500">dist/</strong>, not your source tree. After pulling
+          or editing code: run{" "}
+          <code className="rounded bg-slate-100 px-1 py-0.5 font-mono text-slate-600">npm run build</code> (or keep{" "}
+          <code className="rounded bg-slate-100 px-1 font-mono text-slate-600">npm run dev</code>
+          ), open <code className="rounded bg-slate-100 px-1 font-mono text-slate-600">chrome://extensions</code>, click{" "}
+          <strong className="text-slate-500">Reload</strong> on CoverClick, then reopen this tab. Unpacked extension path must be
+          the <strong className="text-slate-500">dist</strong> folder.
+        </>
+      ) : null}
     </footer>
   );
 }
@@ -81,6 +86,18 @@ export function OptionsPage() {
       cancelled = true;
     };
   }, []);
+
+  /** Keep Options `settings` in sync with chrome.storage when auth changes elsewhere (e.g. sign-in from side panel). */
+  useEffect(() => {
+    if (!hydrated) return;
+    let cancelled = false;
+    void loadSettings().then((s) => {
+      if (!cancelled) setSettings(s);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [hydrated, gate.phase, gate.me?.email]);
 
   useEffect(() => {
     if (!hydrated) return;
@@ -256,6 +273,15 @@ export function OptionsPage() {
           <div className="mt-4 rounded-lg border border-red-200/90 bg-red-50 px-3 py-2.5 text-[13px] text-red-800">{loadError}</div>
         ) : null}
 
+        {mainTab === "account" && gate.authError ? (
+          <div
+            className="mt-4 rounded-lg border border-red-200/90 bg-red-50 px-3 py-2.5 text-[13px] text-red-800"
+            role="alert"
+          >
+            {gate.authError}
+          </div>
+        ) : null}
+
         {mainTab === "profile" ? (
           <div className="cc-fade-in mt-5 space-y-8">
             <header className="max-w-3xl">
@@ -281,7 +307,11 @@ export function OptionsPage() {
                   apply.
                 </p>
                 {settings.useMock ? (
-                  <p className="mt-1.5 text-[11px] text-amber-900/90">Turn off demo mode under Cloud & billing to use resume import.</p>
+                  <p className="mt-1.5 text-[11px] text-amber-900/90">
+                    {import.meta.env.PROD
+                      ? "Sign in with an active plan from the side panel to use resume import."
+                      : "Turn off demo mode under Cloud & billing to use resume import."}
+                  </p>
                 ) : null}
               </div>
               <button type="button" className={cn(ccBtnPrimarySm, "shrink-0 self-start sm:self-center")} onClick={() => setMainTab("import")}>
