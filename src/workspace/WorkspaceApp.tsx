@@ -31,6 +31,7 @@ import { requestCleanJobDescription } from "../lib/jobDescriptionCleanApi";
 import { shouldUseAiDescriptionClean } from "../lib/jobDescriptionQuality";
 import { buildDefaultExportBasename } from "../lib/utils";
 import { cn } from "../lib/classNames";
+import { ApiHttpError } from "../lib/backendApi";
 import { JobPane } from "../popup/components/JobPane";
 import { LetterPane } from "../popup/components/LetterPane";
 import { WorkspaceToolbar } from "./components/WorkspaceToolbar";
@@ -97,6 +98,7 @@ export function WorkspaceApp() {
   const [panelWidth, setPanelWidth] = useState(640);
   const [docEditEpoch, setDocEditEpoch] = useState(0);
   const [jobDescriptionAiBusy, setJobDescriptionAiBusy] = useState(false);
+  const [jobDescriptionAiError, setJobDescriptionAiError] = useState<string | null>(null);
   const aiCleanAttemptedRef = useRef<string>("");
   const aiCleanGenerationRef = useRef(0);
   const [liveSettings, setLiveSettings] = useState<Pick<AppSettings, "useMock" | "authToken" | "apiBaseUrl">>(() => ({
@@ -147,20 +149,24 @@ export function WorkspaceApp() {
   useEffect(() => {
     if (!job?.pageUrl) {
       setJobDescriptionAiBusy(false);
+      setJobDescriptionAiError(null);
       return;
     }
     const raw = job.descriptionText;
     if (!shouldUseAiDescriptionClean(raw)) {
       setJobDescriptionAiBusy(false);
+      setJobDescriptionAiError(null);
       return;
     }
     if (liveSettings.useMock) {
       setJobDescriptionAiBusy(false);
+      setJobDescriptionAiError(null);
       return;
     }
     if (!liveSettings.authToken?.trim() || !liveSettings.apiBaseUrl.trim()) {
       aiCleanAttemptedRef.current = "";
       setJobDescriptionAiBusy(false);
+      setJobDescriptionAiError(null);
       return;
     }
     const key = `${job.pageUrl}|${job.scrapedAt}`;
@@ -170,6 +176,7 @@ export function WorkspaceApp() {
     let cancelled = false;
     aiCleanAttemptedRef.current = key;
     setJobDescriptionAiBusy(true);
+    setJobDescriptionAiError(null);
 
     void (async () => {
       try {
@@ -177,8 +184,24 @@ export function WorkspaceApp() {
         const cleaned = await requestCleanJobDescription(liveSettings.apiBaseUrl, raw, liveSettings.authToken);
         if (cancelled || !cleaned.trim()) return;
         setJob((j) => (j && j.pageUrl === job.pageUrl && j.scrapedAt === job.scrapedAt ? { ...j, descriptionText: cleaned } : j));
-      } catch {
+      } catch (e) {
         aiCleanAttemptedRef.current = "";
+        if (cancelled) return;
+        if (e instanceof ApiHttpError) {
+          if (e.status === 401 || e.status === 403) {
+            setJobDescriptionAiError("AI cleanup needs an active paid session. Refresh access or sign in again.");
+            return;
+          }
+          if (e.status === 429) {
+            setJobDescriptionAiError("AI cleanup is rate-limited right now. Try again in a minute.");
+            return;
+          }
+          setJobDescriptionAiError(e.message);
+          return;
+        }
+        setJobDescriptionAiError(
+          e instanceof Error ? e.message : "AI cleanup failed. You can still edit the posting manually.",
+        );
       } finally {
         if (!cancelled && aiCleanGenerationRef.current === gen) {
           setJobDescriptionAiBusy(false);
@@ -415,6 +438,7 @@ export function WorkspaceApp() {
     onRegenerateLetter: () => void runGeneration(),
     regenLetterBusy: genBusy,
     descriptionAiCleaning: jobDescriptionAiBusy,
+    descriptionAiError: jobDescriptionAiError,
   };
 
   const renderLetterPane = () => (

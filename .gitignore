@@ -5,5 +5,3 @@ dist
 .env
 .env.local
 coverclick-extension.zip
-
-.env.production

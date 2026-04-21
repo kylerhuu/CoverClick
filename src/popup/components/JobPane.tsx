@@ -26,6 +26,8 @@ type Props = {
   stackedInSplit?: boolean;
   /** AI is normalizing the scraped job description (show overlay on description). */
   descriptionAiCleaning?: boolean;
+  /** Non-fatal AI cleanup issue; user can still edit/generate with scraped text. */
+  descriptionAiError?: string | null;
 };
 
 export function JobPane({
@@ -42,6 +44,7 @@ export function JobPane({
   onExpand,
   stackedInSplit = false,
   descriptionAiCleaning = false,
+  descriptionAiError = null,
 }: Props) {
   const { score, missingLabels } = profileCompleteness(profile);
   const r = 15.5;
@@ -165,6 +168,11 @@ export function JobPane({
       {error ? (
         <div className="shrink-0 border-b border-red-100 bg-red-50/90 px-4 py-2.5 text-[11px] leading-snug text-red-800">
           {error}
+        </div>
+      ) : null}
+      {descriptionAiError ? (
+        <div className="shrink-0 border-b border-amber-200/70 bg-amber-50/85 px-4 py-2 text-[11px] leading-snug text-amber-900">
+          {descriptionAiError}
         </div>
       ) : null}
 
