@@ -22,4 +22,4 @@ ENV NODE_ENV=production
 EXPOSE 8787
 
 # Apply migrations then start (DATABASE_URL required at runtime)
-CMD ["sh", "-c", "npx prisma migrate deploy && echo 'starting server...' && node dist/index.js"]
+CMD ["npm", "run", "start:deploy"]

@@ -11,7 +11,7 @@
     "build": "tsc",
     "start": "npm run start:deploy",
     "start:raw": "node dist/index.js",
-    "start:deploy": "prisma migrate deploy && node dist/index.js",
+    "start:deploy": "prisma migrate deploy && echo 'starting server...' && node dist/index.js",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:push": "prisma db push",
