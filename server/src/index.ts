@@ -852,8 +852,8 @@ app.post("/api/generate-cover-letter", authMiddleware, requirePaidMiddleware, au
   }
 });
 
-app.listen(PORT, () => {
-  console.log(`CoverClick API listening on http://localhost:${PORT}`);
+app.listen(PORT, "0.0.0.0",() => {
+  console.log(`CoverClick API listening on port ${PORT}`);
   if (!process.env.OPENAI_API_KEY?.trim()) {
     console.warn("[warn] OPENAI_API_KEY is unset — generation and resume parse will fail.");
   }
