@@ -23,4 +23,4 @@ ENV CACHE_BUST=2
 EXPOSE 8787
 
 # Apply migrations then start (DATABASE_URL required at runtime)
-CMD ["npm", "run", "start:deploy"]
+CMD ["node", "dist/index.js"]
