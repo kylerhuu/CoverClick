@@ -19,6 +19,7 @@ COPY src ./src/
 RUN npx prisma generate && npm run build
 
 ENV NODE_ENV=production
+ENV CACHE_BUST=2
 EXPOSE 8787
 
 # Apply migrations then start (DATABASE_URL required at runtime)
