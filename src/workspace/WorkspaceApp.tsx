@@ -583,9 +583,10 @@ function withStableResumeIds(resume: StructuredResume): StructuredResume {
       const idx = next.experience.findIndex((e) => e.id === sg.targetId);
       if (idx < 0) return next;
       const item = next.experience[idx];
-      const updatedBullets = applyByText(item.bullets, sg.currentText, sg.suggestedText);
       const copy = [...next.experience];
-      copy[idx] = { ...item, bullets: updatedBullets };
+      if (!sg.fieldPath || sg.fieldPath === "bullets") {
+        copy[idx] = { ...item, bullets: applyByText(item.bullets, sg.currentText, sg.suggestedText) };
+      }
       return { ...next, experience: copy };
     }
 
@@ -593,9 +594,14 @@ function withStableResumeIds(resume: StructuredResume): StructuredResume {
       const idx = next.projects.findIndex((e) => e.id === sg.targetId);
       if (idx < 0) return next;
       const item = next.projects[idx];
-      const updatedBullets = applyByText(item.bullets, sg.currentText, sg.suggestedText);
       const copy = [...next.projects];
-      copy[idx] = { ...item, bullets: updatedBullets };
+      if (!sg.fieldPath || sg.fieldPath === "bullets") {
+        copy[idx] = { ...item, bullets: applyByText(item.bullets, sg.currentText, sg.suggestedText) };
+      } else if (sg.fieldPath === "techStack") {
+        copy[idx] = { ...item, techStack: applyByText(item.techStack, sg.currentText, sg.suggestedText) };
+      } else if (sg.fieldPath === "subtitle" && sg.suggestedText.trim()) {
+        copy[idx] = { ...item, subtitle: sg.suggestedText.trim() };
+      }
       return { ...next, projects: copy };
     }
 
@@ -613,9 +619,8 @@ function withStableResumeIds(resume: StructuredResume): StructuredResume {
       const idx = next.education.findIndex((e) => e.id === sg.targetId);
       if (idx < 0) return next;
       const item = next.education[idx];
-      const updated = applyByText(item.details, sg.currentText, sg.suggestedText);
       const copy = [...next.education];
-      copy[idx] = { ...item, details: updated };
+      copy[idx] = { ...item, details: applyByText(item.details, sg.currentText, sg.suggestedText) };
       return { ...next, education: copy };
     }
 
@@ -627,7 +632,10 @@ function withStableResumeIds(resume: StructuredResume): StructuredResume {
     const sg = resumeOptimizeResult.suggestions.find((x) => x.id === id);
     if (!sg) return;
 
-    const safeAutoApply = sg.section === "summary" || (sg.targetId && (sg.changeType === "rewrite" || sg.changeType === "add" || sg.changeType === "remove" || sg.changeType === "emphasize"));
+    const safeAutoApply =
+      sg.section === "summary" ||
+      (sg.targetId &&
+        (sg.changeType === "rewrite" || sg.changeType === "add" || sg.changeType === "remove" || sg.changeType === "emphasize"));
     if (!safeAutoApply) {
       setResumeOptimizeError("Suggestion marked accepted but requires manual edit due ambiguous target mapping.");
       setSuggestionDecisions((prev) => ({ ...prev, [id]: "accepted" }));

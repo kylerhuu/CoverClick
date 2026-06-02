@@ -6,14 +6,14 @@ function digest(req: ResumeSummaryGenerateRequest): string {
   return [
     `Target role: ${req.targetRole?.trim() || "General"}`,
     `Name: ${resume.contact.fullName || "Candidate"}`,
-    resume.education.length ? `Education:\n${resume.education.map((e) => `- ${e.school} | ${e.degree} | ${e.dates}`).join("\n")}` : "",
+    resume.education.length ? `Education:\n${resume.education.map((e) => `- ${e.school} | ${e.degree} | ${e.major} | ${e.graduationDate}`).join("\n")}` : "",
     resume.experience.length
       ? `Experience:\n${resume.experience
           .map((e) => `- ${e.title} at ${e.company} (${e.dates}) ${e.location}\n  ${e.bullets.slice(0, 2).join("\n  ")}`)
           .join("\n")}`
       : "",
     resume.projects.length
-      ? `Projects:\n${resume.projects.map((p) => `- ${p.name} (${p.role}) ${p.bullets.slice(0, 1).join(" ")}`).join("\n")}`
+      ? `Projects:\n${resume.projects.map((p) => `- ${p.name} (${p.subtitle}) ${p.bullets.slice(0, 1).join(" ")}`).join("\n")}`
       : "",
     resume.skills.length ? `Skills:\n${resume.skills.map((g) => `${g.category}: ${g.items.join(", ")}`).join("\n")}` : "",
     resume.certifications.length ? `Certifications: ${resume.certifications.join(", ")}` : "",

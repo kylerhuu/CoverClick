@@ -11,18 +11,32 @@ function resumeDigest(resume: StructuredResume): string {
     `Contact: ${resume.contact.fullName} | ${resume.contact.location}`,
     resume.summary ? `Summary: ${resume.summary}` : "",
     resume.experience.length
-      ? `Experience:\n${resume.experience
+      ? `Experience:
+${resume.experience
           .map((e) => `- [${e.id ?? ""}] ${e.title} @ ${e.company} (${e.dates})\n  bullets: ${e.bullets.join(" || ")}`)
           .join("\n")}`
       : "",
     resume.projects.length
-      ? `Projects:\n${resume.projects.map((p) => `- [${p.id ?? ""}] ${p.name}: ${p.bullets.join(" || ")}`).join("\n")}`
+      ? `Projects:
+${resume.projects
+          .map(
+            (p) =>
+              `- [${p.id ?? ""}] ${p.name} | ${p.subtitle} | tech: ${p.techStack.join(", ")}\n  bullets: ${p.bullets.join(" || ")}`,
+          )
+          .join("\n")}`
       : "",
     resume.education.length
-      ? `Education:\n${resume.education.map((e) => `- [${e.id ?? ""}] ${e.school} | ${e.degree} | ${e.dates}`).join("\n")}`
+      ? `Education:
+${resume.education
+          .map(
+            (e) =>
+              `- [${e.id ?? ""}] ${e.school} | ${e.degree} | ${e.major} | ${e.graduationDate} | GPA ${e.gpa ?? ""}`,
+          )
+          .join("\n")}`
       : "",
     resume.skills.length
-      ? `Skills:\n${resume.skills.map((g) => `- [${g.id ?? ""}] ${g.category}: ${g.items.join(", ")}`).join("\n")}`
+      ? `Skills:
+${resume.skills.map((g) => `- [${g.id ?? ""}] ${g.category}: ${g.items.join(", ")}`).join("\n")}`
       : "",
   ]
     .filter(Boolean)
@@ -63,11 +77,15 @@ function normalizeSuggestion(raw: unknown, idx: number): ResumeOptimizationSugge
   if (!["high", "medium", "low"].includes(priority)) return null;
   const suggestedText = asString(o.suggestedText);
   const reason = asString(o.reason);
+  const fieldPath = asString(o.fieldPath);
   if (!suggestedText || !reason) return null;
   return {
     id: asString(o.id) || `sg-${idx + 1}`,
     section: section as ResumeOptimizationSuggestion["section"],
     targetId: asString(o.targetId) || undefined,
+    fieldPath: ["summary", "bullets", "techStack", "subtitle", "details", "items"].includes(fieldPath)
+      ? (fieldPath as ResumeOptimizationSuggestion["fieldPath"])
+      : undefined,
     changeType: changeType as ResumeOptimizationSuggestion["changeType"],
     currentText: asString(o.currentText),
     suggestedText,
@@ -86,7 +104,7 @@ export async function resumeOptimizeForJobWithOpenAI(req: ResumeOptimizeForJobRe
     "- Use only resume data and job description provided.",
     "- Suggest field-level or bullet-level edits only (no full section rewrites).",
     "- If uncertain, emit warnings and lower-priority manual suggestions.",
-    'Return JSON only with shape: { "summary": string, "suggestions": [{ "id": string, "section": "summary" | "experience" | "projects" | "skills" | "education", "targetId": string, "changeType": "rewrite" | "add" | "remove" | "reorder" | "emphasize", "currentText": string, "suggestedText": string, "reason": string, "priority": "high" | "medium" | "low" }], "keywordsToAdd": string[], "warnings": string[] }',
+    'Return JSON only with shape: { "summary": string, "suggestions": [{ "id": string, "section": "summary" | "experience" | "projects" | "skills" | "education", "targetId": string, "fieldPath": "summary" | "bullets" | "techStack" | "subtitle" | "details" | "items", "changeType": "rewrite" | "add" | "remove" | "reorder" | "emphasize", "currentText": string, "suggestedText": string, "reason": string, "priority": "high" | "medium" | "low" }], "keywordsToAdd": string[], "warnings": string[] }',
     "Use targetId whenever possible using the section item ids shown in brackets.",
   ].join("\n");
 

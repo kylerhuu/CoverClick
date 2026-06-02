@@ -67,13 +67,17 @@ export interface ResumeEducationItem {
   id?: string;
   school: string;
   degree: string;
-  dates: string;
+  major: string;
+  concentrationOrMinor?: string;
+  gpa?: string;
+  graduationDate: string;
   details: string[];
 }
 
 export interface ResumeExperienceItem {
   id?: string;
   company: string;
+  companySubtitle?: string;
   title: string;
   dates: string;
   location: string;
@@ -83,8 +87,8 @@ export interface ResumeExperienceItem {
 export interface ResumeProjectItem {
   id?: string;
   name: string;
-  role: string;
-  dates: string;
+  subtitle: string;
+  techStack: string[];
   bullets: string[];
 }
 
@@ -93,6 +97,13 @@ export interface ResumeSkillGroup {
   category: string;
   items: string[];
 }
+
+export type ResumeSectionKey = "summary" | "experience" | "projects" | "education" | "skills";
+
+export type ResumeSectionSettings = {
+  isVisible: boolean;
+  order: number;
+};
 
 export interface StructuredResume {
   contact: ResumeContact;
@@ -104,6 +115,7 @@ export interface StructuredResume {
   certifications: string[];
   leadership: string[];
   links: string[];
+  sectionSettings: Record<ResumeSectionKey, ResumeSectionSettings>;
 }
 
 export interface ResumeSummaryGenerateRequest {
@@ -123,6 +135,8 @@ export interface ResumeOptimizationSuggestion {
   id: string;
   section: ResumeOptimizeSection;
   targetId?: string;
+  /** Optional explicit field path to support multi-entry targeting. */
+  fieldPath?: "summary" | "bullets" | "techStack" | "subtitle" | "details" | "items";
   changeType: ResumeOptimizeChangeType;
   currentText: string;
   suggestedText: string;
@@ -296,4 +310,11 @@ export const EMPTY_STRUCTURED_RESUME: StructuredResume = {
   certifications: [],
   leadership: [],
   links: [],
+  sectionSettings: {
+    summary: { isVisible: true, order: 0 },
+    experience: { isVisible: true, order: 1 },
+    projects: { isVisible: true, order: 2 },
+    education: { isVisible: true, order: 3 },
+    skills: { isVisible: true, order: 4 },
+  },
 };

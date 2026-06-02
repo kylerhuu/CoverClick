@@ -40,7 +40,18 @@ export function hasResumeStudioContent(resume: StructuredResume): boolean {
   if (resume.certifications.length || resume.leadership.length || resume.links.some((l) => l.trim())) {
     return true;
   }
-  if (resume.education.some((e) => e.school.trim() || e.degree.trim() || e.dates.trim() || e.details.length)) {
+  if (
+    resume.education.some(
+      (e) =>
+        e.school.trim() ||
+        e.degree.trim() ||
+        e.major.trim() ||
+        (e.concentrationOrMinor ?? "").trim() ||
+        (e.gpa ?? "").trim() ||
+        e.graduationDate.trim() ||
+        e.details.length,
+    )
+  ) {
     return true;
   }
   if (
@@ -55,7 +66,7 @@ export function hasResumeStudioContent(resume: StructuredResume): boolean {
   ) {
     return true;
   }
-  if (resume.projects.some((p) => p.name.trim() || p.role.trim() || p.dates.trim() || p.bullets.length)) {
+  if (resume.projects.some((p) => p.name.trim() || p.subtitle.trim() || p.techStack.length || p.bullets.length)) {
     return true;
   }
   if (resume.skills.some((s) => s.category.trim() || s.items.length)) return true;
@@ -78,8 +89,11 @@ export function profileToStructuredResume(profile: UserProfile): StructuredResum
           {
             id: "edu-1",
             school: profile.school.trim(),
-            degree: profile.major.trim(),
-            dates: profile.graduationYear.trim(),
+            degree: "Bachelor's Degree",
+            major: profile.major.trim(),
+            concentrationOrMinor: "",
+            gpa: "",
+            graduationDate: profile.graduationYear.trim(),
             details: [] as string[],
           },
         ]
@@ -105,8 +119,8 @@ export function profileToStructuredResume(profile: UserProfile): StructuredResum
           {
             id: "proj-1",
             name: "Projects",
-            role: "",
-            dates: "",
+            subtitle: "",
+            techStack: [],
             bullets: [...profile.projectBullets],
           },
         ]
@@ -131,5 +145,12 @@ export function profileToStructuredResume(profile: UserProfile): StructuredResum
     experience,
     projects,
     skills,
+    sectionSettings: {
+      summary: { isVisible: true, order: 0 },
+      experience: { isVisible: true, order: 1 },
+      projects: { isVisible: true, order: 2 },
+      education: { isVisible: true, order: 3 },
+      skills: { isVisible: true, order: 4 },
+    },
   };
 }

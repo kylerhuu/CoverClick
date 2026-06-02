@@ -1,19 +1,10 @@
-import {
-  AlignmentType,
-  BorderStyle,
-  Document,
-  Packer,
-  Paragraph,
-  TextRun,
-} from "docx";
-import type { StructuredResume } from "./types";
+import { AlignmentType, BorderStyle, Document, Packer, Paragraph, TextRun } from "docx";
+import type { ResumeSectionKey, StructuredResume } from "./types";
 import { sanitizeExportBasename } from "./utils";
 
 const BODY_FONT = "Calibri" as const;
-const BODY_SIZE = 22 as const; // 11pt
-const NAME_SIZE = 32 as const; // 16pt
-const SECTION_AFTER = 60;
-const BLOCK_AFTER = 100;
+const BODY_SIZE = 22 as const;
+const NAME_SIZE = 32 as const;
 
 function triggerDownload(blob: Blob, filename: string): void {
   const url = URL.createObjectURL(blob);
@@ -24,173 +15,174 @@ function triggerDownload(blob: Blob, filename: string): void {
   URL.revokeObjectURL(url);
 }
 
-function bodyRun(text: string, opts?: { bold?: boolean; size?: number }): TextRun {
+function run(text: string, opts?: { bold?: boolean; size?: number; italics?: boolean }): TextRun {
   return new TextRun({
     text: text.trim() || " ",
     font: BODY_FONT,
     size: opts?.size ?? BODY_SIZE,
     bold: opts?.bold,
+    italics: opts?.italics,
   });
 }
 
-/** ALL CAPS section title with a horizontal rule underneath (ATS-friendly). */
-function sectionHeading(text: string): Paragraph {
+function heading(text: string): Paragraph {
   return new Paragraph({
     alignment: AlignmentType.LEFT,
-    spacing: { before: 200, after: SECTION_AFTER },
+    spacing: { before: 220, after: 60 },
     border: {
       bottom: {
         color: "404040",
-        space: 1,
         style: BorderStyle.SINGLE,
         size: 6,
+        space: 1,
       },
     },
-    children: [
-      new TextRun({
-        text: text.toUpperCase(),
-        bold: true,
-        font: BODY_FONT,
-        size: BODY_SIZE,
-        characterSpacing: 40,
-      }),
-    ],
+    children: [new TextRun({ text: text.toUpperCase(), font: BODY_FONT, size: BODY_SIZE, bold: true, characterSpacing: 40 })],
   });
 }
 
-function bodyParagraph(text: string, after = BLOCK_AFTER): Paragraph {
+function line(text: string, after = 60, bold = false, italics = false): Paragraph {
   return new Paragraph({
     alignment: AlignmentType.LEFT,
     spacing: { after, line: 276 },
-    children: [bodyRun(text)],
+    children: [run(text, { bold, italics })],
   });
 }
 
-function bulletParagraph(text: string, after = 50): Paragraph {
+function bullet(text: string): Paragraph {
   return new Paragraph({
     alignment: AlignmentType.LEFT,
-    spacing: { after, line: 276 },
+    spacing: { after: 40, line: 276 },
     indent: { left: 360, hanging: 180 },
-    children: [bodyRun(`• ${text.replace(/^\s*[-•]\s*/, "")}`)],
+    children: [run(`• ${text.replace(/^\s*[-•]\s*/, "")}`)],
   });
 }
 
-function roleLine(title: string, company: string): Paragraph {
-  const left = title.trim();
-  const right = company.trim();
-  const text = left && right ? `${left} — ${right}` : left || right;
-  return new Paragraph({
-    alignment: AlignmentType.LEFT,
-    spacing: { before: 80, after: 40 },
-    children: [bodyRun(text, { bold: true })],
-  });
+function hasSummary(resume: StructuredResume): boolean {
+  return resume.summary.trim().length > 0;
 }
 
-function metaLine(parts: string[]): Paragraph | null {
-  const text = parts.map((p) => p.trim()).filter(Boolean).join("  |  ");
-  if (!text) return null;
-  return new Paragraph({
-    alignment: AlignmentType.LEFT,
-    spacing: { after: 50 },
-    children: [new TextRun({ text, font: BODY_FONT, size: 20, italics: true })],
-  });
+function hasExperience(resume: StructuredResume): boolean {
+  return resume.experience.some((x) => x.company.trim() || x.title.trim() || x.bullets.length);
+}
+
+function hasProjects(resume: StructuredResume): boolean {
+  return resume.projects.some((x) => x.name.trim() || x.subtitle.trim() || x.techStack.length || x.bullets.length);
+}
+
+function hasEducation(resume: StructuredResume): boolean {
+  return resume.education.some((x) => x.school.trim() || x.degree.trim() || x.major.trim() || x.graduationDate.trim());
+}
+
+function hasSkills(resume: StructuredResume): boolean {
+  return resume.skills.some((x) => x.category.trim() || x.items.length);
+}
+
+function visibleOrderedSections(resume: StructuredResume): ResumeSectionKey[] {
+  const all: ResumeSectionKey[] = ["summary", "experience", "projects", "education", "skills"];
+  return all
+    .filter((k) => resume.sectionSettings[k]?.isVisible !== false)
+    .filter((k) => {
+      if (k === "summary") return hasSummary(resume);
+      if (k === "experience") return hasExperience(resume);
+      if (k === "projects") return hasProjects(resume);
+      if (k === "education") return hasEducation(resume);
+      return hasSkills(resume);
+    })
+    .sort((a, b) => (resume.sectionSettings[a]?.order ?? 0) - (resume.sectionSettings[b]?.order ?? 0));
 }
 
 export async function downloadResumeDocx(resume: StructuredResume, fileBaseName: string): Promise<void> {
   const base = sanitizeExportBasename(fileBaseName || "CoverClick_Resume", "CoverClick_Resume");
   const children: Paragraph[] = [];
 
-  const name = resume.contact.fullName.trim() || "Candidate Name";
   children.push(
     new Paragraph({
       alignment: AlignmentType.CENTER,
       spacing: { after: 80 },
-      children: [new TextRun({ text: name, bold: true, font: BODY_FONT, size: NAME_SIZE })],
+      children: [new TextRun({ text: resume.contact.fullName.trim() || "Candidate Name", font: BODY_FONT, size: NAME_SIZE, bold: true })],
     }),
   );
 
-  const contactParts = [
+  const contact = [
     resume.contact.email.trim(),
     resume.contact.phone.trim(),
     resume.contact.location.trim(),
     ...resume.contact.links,
     ...resume.links,
-  ].filter(Boolean);
-  if (contactParts.length) {
+  ]
+    .map((x) => x.trim())
+    .filter(Boolean)
+    .join("  |  ");
+  if (contact) {
     children.push(
       new Paragraph({
         alignment: AlignmentType.CENTER,
-        spacing: { after: 200 },
-        children: [new TextRun({ text: contactParts.join("  |  "), font: BODY_FONT, size: 20 })],
+        spacing: { after: 180 },
+        children: [new TextRun({ text: contact, font: BODY_FONT, size: 20 })],
       }),
     );
   }
 
-  if (resume.summary.trim()) {
-    children.push(sectionHeading("Summary"), bodyParagraph(resume.summary, 120));
-  }
-
-  if (resume.experience.length) {
-    children.push(sectionHeading("Experience"));
-    for (const e of resume.experience) {
-      if (!e.title.trim() && !e.company.trim() && !e.bullets.length) continue;
-      children.push(roleLine(e.title, e.company));
-      const meta = metaLine([e.location, e.dates]);
-      if (meta) children.push(meta);
-      for (const b of e.bullets.slice(0, 6)) children.push(bulletParagraph(b));
+  for (const section of visibleOrderedSections(resume)) {
+    if (section === "summary") {
+      children.push(heading("Summary"), line(resume.summary, 80));
+      continue;
     }
-  }
 
-  if (resume.projects.length) {
-    children.push(sectionHeading("Projects"));
-    for (const p of resume.projects) {
-      if (!p.name.trim() && !p.role.trim() && !p.bullets.length) continue;
-      children.push(roleLine(p.role || p.name, p.role ? p.name : ""));
-      const meta = metaLine([p.dates]);
-      if (meta) children.push(meta);
-      for (const b of p.bullets.slice(0, 5)) children.push(bulletParagraph(b));
+    if (section === "experience") {
+      children.push(heading("Experience"));
+      for (const e of resume.experience) {
+        if (!e.company.trim() && !e.title.trim() && !e.bullets.length) continue;
+        const header = [e.company.trim(), e.companySubtitle?.trim()].filter(Boolean).join(" — ");
+        if (header) children.push(line(header, 30, true));
+        const roleLine = [e.title.trim(), [e.location.trim(), e.dates.trim()].filter(Boolean).join(" | ")].filter(Boolean).join(" | ");
+        if (roleLine) children.push(line(roleLine, 40, false, true));
+        for (const b of e.bullets) children.push(bullet(b));
+      }
+      continue;
     }
-  }
 
-  if (resume.education.length) {
-    children.push(sectionHeading("Education"));
-    for (const e of resume.education) {
-      const line = [e.school, e.degree].filter(Boolean).join(" — ");
-      if (line) children.push(bodyParagraph(line, 40));
-      const dates = metaLine([e.dates]);
-      if (dates) children.push(dates);
-      for (const d of e.details.slice(0, 3)) children.push(bulletParagraph(d));
+    if (section === "projects") {
+      children.push(heading("Projects"));
+      for (const p of resume.projects) {
+        if (!p.name.trim() && !p.subtitle.trim() && !p.techStack.length && !p.bullets.length) continue;
+        const title = [p.name.trim(), p.subtitle.trim()].filter(Boolean).join(" — ");
+        if (title) children.push(line(title, 30, true));
+        if (p.techStack.length) children.push(line(p.techStack.join(" • "), 40, false, true));
+        for (const b of p.bullets) children.push(bullet(b));
+      }
+      continue;
     }
-  }
 
-  if (resume.skills.length) {
-    children.push(sectionHeading("Skills"));
+    if (section === "education") {
+      children.push(heading("Education"));
+      for (const e of resume.education) {
+        const schoolLine = [e.school.trim(), e.graduationDate.trim() ? `Expected Graduation: ${e.graduationDate.trim()}` : ""]
+          .filter(Boolean)
+          .join("        ");
+        if (schoolLine) children.push(line(schoolLine, 30, true));
+        const degreeLine = [e.degree.trim(), e.major.trim() ? `${e.major.trim()}` : "", (e.concentrationOrMinor ?? "").trim()]
+          .filter(Boolean)
+          .join(" | ");
+        if (degreeLine) children.push(line(degreeLine, 30));
+        if ((e.gpa ?? "").trim()) children.push(line(`GPA: ${e.gpa?.trim()}`, 40));
+        for (const d of e.details) children.push(bullet(d));
+      }
+      continue;
+    }
+
+    children.push(heading("Skills"));
     for (const s of resume.skills) {
-      const label = s.category.trim();
-      const items = s.items.join(", ");
-      if (!items) continue;
-      children.push(bodyParagraph(label ? `${label}: ${items}` : items, 60));
+      if (!s.category.trim() && !s.items.length) continue;
+      children.push(line(`${s.category.trim() || "Skills"}: ${s.items.join(", ")}`, 40));
     }
-  }
-
-  if (resume.certifications.length) {
-    children.push(sectionHeading("Certifications"));
-    children.push(bodyParagraph(resume.certifications.join(" · "), 80));
-  }
-
-  if (resume.leadership.length) {
-    children.push(sectionHeading("Leadership"));
-    children.push(bodyParagraph(resume.leadership.join(" · "), 80));
   }
 
   const doc = new Document({
     sections: [
       {
-        properties: {
-          page: {
-            margin: { top: 720, right: 720, bottom: 720, left: 720 },
-          },
-        },
+        properties: { page: { margin: { top: 720, right: 720, bottom: 720, left: 720 } } },
         children,
       },
     ],

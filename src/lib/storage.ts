@@ -2,6 +2,7 @@ import type {
   AppSettings,
   CachedLetter,
   GenerationPreferences,
+  ResumeSectionKey,
   StructuredResume,
   UserProfile,
 } from "./types";
@@ -204,6 +205,69 @@ function normalizeStructuredResume(raw: unknown): StructuredResume {
       ? v.filter((x): x is string => typeof x === "string").map((s) => s.trim()).filter(Boolean)
       : [];
   const contactRaw = r.contact && typeof r.contact === "object" ? (r.contact as Record<string, unknown>) : {};
+  const sectionDefaults: Record<ResumeSectionKey, { isVisible: boolean; order: number }> = {
+    summary: { isVisible: true, order: 0 },
+    experience: { isVisible: true, order: 1 },
+    projects: { isVisible: true, order: 2 },
+    education: { isVisible: true, order: 3 },
+    skills: { isVisible: true, order: 4 },
+  };
+  const sectionRaw = r.sectionSettings && typeof r.sectionSettings === "object"
+    ? (r.sectionSettings as Record<string, unknown>)
+    : {};
+  const sectionSettings: StructuredResume["sectionSettings"] = {
+    summary: {
+      isVisible:
+        typeof (sectionRaw.summary as Record<string, unknown> | undefined)?.isVisible === "boolean"
+          ? ((sectionRaw.summary as Record<string, unknown>).isVisible as boolean)
+          : sectionDefaults.summary.isVisible,
+      order:
+        typeof (sectionRaw.summary as Record<string, unknown> | undefined)?.order === "number"
+          ? Number((sectionRaw.summary as Record<string, unknown>).order)
+          : sectionDefaults.summary.order,
+    },
+    experience: {
+      isVisible:
+        typeof (sectionRaw.experience as Record<string, unknown> | undefined)?.isVisible === "boolean"
+          ? ((sectionRaw.experience as Record<string, unknown>).isVisible as boolean)
+          : sectionDefaults.experience.isVisible,
+      order:
+        typeof (sectionRaw.experience as Record<string, unknown> | undefined)?.order === "number"
+          ? Number((sectionRaw.experience as Record<string, unknown>).order)
+          : sectionDefaults.experience.order,
+    },
+    projects: {
+      isVisible:
+        typeof (sectionRaw.projects as Record<string, unknown> | undefined)?.isVisible === "boolean"
+          ? ((sectionRaw.projects as Record<string, unknown>).isVisible as boolean)
+          : sectionDefaults.projects.isVisible,
+      order:
+        typeof (sectionRaw.projects as Record<string, unknown> | undefined)?.order === "number"
+          ? Number((sectionRaw.projects as Record<string, unknown>).order)
+          : sectionDefaults.projects.order,
+    },
+    education: {
+      isVisible:
+        typeof (sectionRaw.education as Record<string, unknown> | undefined)?.isVisible === "boolean"
+          ? ((sectionRaw.education as Record<string, unknown>).isVisible as boolean)
+          : sectionDefaults.education.isVisible,
+      order:
+        typeof (sectionRaw.education as Record<string, unknown> | undefined)?.order === "number"
+          ? Number((sectionRaw.education as Record<string, unknown>).order)
+          : sectionDefaults.education.order,
+    },
+    skills: {
+      isVisible:
+        typeof (sectionRaw.skills as Record<string, unknown> | undefined)?.isVisible === "boolean"
+          ? ((sectionRaw.skills as Record<string, unknown>).isVisible as boolean)
+          : sectionDefaults.skills.isVisible,
+      order:
+        typeof (sectionRaw.skills as Record<string, unknown> | undefined)?.order === "number"
+          ? Number((sectionRaw.skills as Record<string, unknown>).order)
+          : sectionDefaults.skills.order,
+    },
+  };
+
   return {
     contact: {
       fullName: typeof contactRaw.fullName === "string" ? contactRaw.fullName : "",
@@ -220,7 +284,14 @@ function normalizeStructuredResume(raw: unknown): StructuredResume {
             id: typeof x.id === "string" && x.id.trim() ? x.id : makeStableId("edu", idx),
             school: typeof x.school === "string" ? x.school : "",
             degree: typeof x.degree === "string" ? x.degree : "",
-            dates: typeof x.dates === "string" ? x.dates : "",
+            major: typeof x.major === "string" ? x.major : "",
+            concentrationOrMinor: typeof x.concentrationOrMinor === "string" ? x.concentrationOrMinor : "",
+            gpa: typeof x.gpa === "string" ? x.gpa : "",
+            graduationDate: typeof x.graduationDate === "string"
+              ? x.graduationDate
+              : typeof x.dates === "string"
+                ? x.dates
+                : "",
             details: arr(x.details),
           }))
       : [],
@@ -230,6 +301,7 @@ function normalizeStructuredResume(raw: unknown): StructuredResume {
           .map((x, idx) => ({
             id: typeof x.id === "string" && x.id.trim() ? x.id : makeStableId("exp", idx),
             company: typeof x.company === "string" ? x.company : "",
+            companySubtitle: typeof x.companySubtitle === "string" ? x.companySubtitle : "",
             title: typeof x.title === "string" ? x.title : "",
             dates: typeof x.dates === "string" ? x.dates : "",
             location: typeof x.location === "string" ? x.location : "",
@@ -242,8 +314,13 @@ function normalizeStructuredResume(raw: unknown): StructuredResume {
           .map((x, idx) => ({
             id: typeof x.id === "string" && x.id.trim() ? x.id : makeStableId("proj", idx),
             name: typeof x.name === "string" ? x.name : "",
-            role: typeof x.role === "string" ? x.role : "",
-            dates: typeof x.dates === "string" ? x.dates : "",
+            subtitle:
+              typeof x.subtitle === "string"
+                ? x.subtitle
+                : typeof x.role === "string"
+                  ? x.role
+                  : "",
+            techStack: arr(x.techStack),
             bullets: arr(x.bullets),
           }))
       : [],
@@ -259,6 +336,7 @@ function normalizeStructuredResume(raw: unknown): StructuredResume {
     certifications: arr(r.certifications),
     leadership: arr(r.leadership),
     links: arr(r.links),
+    sectionSettings,
   };
 }
 
