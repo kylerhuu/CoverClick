@@ -271,6 +271,9 @@ export function ResumeStudioPane({
 
   return (
     <div ref={containerRef} className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-gradient-to-b from-white via-slate-50/40 to-slate-50/90">
+      <div className="pointer-events-none fixed left-[-14000px] top-0 z-0 overflow-visible" aria-hidden>
+        <ResumePreview resume={resume} template="ats-classic" variant="export" />
+      </div>
       <div className="shrink-0 border-b border-slate-200/70 bg-white/90 px-4 py-3">
         <h2 className="text-[13px] font-semibold text-slate-900">Resume Studio</h2>
         <p className="mt-0.5 text-[11px] text-slate-500">Live preview is the visual source of truth for DOCX/PDF export.</p>
@@ -293,7 +296,7 @@ export function ResumeStudioPane({
         {(wide || view === "preview") ? (
           <div className="min-h-0 overflow-y-auto">
             <div className={cn(wide ? "sticky top-2" : "")}> 
-              <ResumePreview resume={resume} template="ats-classic" />
+              <ResumePreview resume={resume} template="ats-classic" variant="preview" />
               <div className="mt-2 grid grid-cols-2 gap-2">
                 <button type="button" onClick={onExportDocx} className="rounded-lg border border-indigo-200 bg-indigo-50 py-2 text-[12px] font-semibold text-indigo-950">Export DOCX</button>
                 <button type="button" onClick={onExportPdf} className="rounded-lg border border-slate-300 bg-white py-2 text-[12px] font-semibold text-slate-800">Export PDF</button>
