@@ -12,6 +12,19 @@ export type ResumeEducationBlock = {
   gpaLine: string;
 };
 
+export type ResumeSpacingProfile = "comfortable" | "balanced" | "compact";
+
+export type ResumeSpacingTokens = {
+  profile: ResumeSpacingProfile;
+  sectionGap: number;
+  sectionHeaderAfter: number;
+  entryGap: number;
+  subLineGap: number;
+  bulletGap: number;
+  bulletLineHeight: number;
+  contactGap: number;
+};
+
 const SECTION_LABELS: Record<ResumeSectionKey, string> = {
   summary: "SUMMARY",
   experience: "EXPERIENCE",
@@ -24,49 +37,67 @@ function trim(v: string): string {
   return v.trim();
 }
 
+/** Collapse OCR-like letter-separated text: "T o o k  p r o d u c t" -> "Took product". */
+export function cleanupSpacedLetters(input: string): string {
+  const text = input.replace(/\s+/g, " ").trim();
+  if (!text) return "";
+  const tokenCount = text.split(" ").length;
+  if (tokenCount < 6) return text;
+
+  const lettersOnly = text.match(/^[A-Za-z](?:\s+[A-Za-z])+(?:\s{2,}[A-Za-z](?:\s+[A-Za-z])+)*$/);
+  if (!lettersOnly) return text;
+
+  const phraseParts = text.split(/\s{2,}/).map((chunk) => chunk.replace(/\s+/g, ""));
+  return phraseParts.join(" ").trim();
+}
+
+function sanitizeLines(lines: string[]): string[] {
+  return lines.map((s) => cleanupSpacedLetters(trim(s))).filter(Boolean);
+}
+
 export function normalizeResumeForRender(resume: StructuredResume): StructuredResume {
   return {
     ...resume,
     contact: {
       ...resume.contact,
-      fullName: trim(resume.contact.fullName),
+      fullName: cleanupSpacedLetters(trim(resume.contact.fullName)),
       email: trim(resume.contact.email),
       phone: trim(resume.contact.phone),
-      location: trim(resume.contact.location),
-      links: resume.contact.links.map(trim).filter(Boolean),
+      location: cleanupSpacedLetters(trim(resume.contact.location)),
+      links: sanitizeLines(resume.contact.links),
     },
-    summary: trim(resume.summary),
-    links: resume.links.map(trim).filter(Boolean),
+    summary: cleanupSpacedLetters(trim(resume.summary)),
+    links: sanitizeLines(resume.links),
     experience: resume.experience.map((e) => ({
       ...e,
-      company: trim(e.company),
-      companySubtitle: trim(e.companySubtitle ?? ""),
-      title: trim(e.title),
+      company: cleanupSpacedLetters(trim(e.company)),
+      companySubtitle: cleanupSpacedLetters(trim(e.companySubtitle ?? "")),
+      title: cleanupSpacedLetters(trim(e.title)),
       dates: trim(e.dates),
-      location: trim(e.location),
-      bullets: e.bullets.map(trim).filter(Boolean),
+      location: cleanupSpacedLetters(trim(e.location)),
+      bullets: sanitizeLines(e.bullets),
     })),
     projects: resume.projects.map((p) => ({
       ...p,
-      name: trim(p.name),
-      subtitle: trim(p.subtitle),
-      techStack: p.techStack.map(trim).filter(Boolean),
-      bullets: p.bullets.map(trim).filter(Boolean),
+      name: cleanupSpacedLetters(trim(p.name)),
+      subtitle: cleanupSpacedLetters(trim(p.subtitle)),
+      techStack: sanitizeLines(p.techStack),
+      bullets: sanitizeLines(p.bullets),
     })),
     education: resume.education.map((e) => ({
       ...e,
-      school: trim(e.school),
-      degree: trim(e.degree),
-      major: trim(e.major),
-      concentrationOrMinor: trim(e.concentrationOrMinor ?? ""),
+      school: cleanupSpacedLetters(trim(e.school)),
+      degree: cleanupSpacedLetters(trim(e.degree)),
+      major: cleanupSpacedLetters(trim(e.major)),
+      concentrationOrMinor: cleanupSpacedLetters(trim(e.concentrationOrMinor ?? "")),
       gpa: trim(e.gpa ?? ""),
       graduationDate: trim(e.graduationDate),
-      details: e.details.map(trim).filter(Boolean),
+      details: sanitizeLines(e.details),
     })),
     skills: resume.skills.map((s) => ({
       ...s,
-      category: trim(s.category),
-      items: s.items.map(trim).filter(Boolean),
+      category: cleanupSpacedLetters(trim(s.category)),
+      items: sanitizeLines(s.items),
     })),
   };
 }
@@ -100,16 +131,6 @@ export function formatEducationBlock(entry: ResumeEducationItem): ResumeEducatio
   const gpaLine = trim(entry.gpa ?? "") ? `GPA: ${trim(entry.gpa ?? "")}` : "";
 
   return { schoolLine, degreeLine, majorLine, gpaLine };
-}
-
-export function formatEducationLine(entry: ResumeEducationItem): {
-  schoolLine: string;
-  degreeLine: string;
-  gpaLine: string;
-} {
-  const b = formatEducationBlock(entry);
-  const degreeLine = [b.degreeLine, b.majorLine].filter(Boolean).join(" | ");
-  return { schoolLine: b.schoolLine, degreeLine, gpaLine: b.gpaLine };
 }
 
 export function formatExperiencePrimary(company: string, companySubtitle?: string): string {
@@ -159,4 +180,53 @@ export function getVisibleResumeSections(resume: StructuredResume): ResumeSectio
     })
     .sort((a, b) => (normalized.sectionSettings[a]?.order ?? 0) - (normalized.sectionSettings[b]?.order ?? 0))
     .map((k) => ({ key: k, label: SECTION_LABELS[k] }));
+}
+
+export function chooseResumeSpacingProfile(resume: StructuredResume): ResumeSpacingTokens {
+  const r = normalizeResumeForRender(resume);
+  const sections = getVisibleResumeSections(r);
+  const entries = r.experience.length + r.projects.length + r.education.length + r.skills.length;
+  const bullets = r.experience.reduce((n, e) => n + e.bullets.length, 0) +
+    r.projects.reduce((n, p) => n + p.bullets.length, 0) +
+    r.education.reduce((n, e) => n + e.details.length, 0);
+  const summaryWords = r.summary ? r.summary.split(/\s+/).filter(Boolean).length : 0;
+
+  const load = sections.length * 1.4 + entries * 0.9 + bullets * 0.45 + summaryWords / 55;
+
+  if (load <= 11) {
+    return {
+      profile: "comfortable",
+      sectionGap: 18,
+      sectionHeaderAfter: 7,
+      entryGap: 11,
+      subLineGap: 5,
+      bulletGap: 3,
+      bulletLineHeight: 1.38,
+      contactGap: 16,
+    };
+  }
+
+  if (load >= 20) {
+    return {
+      profile: "compact",
+      sectionGap: 11,
+      sectionHeaderAfter: 4,
+      entryGap: 6,
+      subLineGap: 2,
+      bulletGap: 1,
+      bulletLineHeight: 1.26,
+      contactGap: 9,
+    };
+  }
+
+  return {
+    profile: "balanced",
+    sectionGap: 14,
+    sectionHeaderAfter: 6,
+    entryGap: 8,
+    subLineGap: 3,
+    bulletGap: 2,
+    bulletLineHeight: 1.31,
+    contactGap: 12,
+  };
 }

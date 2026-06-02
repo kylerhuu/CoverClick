@@ -1,6 +1,6 @@
 import jsPDF from "jspdf";
 import type { StructuredResume } from "./types";
-import { formatContactLine, formatEducationLine, getVisibleResumeSections, normalizeResumeForRender } from "./resumeRender";
+import { formatContactLine, formatEducationBlock, getVisibleResumeSections, normalizeResumeForRender } from "./resumeRender";
 import { sanitizeExportBasename } from "./utils";
 
 function clampY(y: number, pageHeight: number, doc: jsPDF): number {
@@ -94,9 +94,10 @@ export async function downloadResumePdf(resume: StructuredResume, fileBaseName: 
 
     if (section.key === "education") {
       for (const e of r.education) {
-        const f = formatEducationLine(e);
+        const f = formatEducationBlock(e);
         drawText(f.schoolLine, { bold: true });
         drawText(f.degreeLine);
+        if (f.majorLine) drawText(f.majorLine);
         if (f.gpaLine) drawText(f.gpaLine);
         for (const d of e.details) drawText(`• ${d}`, { indent: 12, spacing: 0 });
         y += 2;
