@@ -35,6 +35,12 @@ import type { AppSettings } from "../lib/types";
 import { requestJobContextFromActiveTab } from "../lib/tabScrape";
 import { requestCleanJobDescription } from "../lib/jobDescriptionCleanApi";
 import { shouldUseAiDescriptionClean } from "../lib/jobDescriptionQuality";
+import {
+  hasProfileResumeData,
+  hasResumeStudioContent,
+  isResumeStudioEmpty,
+  profileToStructuredResume,
+} from "../lib/profileToStructuredResume";
 import { buildDefaultExportBasename } from "../lib/utils";
 import { cn } from "../lib/classNames";
 import { apiGenerateResumeSummary, apiOptimizeResumeForJob, ApiHttpError } from "../lib/backendApi";
@@ -184,7 +190,17 @@ function withStableResumeIds(resume: StructuredResume): StructuredResume {
   }, []);
 
   useEffect(() => {
-    void loadResumeStudio().then((r) => setResume(withStableResumeIds(r)));
+    void (async () => {
+      const [storedProfile, storedResume] = await Promise.all([loadProfile(), loadResumeStudio()]);
+      const normalized = withStableResumeIds(storedResume);
+      if (isResumeStudioEmpty(normalized) && hasProfileResumeData(storedProfile)) {
+        const fromProfile = withStableResumeIds(profileToStructuredResume(storedProfile));
+        setResume(fromProfile);
+        void saveResumeStudio(fromProfile);
+      } else {
+        setResume(normalized);
+      }
+    })();
   }, []);
 
   useEffect(() => {
@@ -470,6 +486,17 @@ function withStableResumeIds(resume: StructuredResume): StructuredResume {
     setResumeOptimizeError(null);
   }, []);
 
+  const onImportResumeFromProfile = useCallback(() => {
+    const mapped = withStableResumeIds(profileToStructuredResume(profileRef.current));
+    if (hasResumeStudioContent(resume)) {
+      const ok = window.confirm(
+        "This will replace your current resume draft with your profile info. Continue?",
+      );
+      if (!ok) return;
+    }
+    onResumeChange(mapped);
+  }, [resume, onResumeChange]);
+
   const onGenerateResumeSummary = useCallback(async () => {
     setResumeSummaryBusy(true);
     setResumeSummaryError(null);
@@ -727,6 +754,7 @@ function withStableResumeIds(resume: StructuredResume): StructuredResume {
             onAcceptSuggestion={onAcceptOptimizeSuggestion}
             onRejectSuggestion={onRejectOptimizeSuggestion}
             onExportDocx={() => void onResumeDocx()}
+            onImportFromProfile={onImportResumeFromProfile}
           />
         ) : workspaceTab === "letter" ? (
           renderLetterPane()
