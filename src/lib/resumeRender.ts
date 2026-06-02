@@ -44,6 +44,7 @@ export type ResumeRenderModel = {
 };
 
 export const RESUME_TEMPLATE_VERSION = "resume-template-v2" as const;
+export const RESUME_EXPORT_CONTAINER_ID = "resume-container" as const;
 
 const SECTION_LABELS: Record<ResumeSectionKey, string> = {
   summary: "SUMMARY",
