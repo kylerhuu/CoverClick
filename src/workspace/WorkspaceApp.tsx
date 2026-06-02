@@ -15,6 +15,7 @@ import { EMPTY_PROFILE, EMPTY_STRUCTURED_RESUME } from "../lib/types";
 import { generateCoverLetter, resolveStructuredLetter } from "../lib/api";
 import { downloadStructuredCoverLetterDocx } from "../lib/exportDocx";
 import { downloadResumeDocx } from "../lib/exportResumeDocx";
+import { downloadResumePdf } from "../lib/exportResumePdf";
 import {
   emptyStructuredFromContext,
   plainTextToStructuredLetter,
@@ -661,6 +662,16 @@ function withStableResumeIds(resume: StructuredResume): StructuredResume {
     }
   }, [resume, exportBasename]);
 
+  const onResumePdf = useCallback(async () => {
+    try {
+      await downloadResumePdf(resume, exportBasename || "CoverClick_Resume");
+      setStatus("Resume PDF saved");
+      window.setTimeout(() => setStatus(null), 900);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Resume PDF failed");
+    }
+  }, [resume, exportBasename]);
+
   const handleJobChange = useCallback((next: JobContext) => {
     setJob(next);
   }, []);
@@ -762,6 +773,7 @@ function withStableResumeIds(resume: StructuredResume): StructuredResume {
             onAcceptSuggestion={onAcceptOptimizeSuggestion}
             onRejectSuggestion={onRejectOptimizeSuggestion}
             onExportDocx={() => void onResumeDocx()}
+            onExportPdf={() => void onResumePdf()}
             onImportFromProfile={onImportResumeFromProfile}
           />
         ) : workspaceTab === "letter" ? (
