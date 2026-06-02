@@ -18,6 +18,58 @@ export type LetterLength = "short" | "medium" | "long";
 /** What the client asks the backend to return when supported. */
 export type ResponseShapePreference = "structured" | "plain" | "auto";
 
+export type DegreeType =
+  | "High School"
+  | "Associate"
+  | "Bachelor's"
+  | "Master's"
+  | "MBA"
+  | "JD"
+  | "MD"
+  | "PhD"
+  | "Certificate"
+  | "Other";
+
+export interface ProfileExperienceEntry {
+  company: string;
+  companySubtitle?: string;
+  location?: string;
+  title: string;
+  dates: string;
+  bullets: string[];
+}
+
+export interface ProfileProjectEntry {
+  name: string;
+  subtitle?: string;
+  techStack: string[];
+  bullets: string[];
+}
+
+export interface ProfileEducationEntry {
+  school: string;
+  degreeType: DegreeType;
+  degree: string;
+  major?: string;
+  concentrationOrMinor?: string;
+  gpa?: string;
+  graduationDate?: string;
+  details: string[];
+}
+
+export interface ProfileSkillCategory {
+  category: string;
+  items: string[];
+}
+
+export interface ProfileStructuredEntries {
+  experience: ProfileExperienceEntry[];
+  projects: ProfileProjectEntry[];
+  education: ProfileEducationEntry[];
+  skills: ProfileSkillCategory[];
+  warnings: string[];
+}
+
 export interface UserProfile {
   fullName: string;
   email: string;
@@ -35,6 +87,8 @@ export interface UserProfile {
   resumeText: string;
   defaultTone: DefaultTone;
   signatureBlock: string;
+  /** Optional richer parsing payload (backward-compatible with legacy flat fields). */
+  structuredEntries?: ProfileStructuredEntries;
 }
 
 export interface JobContext {
@@ -66,6 +120,7 @@ export interface ResumeContact {
 export interface ResumeEducationItem {
   id?: string;
   school: string;
+  degreeType?: DegreeType;
   degree: string;
   major: string;
   concentrationOrMinor?: string;
@@ -278,6 +333,7 @@ export const EMPTY_PROFILE: UserProfile = {
   resumeText: "",
   defaultTone: "professional",
   signatureBlock: "",
+  structuredEntries: undefined,
 };
 
 export const DEFAULT_SETTINGS: AppSettings = {

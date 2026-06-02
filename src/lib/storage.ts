@@ -1,7 +1,9 @@
 import type {
   AppSettings,
   CachedLetter,
+  DegreeType,
   GenerationPreferences,
+  ProfileStructuredEntries,
   ResumeSectionKey,
   StructuredResume,
   UserProfile,
@@ -23,6 +25,21 @@ function makeStableId(seed: string, idx: number): string {
   return `${seed}-${idx + 1}`;
 }
 
+function parseDegreeType(v: unknown): DegreeType {
+  const s = typeof v === "string" ? v : "";
+  return s === "High School" ||
+    s === "Associate" ||
+    s === "Bachelor's" ||
+    s === "Master's" ||
+    s === "MBA" ||
+    s === "JD" ||
+    s === "MD" ||
+    s === "PhD" ||
+    s === "Certificate" ||
+    s === "Other"
+    ? s
+    : "Other";
+}
 
 function normalizeProfile(raw: unknown): UserProfile {
   if (!raw || typeof raw !== "object") return { ...EMPTY_PROFILE };
@@ -34,6 +51,69 @@ function normalizeProfile(raw: unknown): UserProfile {
           .map((s) => s.trim())
           .filter((s) => s.length > 0)
       : [];
+
+  const structuredRaw = p.structuredEntries && typeof p.structuredEntries === "object"
+    ? (p.structuredEntries as Record<string, unknown>)
+    : {};
+
+  const structuredEntries: ProfileStructuredEntries = {
+    experience: Array.isArray(structuredRaw.experience)
+      ? structuredRaw.experience
+          .filter((x): x is Record<string, unknown> => typeof x === "object" && x != null)
+          .map((x) => ({
+            company: typeof x.company === "string" ? x.company : "",
+            companySubtitle: typeof x.companySubtitle === "string" ? x.companySubtitle : "",
+            location: typeof x.location === "string" ? x.location : "",
+            title: typeof x.title === "string" ? x.title : "",
+            dates: typeof x.dates === "string" ? x.dates : "",
+            bullets: arr(x.bullets),
+          }))
+          .filter((x) => x.company || x.title || x.dates || x.bullets.length)
+      : [],
+    projects: Array.isArray(structuredRaw.projects)
+      ? structuredRaw.projects
+          .filter((x): x is Record<string, unknown> => typeof x === "object" && x != null)
+          .map((x) => ({
+            name: typeof x.name === "string" ? x.name : "",
+            subtitle: typeof x.subtitle === "string" ? x.subtitle : "",
+            techStack: arr(x.techStack),
+            bullets: arr(x.bullets),
+          }))
+          .filter((x) => x.name || x.subtitle || x.techStack.length || x.bullets.length)
+      : [],
+    education: Array.isArray(structuredRaw.education)
+      ? structuredRaw.education
+          .filter((x): x is Record<string, unknown> => typeof x === "object" && x != null)
+          .map((x) => ({
+            school: typeof x.school === "string" ? x.school : "",
+            degreeType: parseDegreeType(x.degreeType),
+            degree: typeof x.degree === "string" ? x.degree : "",
+            major: typeof x.major === "string" ? x.major : "",
+            concentrationOrMinor: typeof x.concentrationOrMinor === "string" ? x.concentrationOrMinor : "",
+            gpa: typeof x.gpa === "string" ? x.gpa : "",
+            graduationDate: typeof x.graduationDate === "string" ? x.graduationDate : "",
+            details: arr(x.details),
+          }))
+          .filter((x) => x.school || x.degree || x.major || x.graduationDate)
+      : [],
+    skills: Array.isArray(structuredRaw.skills)
+      ? structuredRaw.skills
+          .filter((x): x is Record<string, unknown> => typeof x === "object" && x != null)
+          .map((x) => ({ category: typeof x.category === "string" ? x.category : "", items: arr(x.items) }))
+          .filter((x) => x.category || x.items.length)
+      : [],
+    warnings: arr(structuredRaw.warnings),
+  };
+
+  const skillsFromStructured = structuredEntries.skills.flatMap((g) => g.items);
+  const expBulletsFromStructured = structuredEntries.experience.flatMap((e) => e.bullets);
+  const projBulletsFromStructured = structuredEntries.projects.flatMap((e) => e.bullets);
+  const firstEdu = structuredEntries.education[0];
+
+  const skillsLegacy = arr(p.skills);
+  const experienceBulletsLegacy = arr(p.experienceBullets);
+  const projectBulletsLegacy = arr(p.projectBullets);
+
   return {
     fullName: typeof p.fullName === "string" ? p.fullName : "",
     email: typeof p.email === "string" ? p.email : "",
@@ -41,13 +121,22 @@ function normalizeProfile(raw: unknown): UserProfile {
     location: typeof p.location === "string" ? p.location : "",
     linkedin: typeof p.linkedin === "string" ? p.linkedin : "",
     portfolio: typeof p.portfolio === "string" ? p.portfolio : "",
-    school: typeof p.school === "string" ? p.school : "",
-    major: typeof p.major === "string" ? p.major : "",
-    graduationYear: typeof p.graduationYear === "string" ? p.graduationYear : "",
+    school:
+      typeof p.school === "string" && p.school.trim().length > 0
+        ? p.school
+        : firstEdu?.school ?? "",
+    major:
+      typeof p.major === "string" && p.major.trim().length > 0
+        ? p.major
+        : firstEdu?.major ?? "",
+    graduationYear:
+      typeof p.graduationYear === "string" && p.graduationYear.trim().length > 0
+        ? p.graduationYear
+        : firstEdu?.graduationDate ?? "",
     summary: typeof p.summary === "string" ? p.summary : "",
-    skills: arr(p.skills),
-    experienceBullets: arr(p.experienceBullets),
-    projectBullets: arr(p.projectBullets),
+    skills: skillsLegacy.length > 0 ? skillsLegacy : skillsFromStructured,
+    experienceBullets: experienceBulletsLegacy.length > 0 ? experienceBulletsLegacy : expBulletsFromStructured,
+    projectBullets: projectBulletsLegacy.length > 0 ? projectBulletsLegacy : projBulletsFromStructured,
     resumeText: typeof p.resumeText === "string" ? p.resumeText : "",
     defaultTone:
       p.defaultTone === "warm" ||
@@ -58,6 +147,7 @@ function normalizeProfile(raw: unknown): UserProfile {
         ? p.defaultTone
         : "professional",
     signatureBlock: typeof p.signatureBlock === "string" ? p.signatureBlock : "",
+    structuredEntries,
   };
 }
 
@@ -283,6 +373,7 @@ function normalizeStructuredResume(raw: unknown): StructuredResume {
           .map((x, idx) => ({
             id: typeof x.id === "string" && x.id.trim() ? x.id : makeStableId("edu", idx),
             school: typeof x.school === "string" ? x.school : "",
+            degreeType: parseDegreeType(x.degreeType),
             degree: typeof x.degree === "string" ? x.degree : "",
             major: typeof x.major === "string" ? x.major : "",
             concentrationOrMinor: typeof x.concentrationOrMinor === "string" ? x.concentrationOrMinor : "",

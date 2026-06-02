@@ -10,6 +10,16 @@ function pickArr(base: string[], extracted: string[]): string[] {
   return e.length > 0 ? e : base;
 }
 
+function pickStructured(base: UserProfile["structuredEntries"], extracted: UserProfile["structuredEntries"]): UserProfile["structuredEntries"] {
+  const hasExtracted =
+    (extracted?.experience.length ?? 0) > 0 ||
+    (extracted?.projects.length ?? 0) > 0 ||
+    (extracted?.education.length ?? 0) > 0 ||
+    (extracted?.skills.length ?? 0) > 0 ||
+    (extracted?.warnings.length ?? 0) > 0;
+  return hasExtracted ? extracted : base;
+}
+
 /**
  * Fills empty local fields from extraction; overwrites when extraction has content.
  * Use after resume parse so users keep anything they already typed unless the model found better text.
@@ -32,6 +42,7 @@ export function mergeProfileFromExtraction(base: UserProfile, extracted: UserPro
     resumeText: pickStr(base.resumeText, extracted.resumeText),
     defaultTone: base.defaultTone,
     signatureBlock: pickStr(base.signatureBlock, extracted.signatureBlock),
+    structuredEntries: pickStructured(base.structuredEntries, extracted.structuredEntries),
   };
 }
 

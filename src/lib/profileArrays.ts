@@ -40,5 +40,28 @@ export function compactProfileArrays(profile: UserProfile): UserProfile {
     skills: cleanItemList(profile.skills),
     experienceBullets: cleanItemList(profile.experienceBullets),
     projectBullets: cleanItemList(profile.projectBullets),
+    structuredEntries: profile.structuredEntries
+      ? {
+          ...profile.structuredEntries,
+          warnings: cleanItemList(profile.structuredEntries.warnings),
+          experience: profile.structuredEntries.experience.map((e) => ({
+            ...e,
+            bullets: cleanItemList(e.bullets),
+          })),
+          projects: profile.structuredEntries.projects.map((p) => ({
+            ...p,
+            techStack: cleanItemList(p.techStack),
+            bullets: cleanItemList(p.bullets),
+          })),
+          education: profile.structuredEntries.education.map((e) => ({
+            ...e,
+            details: cleanItemList(e.details),
+          })),
+          skills: profile.structuredEntries.skills.map((s) => ({
+            ...s,
+            items: cleanItemList(s.items),
+          })),
+        }
+      : undefined,
   };
 }

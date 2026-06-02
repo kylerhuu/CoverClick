@@ -1,5 +1,27 @@
-import type { StructuredResume, UserProfile } from "./types";
+import type { DegreeType, StructuredResume, UserProfile } from "./types";
 import { EMPTY_STRUCTURED_RESUME } from "./types";
+
+function hasStructuredEntriesData(profile: UserProfile): boolean {
+  return (
+    (profile.structuredEntries?.experience.length ?? 0) > 0 ||
+    (profile.structuredEntries?.projects.length ?? 0) > 0 ||
+    (profile.structuredEntries?.education.length ?? 0) > 0 ||
+    (profile.structuredEntries?.skills.length ?? 0) > 0
+  );
+}
+
+function degreeLabel(degreeType: DegreeType): string {
+  switch (degreeType) {
+    case "Bachelor's":
+      return "Bachelor's Degree";
+    case "Master's":
+      return "Master's Degree";
+    case "High School":
+      return "High School Diploma";
+    default:
+      return degreeType === "Other" ? "Degree" : degreeType;
+  }
+}
 
 /** True when the CoverClick profile has fields worth mapping into Resume Studio. */
 export function hasProfileResumeData(profile: UserProfile): boolean {
@@ -18,6 +40,7 @@ export function hasProfileResumeData(profile: UserProfile): boolean {
     return true;
   }
   return (
+    hasStructuredEntriesData(profile) ||
     profile.skills.length > 0 ||
     profile.experienceBullets.length > 0 ||
     profile.projectBullets.length > 0
@@ -83,12 +106,28 @@ export function isResumeStudioEmpty(resume: StructuredResume): boolean {
  */
 export function profileToStructuredResume(profile: UserProfile): StructuredResume {
   const contactLinks = [profile.linkedin.trim(), profile.portfolio.trim()].filter(Boolean);
-  const education =
-    profile.school.trim() || profile.major.trim() || profile.graduationYear.trim()
+
+  const structured = profile.structuredEntries;
+  const hasStructured = hasStructuredEntriesData(profile);
+
+  const education = hasStructured
+    ? (structured?.education ?? []).map((e, idx) => ({
+        id: `edu-${idx + 1}`,
+        school: e.school,
+        degreeType: e.degreeType,
+        degree: e.degree || degreeLabel(e.degreeType),
+        major: e.major ?? "",
+        concentrationOrMinor: e.concentrationOrMinor ?? "",
+        gpa: e.gpa ?? "",
+        graduationDate: e.graduationDate ?? "",
+        details: [...e.details],
+      }))
+    : profile.school.trim() || profile.major.trim() || profile.graduationYear.trim()
       ? [
           {
             id: "edu-1",
             school: profile.school.trim(),
+            degreeType: "Bachelor's" as DegreeType,
             degree: "Bachelor's Degree",
             major: profile.major.trim(),
             concentrationOrMinor: "",
@@ -99,12 +138,22 @@ export function profileToStructuredResume(profile: UserProfile): StructuredResum
         ]
       : [];
 
-  const experience =
-    profile.experienceBullets.length > 0
+  const experience = hasStructured
+    ? (structured?.experience ?? []).map((e, idx) => ({
+        id: `exp-${idx + 1}`,
+        company: e.company,
+        companySubtitle: e.companySubtitle ?? "",
+        title: e.title,
+        dates: e.dates,
+        location: e.location ?? "",
+        bullets: [...e.bullets],
+      }))
+    : profile.experienceBullets.length > 0
       ? [
           {
             id: "exp-1",
             company: "",
+            companySubtitle: "",
             title: "Professional Experience",
             dates: "",
             location: "",
@@ -113,8 +162,15 @@ export function profileToStructuredResume(profile: UserProfile): StructuredResum
         ]
       : [];
 
-  const projects =
-    profile.projectBullets.length > 0
+  const projects = hasStructured
+    ? (structured?.projects ?? []).map((p, idx) => ({
+        id: `proj-${idx + 1}`,
+        name: p.name,
+        subtitle: p.subtitle ?? "",
+        techStack: [...p.techStack],
+        bullets: [...p.bullets],
+      }))
+    : profile.projectBullets.length > 0
       ? [
           {
             id: "proj-1",
@@ -126,8 +182,9 @@ export function profileToStructuredResume(profile: UserProfile): StructuredResum
         ]
       : [];
 
-  const skills =
-    profile.skills.length > 0
+  const skills = hasStructured
+    ? (structured?.skills ?? []).map((g, idx) => ({ id: `skills-${idx + 1}`, category: g.category, items: [...g.items] }))
+    : profile.skills.length > 0
       ? [{ id: "skills-1", category: "Core Skills", items: [...profile.skills] }]
       : [];
 
@@ -154,3 +211,4 @@ export function profileToStructuredResume(profile: UserProfile): StructuredResum
     },
   };
 }
+

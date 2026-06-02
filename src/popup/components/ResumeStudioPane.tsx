@@ -21,6 +21,8 @@ type Props = {
   onExportDocx: () => void;
 };
 
+const degreeTypeOptions = ["High School", "Associate", "Bachelor's", "Master's", "MBA", "JD", "MD", "PhD", "Certificate", "Other"] as const;
+
 const sectionMeta: { key: ResumeSectionKey; label: string }[] = [
   { key: "summary", label: "Summary" },
   { key: "experience", label: "Experience" },
@@ -200,13 +202,24 @@ export function ResumeStudioPane({
         <section className="space-y-2">
           <div className="flex items-center justify-between border-b border-slate-200 pb-1">
             <h3 className="text-[11px] font-bold uppercase tracking-wide text-slate-600">Education</h3>
-            <button type="button" className="rounded border px-2 py-0.5 text-[10px]" onClick={() => onResumeChange({ ...resume, education: [...resume.education, { id: `edu-${resume.education.length + 1}`, school: "", degree: "", major: "", concentrationOrMinor: "", gpa: "", graduationDate: "", details: [] }] })}>Add Education</button>
+            <button type="button" className="rounded border px-2 py-0.5 text-[10px]" onClick={() => onResumeChange({ ...resume, education: [...resume.education, { id: `edu-${resume.education.length + 1}`, school: "", degreeType: "Other", degree: "", major: "", concentrationOrMinor: "", gpa: "", graduationDate: "", details: [] }] })}>Add Education</button>
           </div>
           {resume.education.map((edu, idx) => (
             <div key={edu.id ?? `edu-${idx}`} className="space-y-2 rounded border border-slate-200 bg-white p-2">
               <div className="grid grid-cols-2 gap-2">
                 <input className={inputCls} placeholder="School" value={edu.school} onChange={(e) => onResumeChange({ ...resume, education: resume.education.map((x, i) => i === idx ? { ...x, school: e.target.value } : x) })} />
                 <input className={inputCls} placeholder="Graduation date" value={edu.graduationDate} onChange={(e) => onResumeChange({ ...resume, education: resume.education.map((x, i) => i === idx ? { ...x, graduationDate: e.target.value } : x) })} />
+                <select
+                  className={inputCls}
+                  value={edu.degreeType ?? "Other"}
+                  onChange={(e) => onResumeChange({ ...resume, education: resume.education.map((x, i) => i === idx ? { ...x, degreeType: e.target.value as (typeof degreeTypeOptions)[number] } : x) })}
+                >
+                  {degreeTypeOptions.map((opt) => (
+                    <option key={opt} value={opt}>
+                      {opt}
+                    </option>
+                  ))}
+                </select>
                 <input className={inputCls} placeholder="Degree" value={edu.degree} onChange={(e) => onResumeChange({ ...resume, education: resume.education.map((x, i) => i === idx ? { ...x, degree: e.target.value } : x) })} />
                 <input className={inputCls} placeholder="Major" value={edu.major} onChange={(e) => onResumeChange({ ...resume, education: resume.education.map((x, i) => i === idx ? { ...x, major: e.target.value } : x) })} />
                 <input className={inputCls} placeholder="Concentration / minor (optional)" value={edu.concentrationOrMinor ?? ""} onChange={(e) => onResumeChange({ ...resume, education: resume.education.map((x, i) => i === idx ? { ...x, concentrationOrMinor: e.target.value } : x) })} />
