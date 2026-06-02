@@ -5,6 +5,13 @@ export type ResumeSectionRender = {
   label: string;
 };
 
+export type ResumeEducationBlock = {
+  schoolLine: string;
+  degreeLine: string;
+  majorLine: string;
+  gpaLine: string;
+};
+
 const SECTION_LABELS: Record<ResumeSectionKey, string> = {
   summary: "SUMMARY",
   experience: "EXPERIENCE",
@@ -77,21 +84,49 @@ export function formatContactLine(resume: StructuredResume): string {
     .join("  |  ");
 }
 
+export function formatEducationBlock(entry: ResumeEducationItem): ResumeEducationBlock {
+  const schoolLine = [entry.school, entry.graduationDate ? `Expected Graduation: ${entry.graduationDate}` : ""]
+    .map(trim)
+    .filter(Boolean)
+    .join("        ");
+
+  const degreeLine = trim(entry.degree);
+
+  const majorPieces = [entry.major, entry.concentrationOrMinor ?? ""]
+    .map(trim)
+    .filter(Boolean);
+  const majorLine = majorPieces.join(" | ");
+
+  const gpaLine = trim(entry.gpa ?? "") ? `GPA: ${trim(entry.gpa ?? "")}` : "";
+
+  return { schoolLine, degreeLine, majorLine, gpaLine };
+}
+
 export function formatEducationLine(entry: ResumeEducationItem): {
   schoolLine: string;
   degreeLine: string;
   gpaLine: string;
 } {
-  const schoolLine = [entry.school, entry.graduationDate ? `Expected Graduation: ${entry.graduationDate}` : ""]
-    .map(trim)
-    .filter(Boolean)
-    .join("        ");
-  const degreeLine = [entry.degree, entry.major, entry.concentrationOrMinor ?? ""]
-    .map(trim)
-    .filter(Boolean)
-    .join(" | ");
-  const gpaLine = trim(entry.gpa ?? "") ? `GPA: ${trim(entry.gpa ?? "")}` : "";
-  return { schoolLine, degreeLine, gpaLine };
+  const b = formatEducationBlock(entry);
+  const degreeLine = [b.degreeLine, b.majorLine].filter(Boolean).join(" | ");
+  return { schoolLine: b.schoolLine, degreeLine, gpaLine: b.gpaLine };
+}
+
+export function formatExperiencePrimary(company: string, companySubtitle?: string): string {
+  return [trim(company), trim(companySubtitle ?? "")].filter(Boolean).join(" — ");
+}
+
+export function formatExperienceSecondary(title: string, location: string, dates: string): string {
+  const trailing = [trim(location), trim(dates)].filter(Boolean).join(" | ");
+  return [trim(title), trailing].filter(Boolean).join(" | ");
+}
+
+export function formatProjectPrimary(name: string, subtitle: string): string {
+  return [trim(name), trim(subtitle)].filter(Boolean).join(" — ");
+}
+
+export function formatProjectSecondary(techStack: string[]): string {
+  return techStack.map(trim).filter(Boolean).join(" • ");
 }
 
 function hasSummary(resume: StructuredResume): boolean {
