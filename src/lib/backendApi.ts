@@ -1,4 +1,4 @@
-import type { AccountMeResponse, AuthExchangeResponse, JobFitScoreRequest, JobFitScoreResponse, UserProfile } from "./types";
+import type { AccountMeResponse, AuthExchangeResponse, ResumeTailoringRequest, ResumeTailoringResponse, UserProfile } from "./types";
 
 /** Thrown on non-2xx API responses so callers can distinguish 401 (clear session) from transient errors. */
 export class ApiHttpError extends Error {
@@ -168,12 +168,12 @@ export async function apiParseResume(
   return res.json() as Promise<{ profile: UserProfile; warnings?: string[] }>;
 }
 
-export async function apiPostJobFitScore(
+export async function apiPostResumeTailoring(
   apiBaseUrl: string,
   token: string,
-  body: JobFitScoreRequest,
-): Promise<JobFitScoreResponse> {
-  const res = await apiFetch(apiUrl(apiBaseUrl, "/api/job-fit-score"), {
+  body: ResumeTailoringRequest,
+): Promise<ResumeTailoringResponse> {
+  const res = await apiFetch(apiUrl(apiBaseUrl, "/api/resume-tailoring"), {
     method: "POST",
     headers: {
       Authorization: `Bearer ${token}`,
@@ -182,5 +182,5 @@ export async function apiPostJobFitScore(
     body: JSON.stringify(body),
   });
   await requireOk(res);
-  return res.json() as Promise<JobFitScoreResponse>;
+  return res.json() as Promise<ResumeTailoringResponse>;
 }

@@ -56,6 +56,16 @@ export interface GenerationRequest {
   promptBrief?: string;
 }
 
+export interface StructuredCoverLetter {
+  senderBlock: string;
+  dateLine: string;
+  recipientBlock: string;
+  greeting: string;
+  bodyParagraphs: [string, string, string];
+  closing: string;
+  signature: string;
+}
+
 export type ShouldApplyRecommendation = "YES" | "MAYBE" | "NO";
 
 export interface JobFitScoreRequest {
@@ -74,12 +84,23 @@ export interface JobFitScoreResponse {
   shouldApply: ShouldApplyRecommendation;
 }
 
-export interface StructuredCoverLetter {
-  senderBlock: string;
-  dateLine: string;
-  recipientBlock: string;
-  greeting: string;
-  bodyParagraphs: [string, string, string];
-  closing: string;
-  signature: string;
+export interface ResumeTailoringRequest {
+  profile: UserProfile;
+  job: JobContext;
+}
+
+export interface ResumeTailoringBulletSuggestion {
+  originalIdea: string;
+  improvedBullet: string;
+  reason: string;
+}
+
+export interface ResumeTailoringResponse {
+  summary: string;
+  skillsToAdd: string[];
+  keywordsToInclude: string[];
+  experienceToEmphasize: string[];
+  bulletRewriteSuggestions: ResumeTailoringBulletSuggestion[];
+  sectionPriority: string[];
+  warnings: string[];
 }

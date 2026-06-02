@@ -55,22 +55,25 @@ export interface GenerationRequest {
   responseShape: ResponseShapePreference;
 }
 
-export type ShouldApplyRecommendation = "YES" | "MAYBE" | "NO";
-
-export interface JobFitScoreRequest {
+export interface ResumeTailoringRequest {
   profile: UserProfile;
   job: JobContext;
 }
 
-export interface JobFitScoreResponse {
-  atsScore: number;
-  jobFitScore: number;
+export interface ResumeTailoringBulletSuggestion {
+  originalIdea: string;
+  improvedBullet: string;
+  reason: string;
+}
+
+export interface ResumeTailoringResponse {
   summary: string;
-  strengths: string[];
-  weaknesses: string[];
-  missingKeywords: string[];
-  recommendedChanges: string[];
-  shouldApply: ShouldApplyRecommendation;
+  skillsToAdd: string[];
+  keywordsToInclude: string[];
+  experienceToEmphasize: string[];
+  bulletRewriteSuggestions: ResumeTailoringBulletSuggestion[];
+  sectionPriority: string[];
+  warnings: string[];
 }
 
 /**

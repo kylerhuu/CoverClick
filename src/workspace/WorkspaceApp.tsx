@@ -2,9 +2,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type {
   DefaultTone,
   Emphasis,
-  JobFitScoreResponse,
   JobContext,
   LetterLength,
+  ResumeTailoringResponse,
   ResponseShapePreference,
   StructuredCoverLetter,
   UserProfile,
@@ -32,7 +32,7 @@ import { requestCleanJobDescription } from "../lib/jobDescriptionCleanApi";
 import { shouldUseAiDescriptionClean } from "../lib/jobDescriptionQuality";
 import { buildDefaultExportBasename } from "../lib/utils";
 import { cn } from "../lib/classNames";
-import { apiPostJobFitScore, ApiHttpError } from "../lib/backendApi";
+import { apiPostResumeTailoring, ApiHttpError } from "../lib/backendApi";
 import { JobPane } from "../popup/components/JobPane";
 import { LetterPane } from "../popup/components/LetterPane";
 import { WorkspaceToolbar } from "./components/WorkspaceToolbar";
@@ -100,12 +100,12 @@ export function WorkspaceApp() {
   const [docEditEpoch, setDocEditEpoch] = useState(0);
   const [jobDescriptionAiBusy, setJobDescriptionAiBusy] = useState(false);
   const [jobDescriptionAiError, setJobDescriptionAiError] = useState<string | null>(null);
-  const [jobFitBusy, setJobFitBusy] = useState(false);
-  const [jobFitError, setJobFitError] = useState<string | null>(null);
-  const [jobFitResult, setJobFitResult] = useState<JobFitScoreResponse | null>(null);
+  const [resumeTailorBusy, setResumeTailorBusy] = useState(false);
+  const [resumeTailorError, setResumeTailorError] = useState<string | null>(null);
+  const [resumeTailorResult, setResumeTailorResult] = useState<ResumeTailoringResponse | null>(null);
   const aiCleanAttemptedRef = useRef<string>("");
   const aiCleanGenerationRef = useRef(0);
-  const jobFitSessionCacheRef = useRef<Map<string, JobFitScoreResponse>>(new Map());
+  const resumeTailorSessionCacheRef = useRef<Map<string, ResumeTailoringResponse>>(new Map());
   const [liveSettings, setLiveSettings] = useState<Pick<AppSettings, "useMock" | "authToken" | "apiBaseUrl">>(() => ({
     useMock: true,
     authToken: undefined,
@@ -142,8 +142,8 @@ export function WorkspaceApp() {
   }, [job?.pageUrl, job?.scrapedAt]);
 
   useEffect(() => {
-    setJobFitError(null);
-    setJobFitResult(null);
+    setResumeTailorError(null);
+    setResumeTailorResult(null);
   }, [job?.pageUrl, job?.scrapedAt]);
 
   useEffect(() => {
@@ -432,50 +432,52 @@ export function WorkspaceApp() {
 
   const handleJobChange = useCallback((next: JobContext) => {
     setJob(next);
-    setJobFitError(null);
-    setJobFitResult(null);
+    setResumeTailorError(null);
+    setResumeTailorResult(null);
   }, []);
 
-  const runJobFitAnalysis = useCallback(async () => {
+  const runResumeTailoring = useCallback(async () => {
     if (!job) return;
-    setJobFitBusy(true);
-    setJobFitError(null);
+    setResumeTailorBusy(true);
+    setResumeTailorError(null);
     try {
       const settings = await loadSettings();
       if (settings.useMock) {
-        throw new Error("Disable mock mode to run AI-estimated job fit analysis.");
+        throw new Error("Disable mock mode to run resume tailoring suggestions.");
       }
       const token = settings.authToken?.trim();
       if (!token) {
-        throw new Error("Sign in with Google in the side panel to analyze job fit.");
+        throw new Error("Sign in with Google in the side panel to tailor your resume.");
       }
       const base = settings.apiBaseUrl.trim();
       if (!base) {
         throw new Error("No API URL configured. Set it in Options → Backend.");
       }
 
-      const profileKey = JSON.stringify({
-        fullName: profile.fullName,
-        summary: profile.summary,
+      const cacheKey = JSON.stringify({
+        url: job.pageUrl,
+        title: job.jobTitle,
+        company: job.companyName,
+        profileSummary: profile.summary,
         skills: profile.skills,
-        experienceBullets: profile.experienceBullets,
-        projectBullets: profile.projectBullets,
+        experience: profile.experienceBullets,
+        projects: profile.projectBullets,
         resumeText: profile.resumeText,
       });
-      const cacheKey = `${job.pageUrl}|${profileKey}`;
-      const cached = jobFitSessionCacheRef.current.get(cacheKey);
+
+      const cached = resumeTailorSessionCacheRef.current.get(cacheKey);
       if (cached) {
-        setJobFitResult(cached);
+        setResumeTailorResult(cached);
         return;
       }
 
-      const response = await apiPostJobFitScore(base, token, { job, profile });
-      jobFitSessionCacheRef.current.set(cacheKey, response);
-      setJobFitResult(response);
+      const response = await apiPostResumeTailoring(base, token, { job, profile });
+      resumeTailorSessionCacheRef.current.set(cacheKey, response);
+      setResumeTailorResult(response);
     } catch (e) {
-      setJobFitError(e instanceof Error ? e.message : "Job fit analysis failed");
+      setResumeTailorError(e instanceof Error ? e.message : "Resume tailoring failed");
     } finally {
-      setJobFitBusy(false);
+      setResumeTailorBusy(false);
     }
   }, [job, profile]);
 
@@ -494,10 +496,10 @@ export function WorkspaceApp() {
     regenLetterBusy: genBusy,
     descriptionAiCleaning: jobDescriptionAiBusy,
     descriptionAiError: jobDescriptionAiError,
-    onAnalyzeJobFit: () => void runJobFitAnalysis(),
-    jobFitBusy,
-    jobFitError,
-    jobFitResult,
+    onTailorResume: () => void runResumeTailoring(),
+    resumeTailorBusy,
+    resumeTailorError,
+    resumeTailorResult,
   };
 
   const renderLetterPane = () => (

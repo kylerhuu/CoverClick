@@ -1,4 +1,4 @@
-import type { JobContext, JobFitScoreResponse, UserProfile } from "../../lib/types";
+import type { JobContext, ResumeTailoringResponse, UserProfile } from "../../lib/types";
 import { profileCompleteness } from "../../lib/profileCompleteness";
 import { truncate } from "../../lib/utils";
 import { cn } from "../../lib/classNames";
@@ -28,10 +28,10 @@ type Props = {
   descriptionAiCleaning?: boolean;
   /** Non-fatal AI cleanup issue; user can still edit/generate with scraped text. */
   descriptionAiError?: string | null;
-  onAnalyzeJobFit?: () => void;
-  jobFitBusy?: boolean;
-  jobFitError?: string | null;
-  jobFitResult?: JobFitScoreResponse | null;
+  onTailorResume?: () => void;
+  resumeTailorBusy?: boolean;
+  resumeTailorError?: string | null;
+  resumeTailorResult?: ResumeTailoringResponse | null;
 };
 
 export function JobPane({
@@ -49,10 +49,10 @@ export function JobPane({
   stackedInSplit = false,
   descriptionAiCleaning = false,
   descriptionAiError = null,
-  onAnalyzeJobFit,
-  jobFitBusy = false,
-  jobFitError = null,
-  jobFitResult = null,
+  onTailorResume,
+  resumeTailorBusy = false,
+  resumeTailorError = null,
+  resumeTailorResult = null,
 }: Props) {
   const { score, missingLabels } = profileCompleteness(profile);
   const r = 15.5;
@@ -104,12 +104,6 @@ export function JobPane({
     "outline-none transition focus:border-indigo-300 focus:ring-2 focus:ring-indigo-500/15",
     !editable && "cursor-default bg-slate-50/80 text-slate-700",
   );
-  const recommendationTone =
-    jobFitResult?.shouldApply === "YES"
-      ? "border-emerald-200 bg-emerald-50 text-emerald-800"
-      : jobFitResult?.shouldApply === "NO"
-        ? "border-rose-200 bg-rose-50 text-rose-800"
-        : "border-amber-200 bg-amber-50 text-amber-800";
 
   return (
     <div
@@ -234,88 +228,112 @@ export function JobPane({
             {regenLetterBusy ? "Regenerating…" : "Regenerate letter from this posting"}
           </button>
         ) : null}
-        {onAnalyzeJobFit ? (
+        {onTailorResume ? (
           <button
             type="button"
-            onClick={onAnalyzeJobFit}
-            disabled={jobFitBusy || !job}
+            onClick={onTailorResume}
+            disabled={resumeTailorBusy || !job}
             className={cn(
               "w-full rounded-lg border border-slate-200/90 bg-white py-2 text-[11px] font-semibold text-slate-900",
               "hover:border-indigo-200 hover:bg-indigo-50/40 disabled:pointer-events-none disabled:opacity-40",
             )}
           >
-            {jobFitBusy ? "Analyzing…" : "Analyze Job Fit"}
+            {resumeTailorBusy ? "Tailoring…" : "Tailor My Resume"}
           </button>
         ) : null}
       </div>
 
-      {jobFitError ? (
+      {resumeTailorError ? (
         <div className="shrink-0 border-b border-red-200/80 bg-red-50 px-4 py-2 text-[11px] leading-snug text-red-900">
-          {jobFitError}
+          {resumeTailorError}
         </div>
       ) : null}
 
-      {jobFitResult ? (
-        <div className="shrink-0 border-b border-slate-200/70 bg-white/85 px-4 py-3">
-          <div className="grid grid-cols-2 gap-2">
-            <div className="rounded-lg border border-indigo-200 bg-indigo-50/70 p-2.5">
-              <p className="text-[10px] font-semibold uppercase tracking-wide text-indigo-800">Estimated ATS Score</p>
-              <p className="mt-1 text-[24px] font-bold leading-none text-indigo-950">{jobFitResult.atsScore}</p>
-            </div>
-            <div className="rounded-lg border border-sky-200 bg-sky-50/70 p-2.5">
-              <p className="text-[10px] font-semibold uppercase tracking-wide text-sky-800">Estimated Job Fit</p>
-              <p className="mt-1 text-[24px] font-bold leading-none text-sky-950">{jobFitResult.jobFitScore}</p>
-            </div>
+      {resumeTailorResult ? (
+        <div className="shrink-0 border-b border-slate-200/70 bg-white/85 px-4 py-3 text-[11px]">
+          <div>
+            <p className="font-semibold text-slate-800">Summary</p>
+            <p className="mt-1 leading-snug text-slate-700">{resumeTailorResult.summary}</p>
           </div>
 
-          <p className="mt-2 text-[11px] leading-snug text-slate-700">{jobFitResult.summary}</p>
-
-          <div className="mt-2 flex items-center justify-between gap-2">
-            <span className={cn("rounded-md border px-2 py-0.5 text-[10px] font-semibold tracking-wide", recommendationTone)}>
-              Recommendation: {jobFitResult.shouldApply}
-            </span>
+          <div className="mt-2 space-y-2">
+            <div>
+              <p className="font-semibold text-slate-800">Skills to Add</p>
+              <ul className="mt-1 list-disc space-y-0.5 pl-4 text-slate-700">
+                {(resumeTailorResult.skillsToAdd.length
+                  ? resumeTailorResult.skillsToAdd
+                  : ["No additional skills suggested yet."]).map((item, idx) => (
+                  <li key={`skills-${idx}`}>{item}</li>
+                ))}
+              </ul>
+            </div>
+            <div>
+              <p className="font-semibold text-slate-800">Keywords to Include</p>
+              <ul className="mt-1 list-disc space-y-0.5 pl-4 text-slate-700">
+                {(resumeTailorResult.keywordsToInclude.length
+                  ? resumeTailorResult.keywordsToInclude
+                  : ["No extra keyword suggestions yet."]).map((item, idx) => (
+                  <li key={`keywords-${idx}`}>{item}</li>
+                ))}
+              </ul>
+            </div>
+            <div>
+              <p className="font-semibold text-slate-800">Experience to Emphasize</p>
+              <ul className="mt-1 list-disc space-y-0.5 pl-4 text-slate-700">
+                {(resumeTailorResult.experienceToEmphasize.length
+                  ? resumeTailorResult.experienceToEmphasize
+                  : ["No specific experience emphasis identified yet."]).map((item, idx) => (
+                  <li key={`exp-${idx}`}>{item}</li>
+                ))}
+              </ul>
+            </div>
+            <div>
+              <p className="font-semibold text-slate-800">Bullet Rewrite Suggestions</p>
+              <div className="mt-1 space-y-1.5">
+                {(resumeTailorResult.bulletRewriteSuggestions.length
+                  ? resumeTailorResult.bulletRewriteSuggestions
+                  : [
+                      {
+                        originalIdea: "Current bullet too broad",
+                        improvedBullet: "Add tool, scope, and result in one concise bullet.",
+                        reason: "Improves recruiter clarity and ATS keyword relevance.",
+                      },
+                    ]).map((item, idx) => (
+                  <div key={`rewrite-${idx}`} className="rounded-md border border-slate-200 bg-slate-50/60 p-2">
+                    <p className="text-[10px] text-slate-500">
+                      <span className="font-semibold text-slate-700">Original:</span> {item.originalIdea}
+                    </p>
+                    <p className="mt-0.5 text-[10px] text-slate-500">
+                      <span className="font-semibold text-slate-700">Improved:</span> {item.improvedBullet}
+                    </p>
+                    <p className="mt-0.5 text-[10px] text-slate-500">
+                      <span className="font-semibold text-slate-700">Reason:</span> {item.reason}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div>
+              <p className="font-semibold text-slate-800">Section Priority</p>
+              <ul className="mt-1 list-disc space-y-0.5 pl-4 text-slate-700">
+                {(resumeTailorResult.sectionPriority.length
+                  ? resumeTailorResult.sectionPriority
+                  : ["Prioritize Experience, Skills, and targeted project outcomes."]).map((item, idx) => (
+                  <li key={`priority-${idx}`}>{item}</li>
+                ))}
+              </ul>
+            </div>
+            <div>
+              <p className="font-semibold text-slate-800">Warnings</p>
+              <ul className="mt-1 list-disc space-y-0.5 pl-4 text-slate-700">
+                {(resumeTailorResult.warnings.length
+                  ? resumeTailorResult.warnings
+                  : ["No major risks detected from provided profile/job context."]).map((item, idx) => (
+                  <li key={`warn-${idx}`}>{item}</li>
+                ))}
+              </ul>
+            </div>
           </div>
-
-          <div className="mt-2 space-y-2 text-[11px]">
-            <div>
-              <p className="font-semibold text-slate-800">Strengths</p>
-              <ul className="mt-1 list-disc space-y-0.5 pl-4 text-slate-700">
-                {(jobFitResult.strengths.length ? jobFitResult.strengths : ["No clear strengths identified yet."]).map((item, idx) => (
-                  <li key={`s-${idx}`}>{item}</li>
-                ))}
-              </ul>
-            </div>
-            <div>
-              <p className="font-semibold text-slate-800">Weaknesses</p>
-              <ul className="mt-1 list-disc space-y-0.5 pl-4 text-slate-700">
-                {(jobFitResult.weaknesses.length ? jobFitResult.weaknesses : ["No major weaknesses detected."]).map((item, idx) => (
-                  <li key={`w-${idx}`}>{item}</li>
-                ))}
-              </ul>
-            </div>
-            <div>
-              <p className="font-semibold text-slate-800">Missing keywords</p>
-              <ul className="mt-1 list-disc space-y-0.5 pl-4 text-slate-700">
-                {(jobFitResult.missingKeywords.length ? jobFitResult.missingKeywords : ["No obvious missing keywords."]).map((item, idx) => (
-                  <li key={`m-${idx}`}>{item}</li>
-                ))}
-              </ul>
-            </div>
-            <div>
-              <p className="font-semibold text-slate-800">Recommended next steps</p>
-              <ul className="mt-1 list-disc space-y-0.5 pl-4 text-slate-700">
-                {(jobFitResult.recommendedChanges.length
-                  ? jobFitResult.recommendedChanges
-                  : ["Tailor your resume bullets and cover letter to the top requirements."]).map((item, idx) => (
-                  <li key={`r-${idx}`}>{item}</li>
-                ))}
-              </ul>
-            </div>
-          </div>
-
-          <p className="mt-2 text-[10px] leading-snug text-slate-500">
-            These scores are AI estimates based on the job description and your profile, not guarantees.
-          </p>
         </div>
       ) : null}
 
