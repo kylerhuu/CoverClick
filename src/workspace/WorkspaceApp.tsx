@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type {
   DefaultTone,
   Emphasis,
+  JobFitScoreResponse,
   JobContext,
   LetterLength,
   ResponseShapePreference,
@@ -31,7 +32,7 @@ import { requestCleanJobDescription } from "../lib/jobDescriptionCleanApi";
 import { shouldUseAiDescriptionClean } from "../lib/jobDescriptionQuality";
 import { buildDefaultExportBasename } from "../lib/utils";
 import { cn } from "../lib/classNames";
-import { ApiHttpError } from "../lib/backendApi";
+import { apiPostJobFitScore, ApiHttpError } from "../lib/backendApi";
 import { JobPane } from "../popup/components/JobPane";
 import { LetterPane } from "../popup/components/LetterPane";
 import { WorkspaceToolbar } from "./components/WorkspaceToolbar";
@@ -99,8 +100,12 @@ export function WorkspaceApp() {
   const [docEditEpoch, setDocEditEpoch] = useState(0);
   const [jobDescriptionAiBusy, setJobDescriptionAiBusy] = useState(false);
   const [jobDescriptionAiError, setJobDescriptionAiError] = useState<string | null>(null);
+  const [jobFitBusy, setJobFitBusy] = useState(false);
+  const [jobFitError, setJobFitError] = useState<string | null>(null);
+  const [jobFitResult, setJobFitResult] = useState<JobFitScoreResponse | null>(null);
   const aiCleanAttemptedRef = useRef<string>("");
   const aiCleanGenerationRef = useRef(0);
+  const jobFitSessionCacheRef = useRef<Map<string, JobFitScoreResponse>>(new Map());
   const [liveSettings, setLiveSettings] = useState<Pick<AppSettings, "useMock" | "authToken" | "apiBaseUrl">>(() => ({
     useMock: true,
     authToken: undefined,
@@ -134,6 +139,11 @@ export function WorkspaceApp() {
 
   useEffect(() => {
     setDocEditEpoch((e) => e + 1);
+  }, [job?.pageUrl, job?.scrapedAt]);
+
+  useEffect(() => {
+    setJobFitError(null);
+    setJobFitResult(null);
   }, [job?.pageUrl, job?.scrapedAt]);
 
   useEffect(() => {
@@ -422,7 +432,52 @@ export function WorkspaceApp() {
 
   const handleJobChange = useCallback((next: JobContext) => {
     setJob(next);
+    setJobFitError(null);
+    setJobFitResult(null);
   }, []);
+
+  const runJobFitAnalysis = useCallback(async () => {
+    if (!job) return;
+    setJobFitBusy(true);
+    setJobFitError(null);
+    try {
+      const settings = await loadSettings();
+      if (settings.useMock) {
+        throw new Error("Disable mock mode to run AI-estimated job fit analysis.");
+      }
+      const token = settings.authToken?.trim();
+      if (!token) {
+        throw new Error("Sign in with Google in the side panel to analyze job fit.");
+      }
+      const base = settings.apiBaseUrl.trim();
+      if (!base) {
+        throw new Error("No API URL configured. Set it in Options → Backend.");
+      }
+
+      const profileKey = JSON.stringify({
+        fullName: profile.fullName,
+        summary: profile.summary,
+        skills: profile.skills,
+        experienceBullets: profile.experienceBullets,
+        projectBullets: profile.projectBullets,
+        resumeText: profile.resumeText,
+      });
+      const cacheKey = `${job.pageUrl}|${profileKey}`;
+      const cached = jobFitSessionCacheRef.current.get(cacheKey);
+      if (cached) {
+        setJobFitResult(cached);
+        return;
+      }
+
+      const response = await apiPostJobFitScore(base, token, { job, profile });
+      jobFitSessionCacheRef.current.set(cacheKey, response);
+      setJobFitResult(response);
+    } catch (e) {
+      setJobFitError(e instanceof Error ? e.message : "Job fit analysis failed");
+    } finally {
+      setJobFitBusy(false);
+    }
+  }, [job, profile]);
 
   const panelDensity = panelDensityFromWidth(panelWidth);
   const stackedSplit = workspaceTab === "split" && panelWidth < SPLIT_STACK_MAX_WIDTH;
@@ -439,6 +494,10 @@ export function WorkspaceApp() {
     regenLetterBusy: genBusy,
     descriptionAiCleaning: jobDescriptionAiBusy,
     descriptionAiError: jobDescriptionAiError,
+    onAnalyzeJobFit: () => void runJobFitAnalysis(),
+    jobFitBusy,
+    jobFitError,
+    jobFitResult,
   };
 
   const renderLetterPane = () => (

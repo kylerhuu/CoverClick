@@ -56,6 +56,24 @@ export interface GenerationRequest {
   promptBrief?: string;
 }
 
+export type ShouldApplyRecommendation = "YES" | "MAYBE" | "NO";
+
+export interface JobFitScoreRequest {
+  profile: UserProfile;
+  job: JobContext;
+}
+
+export interface JobFitScoreResponse {
+  atsScore: number;
+  jobFitScore: number;
+  summary: string;
+  strengths: string[];
+  weaknesses: string[];
+  missingKeywords: string[];
+  recommendedChanges: string[];
+  shouldApply: ShouldApplyRecommendation;
+}
+
 export interface StructuredCoverLetter {
   senderBlock: string;
   dateLine: string;

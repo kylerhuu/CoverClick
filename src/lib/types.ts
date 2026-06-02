@@ -55,6 +55,24 @@ export interface GenerationRequest {
   responseShape: ResponseShapePreference;
 }
 
+export type ShouldApplyRecommendation = "YES" | "MAYBE" | "NO";
+
+export interface JobFitScoreRequest {
+  profile: UserProfile;
+  job: JobContext;
+}
+
+export interface JobFitScoreResponse {
+  atsScore: number;
+  jobFitScore: number;
+  summary: string;
+  strengths: string[];
+  weaknesses: string[];
+  missingKeywords: string[];
+  recommendedChanges: string[];
+  shouldApply: ShouldApplyRecommendation;
+}
+
 /**
  * Canonical letter shape for UI, exports, and cache.
  * Backend may return this directly, or plain text to be coerced.
