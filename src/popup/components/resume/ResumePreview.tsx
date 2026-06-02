@@ -1,14 +1,12 @@
 import type { StructuredResume } from "../../../lib/types";
 import {
-  chooseResumeSpacingProfile,
   formatContactLine,
   formatEducationBlock,
   formatExperiencePrimary,
   formatExperienceSecondary,
   formatProjectPrimary,
   formatProjectSecondary,
-  getVisibleResumeSections,
-  normalizeResumeForRender,
+  getResumeRenderModel,
 } from "../../../lib/resumeRender";
 import { cn } from "../../../lib/classNames";
 
@@ -27,28 +25,30 @@ function headerRule() {
 }
 
 export function ResumePreview({ resume, template = "ats-classic", className }: Props) {
-  const r = normalizeResumeForRender(resume);
-  const sections = getVisibleResumeSections(r);
+  const model = getResumeRenderModel(resume);
+  const r = model.resume;
+  const sections = model.sections;
   const contact = formatContactLine(r);
-  const spacing = chooseResumeSpacingProfile(r);
+  const spacing = model.spacing;
+  const typography = model.typography;
 
   return (
     <div className={cn(shellClass, className)}>
       <div className={cn(pageClass, template === "ats-classic" ? "font-[Inter,system-ui,Segoe_UI,Arial,sans-serif]" : "")}> 
         <header>
-          <h2 className="text-center text-[26px] font-extrabold tracking-[-0.01em] text-slate-900">
+          <h2 className="text-center font-extrabold tracking-[-0.01em] text-slate-900" style={{ fontSize: `${typography.namePt * (96 / 72)}px` }}>
             {r.contact.fullName || "Candidate Name"}
           </h2>
-          {contact ? <p className="mt-1 text-center text-[10px] font-medium text-slate-700">{contact}</p> : null}
+          {contact ? <p className="mt-1 text-center font-medium text-slate-700" style={{ fontSize: `${typography.contactPt * (96 / 72)}px` }}>{contact}</p> : null}
         </header>
 
         {sections.map((section) => (
           <section key={section.key} style={{ marginTop: `${spacing.sectionGap}px` }}>
-            <h3 className="text-[10px] font-bold tracking-[0.18em] text-slate-700">{section.label}</h3>
+            <h3 className="font-bold tracking-[0.18em] text-slate-700" style={{ fontSize: `${typography.sectionHeaderPt * (96 / 72)}px` }}>{section.label}</h3>
             {headerRule()}
 
             {section.key === "summary" ? (
-              <p className="text-[11px] text-slate-800" style={{ marginTop: `${spacing.sectionHeaderAfter}px`, lineHeight: spacing.bulletLineHeight }}>
+              <p className="text-slate-800" style={{ marginTop: `${spacing.sectionHeaderAfter}px`, lineHeight: spacing.bulletLineHeight, fontSize: `${typography.primaryLinePt * (96 / 72)}px` }}>
                 {r.summary}
               </p>
             ) : null}
@@ -61,9 +61,9 @@ export function ResumePreview({ resume, template = "ats-classic", className }: P
                   const secondary = formatExperienceSecondary(e.title, e.location, e.dates);
                   return (
                     <article key={e.id ?? `exp-${i}`} style={{ marginBottom: `${spacing.entryGap}px` }}>
-                      {primary ? <p className="text-[11px] font-semibold text-slate-900">{primary}</p> : null}
-                      {secondary ? <p className="text-[10px] font-medium text-slate-700" style={{ marginTop: `${spacing.subLineGap}px` }}>{secondary}</p> : null}
-                      <ul className="list-disc pl-[18px] text-[10px] text-slate-800" style={{ marginTop: `${spacing.subLineGap + 1}px`, lineHeight: spacing.bulletLineHeight }}>
+                      {primary ? <p className="font-semibold text-slate-900" style={{ fontSize: `${typography.primaryLinePt * (96 / 72)}px` }}>{primary}</p> : null}
+                      {secondary ? <p className="font-medium text-slate-700" style={{ marginTop: `${spacing.subLineGap}px`, fontSize: `${typography.secondaryLinePt * (96 / 72)}px` }}>{secondary}</p> : null}
+                      <ul className="list-disc pl-[18px] text-slate-800" style={{ marginTop: `${spacing.subLineGap + 1}px`, lineHeight: spacing.bulletLineHeight, fontSize: `${typography.bulletPt * (96 / 72)}px` }}>
                         {e.bullets.map((b, bi) => (
                           <li key={`exp-b-${bi}`} style={{ marginBottom: `${spacing.bulletGap}px` }}>{b}</li>
                         ))}
@@ -82,9 +82,9 @@ export function ResumePreview({ resume, template = "ats-classic", className }: P
                   const secondary = formatProjectSecondary(p.techStack);
                   return (
                     <article key={p.id ?? `proj-${i}`} style={{ marginBottom: `${spacing.entryGap}px` }}>
-                      {primary ? <p className="text-[11px] font-semibold text-slate-900">{primary}</p> : null}
-                      {secondary ? <p className="text-[10px] font-medium text-slate-600" style={{ marginTop: `${Math.max(1, spacing.subLineGap - 1)}px` }}>{secondary}</p> : null}
-                      <ul className="list-disc pl-[18px] text-[10px] text-slate-800" style={{ marginTop: `${spacing.subLineGap + 1}px`, lineHeight: spacing.bulletLineHeight }}>
+                      {primary ? <p className="font-semibold text-slate-900" style={{ fontSize: `${typography.primaryLinePt * (96 / 72)}px` }}>{primary}</p> : null}
+                      {secondary ? <p className="font-medium text-slate-600" style={{ marginTop: `${Math.max(1, spacing.subLineGap - 1)}px`, fontSize: `${typography.secondaryLinePt * (96 / 72)}px` }}>{secondary}</p> : null}
+                      <ul className="list-disc pl-[18px] text-slate-800" style={{ marginTop: `${spacing.subLineGap + 1}px`, lineHeight: spacing.bulletLineHeight, fontSize: `${typography.bulletPt * (96 / 72)}px` }}>
                         {p.bullets.map((b, bi) => (
                           <li key={`proj-b-${bi}`} style={{ marginBottom: `${spacing.bulletGap}px` }}>{b}</li>
                         ))}
@@ -102,12 +102,12 @@ export function ResumePreview({ resume, template = "ats-classic", className }: P
                   if (!lines.schoolLine && !lines.degreeLine && !lines.majorLine && !lines.gpaLine && !e.details.length) return null;
                   return (
                     <article key={e.id ?? `edu-${i}`} style={{ marginBottom: `${spacing.entryGap}px` }}>
-                      {lines.schoolLine ? <p className="text-[11px] font-semibold text-slate-900">{lines.schoolLine}</p> : null}
-                      {lines.degreeLine ? <p className="text-[10px] text-slate-800" style={{ marginTop: `${spacing.subLineGap}px` }}>{lines.degreeLine}</p> : null}
-                      {lines.majorLine ? <p className="text-[10px] text-slate-800" style={{ marginTop: `${Math.max(1, spacing.subLineGap - 1)}px` }}>{lines.majorLine}</p> : null}
-                      {lines.gpaLine ? <p className="text-[10px] text-slate-800" style={{ marginTop: `${Math.max(1, spacing.subLineGap - 1)}px` }}>{lines.gpaLine}</p> : null}
+                      {lines.schoolLine ? <p className="font-semibold text-slate-900" style={{ fontSize: `${typography.primaryLinePt * (96 / 72)}px` }}>{lines.schoolLine}</p> : null}
+                      {lines.degreeLine ? <p className="text-slate-800" style={{ marginTop: `${spacing.subLineGap}px`, fontSize: `${typography.secondaryLinePt * (96 / 72)}px` }}>{lines.degreeLine}</p> : null}
+                      {lines.majorLine ? <p className="text-slate-800" style={{ marginTop: `${Math.max(1, spacing.subLineGap - 1)}px`, fontSize: `${typography.secondaryLinePt * (96 / 72)}px` }}>{lines.majorLine}</p> : null}
+                      {lines.gpaLine ? <p className="text-slate-800" style={{ marginTop: `${Math.max(1, spacing.subLineGap - 1)}px`, fontSize: `${typography.secondaryLinePt * (96 / 72)}px` }}>{lines.gpaLine}</p> : null}
                       {e.details.length ? (
-                        <ul className="list-disc pl-[18px] text-[10px] text-slate-800" style={{ marginTop: `${spacing.subLineGap + 1}px`, lineHeight: spacing.bulletLineHeight }}>
+                        <ul className="list-disc pl-[18px] text-slate-800" style={{ marginTop: `${spacing.subLineGap + 1}px`, lineHeight: spacing.bulletLineHeight, fontSize: `${typography.bulletPt * (96 / 72)}px` }}>
                           {e.details.map((d, di) => (
                             <li key={`edu-d-${di}`} style={{ marginBottom: `${spacing.bulletGap}px` }}>{d}</li>
                           ))}
@@ -124,7 +124,7 @@ export function ResumePreview({ resume, template = "ats-classic", className }: P
                 {r.skills.map((s, i) => {
                   if (!s.category && !s.items.length) return null;
                   return (
-                    <p key={s.id ?? `skills-${i}`} className="text-[10px] text-slate-800" style={{ lineHeight: spacing.bulletLineHeight, marginBottom: `${spacing.bulletGap + 1}px` }}>
+                    <p key={s.id ?? `skills-${i}`} className="text-slate-800" style={{ lineHeight: spacing.bulletLineHeight, marginBottom: `${spacing.bulletGap + 1}px`, fontSize: `${typography.bulletPt * (96 / 72)}px` }}>
                       <span className="font-semibold text-slate-900">{s.category || "Skills"}:</span> {s.items.join(", ")}
                     </p>
                   );

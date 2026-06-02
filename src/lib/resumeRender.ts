@@ -25,6 +25,26 @@ export type ResumeSpacingTokens = {
   contactGap: number;
 };
 
+
+export type ResumeTypographyTokens = {
+  namePt: number;
+  contactPt: number;
+  sectionHeaderPt: number;
+  primaryLinePt: number;
+  secondaryLinePt: number;
+  bulletPt: number;
+};
+
+export type ResumeRenderModel = {
+  templateVersion: "resume-template-v2";
+  resume: StructuredResume;
+  sections: ResumeSectionRender[];
+  spacing: ResumeSpacingTokens;
+  typography: ResumeTypographyTokens;
+};
+
+export const RESUME_TEMPLATE_VERSION = "resume-template-v2" as const;
+
 const SECTION_LABELS: Record<ResumeSectionKey, string> = {
   summary: "SUMMARY",
   experience: "EXPERIENCE",
@@ -228,5 +248,28 @@ export function chooseResumeSpacingProfile(resume: StructuredResume): ResumeSpac
     bulletGap: 2,
     bulletLineHeight: 1.31,
     contactGap: 12,
+  };
+}
+
+
+export function getResumeTypographyTokens(): ResumeTypographyTokens {
+  return {
+    namePt: 17,
+    contactPt: 9,
+    sectionHeaderPt: 9.5,
+    primaryLinePt: 10,
+    secondaryLinePt: 9.5,
+    bulletPt: 10,
+  };
+}
+
+export function getResumeRenderModel(resume: StructuredResume): ResumeRenderModel {
+  const normalized = normalizeResumeForRender(resume);
+  return {
+    templateVersion: RESUME_TEMPLATE_VERSION,
+    resume: normalized,
+    sections: getVisibleResumeSections(normalized),
+    spacing: chooseResumeSpacingProfile(normalized),
+    typography: getResumeTypographyTokens(),
   };
 }
