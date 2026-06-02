@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import type { StructuredResume } from "../../lib/types";
+import type { ResumeOptimizeForJobResponse, StructuredResume } from "../../lib/types";
 import { cn } from "../../lib/classNames";
 
 type Props = {
@@ -7,9 +7,17 @@ type Props = {
   targetRole: string;
   summaryBusy: boolean;
   summaryError: string | null;
+  jobAvailable: boolean;
+  optimizeBusy: boolean;
+  optimizeError: string | null;
+  optimizeResult: ResumeOptimizeForJobResponse | null;
+  suggestionDecisions: Record<string, "pending" | "accepted" | "rejected">;
   onTargetRoleChange: (value: string) => void;
   onResumeChange: (next: StructuredResume) => void;
   onGenerateSummary: () => void;
+  onOptimizeForJob: () => void;
+  onAcceptSuggestion: (id: string) => void;
+  onRejectSuggestion: (id: string) => void;
   onExportDocx: () => void;
 };
 
@@ -29,9 +37,17 @@ export function ResumeStudioPane({
   targetRole,
   summaryBusy,
   summaryError,
+  jobAvailable,
+  optimizeBusy,
+  optimizeError,
+  optimizeResult,
+  suggestionDecisions,
   onTargetRoleChange,
   onResumeChange,
   onGenerateSummary,
+  onOptimizeForJob,
+  onAcceptSuggestion,
+  onRejectSuggestion,
   onExportDocx,
 }: Props) {
   const inputCls = cn(
@@ -46,6 +62,7 @@ export function ResumeStudioPane({
   const firstExperience = useMemo(
     () =>
       resume.experience[0] ?? {
+        id: "exp-1",
         company: "",
         title: "",
         dates: "",
@@ -90,7 +107,7 @@ export function ResumeStudioPane({
           />
         </div>
 
-        <div className="grid grid-cols-[1fr_auto] gap-2">
+        <div className="grid grid-cols-[1fr_auto_auto] gap-2">
           <input
             className={inputCls}
             placeholder="Target role (optional)"
@@ -105,8 +122,19 @@ export function ResumeStudioPane({
           >
             {summaryBusy ? "Generating…" : "Generate Summary"}
           </button>
+          <button
+            type="button"
+            onClick={onOptimizeForJob}
+            disabled={!jobAvailable || optimizeBusy}
+            className="rounded-lg border border-sky-200/90 bg-sky-50 px-3 py-1.5 text-[11px] font-semibold text-sky-950 disabled:opacity-50"
+            title={jobAvailable ? "Use currently scraped job" : "Scrape a job posting first"}
+          >
+            {optimizeBusy ? "Optimizing…" : "Optimize for This Job"}
+          </button>
         </div>
+        {!jobAvailable ? <p className="text-[10px] text-slate-500">Scrape a job posting to enable optimization.</p> : null}
         {summaryError ? <p className="text-[11px] text-red-700">{summaryError}</p> : null}
+        {optimizeError ? <p className="text-[11px] text-red-700">{optimizeError}</p> : null}
 
         <textarea
           className={textCls}
@@ -117,6 +145,68 @@ export function ResumeStudioPane({
       </div>
 
       <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-3">
+        {optimizeResult ? (
+          <section className="space-y-2 rounded-lg border border-slate-200 bg-white p-2.5">
+            <h3 className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Optimization summary</h3>
+            <p className="text-[11px] text-slate-700">{optimizeResult.summary}</p>
+            {optimizeResult.keywordsToAdd.length ? (
+              <div>
+                <p className="text-[10px] font-semibold text-slate-700">Keywords to add</p>
+                <p className="text-[10px] text-slate-600">{optimizeResult.keywordsToAdd.join(" · ")}</p>
+              </div>
+            ) : null}
+            {optimizeResult.warnings.length ? (
+              <div>
+                <p className="text-[10px] font-semibold text-amber-700">Warnings</p>
+                <ul className="list-disc pl-4 text-[10px] text-amber-700">
+                  {optimizeResult.warnings.map((w, i) => (
+                    <li key={`warn-${i}`}>{w}</li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+            <div className="space-y-2">
+              {optimizeResult.suggestions.map((s) => {
+                const decision = suggestionDecisions[s.id] ?? "pending";
+                if (decision === "rejected") return null;
+                return (
+                  <div key={s.id} className="rounded-md border border-slate-200 bg-slate-50/80 p-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+                        {s.section} · {s.changeType} · {s.priority}
+                      </p>
+                      <div className="flex gap-1">
+                        <button
+                          type="button"
+                          onClick={() => onAcceptSuggestion(s.id)}
+                          disabled={decision === "accepted"}
+                          className="rounded border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-800 disabled:opacity-60"
+                        >
+                          Accept
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => onRejectSuggestion(s.id)}
+                          className="rounded border border-rose-200 bg-rose-50 px-2 py-0.5 text-[10px] font-semibold text-rose-800"
+                        >
+                          Reject
+                        </button>
+                      </div>
+                    </div>
+                    <p className="mt-1 text-[10px] text-slate-600">
+                      <span className="font-semibold text-slate-700">Current:</span> {s.currentText || "(none)"}
+                    </p>
+                    <p className="mt-1 text-[10px] text-slate-600">
+                      <span className="font-semibold text-slate-700">Suggested:</span> {s.suggestedText}
+                    </p>
+                    <p className="mt-1 text-[10px] text-slate-500">{s.reason}</p>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+        ) : null}
+
         <section className="space-y-1">
           <h3 className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Experience</h3>
           <div className="grid grid-cols-2 gap-2">
@@ -167,6 +257,7 @@ export function ResumeStudioPane({
                 ...resume,
                 projects: [
                   {
+                    id: resume.projects[0]?.id ?? "proj-1",
                     name: resume.projects[0]?.name ?? "Project",
                     role: resume.projects[0]?.role ?? "",
                     dates: resume.projects[0]?.dates ?? "",
@@ -192,7 +283,7 @@ export function ResumeStudioPane({
               onResumeChange({
                 ...resume,
                 education: [
-                  { school: parts[0] ?? "", degree: parts[1] ?? "", dates: parts[2] ?? "", details: resume.education[0]?.details ?? [] },
+                  { id: resume.education[0]?.id ?? "edu-1", school: parts[0] ?? "", degree: parts[1] ?? "", dates: parts[2] ?? "", details: resume.education[0]?.details ?? [] },
                   ...resume.education.slice(1),
                 ],
               });
@@ -209,7 +300,7 @@ export function ResumeStudioPane({
             onChange={(e) =>
               onResumeChange({
                 ...resume,
-                skills: [{ category: resume.skills[0]?.category || "Core Skills", items: e.target.value.split(",").map((s) => s.trim()).filter(Boolean) }],
+                skills: [{ id: resume.skills[0]?.id ?? "skills-1", category: resume.skills[0]?.category || "Core Skills", items: e.target.value.split(",").map((s) => s.trim()).filter(Boolean) }],
               })
             }
           />

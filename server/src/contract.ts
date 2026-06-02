@@ -114,6 +114,7 @@ export interface ResumeContact {
 }
 
 export interface ResumeEducationItem {
+  id?: string;
   school: string;
   degree: string;
   dates: string;
@@ -121,6 +122,7 @@ export interface ResumeEducationItem {
 }
 
 export interface ResumeExperienceItem {
+  id?: string;
   company: string;
   title: string;
   dates: string;
@@ -129,6 +131,7 @@ export interface ResumeExperienceItem {
 }
 
 export interface ResumeProjectItem {
+  id?: string;
   name: string;
   role: string;
   dates: string;
@@ -136,6 +139,7 @@ export interface ResumeProjectItem {
 }
 
 export interface ResumeSkillGroup {
+  id?: string;
   category: string;
   items: string[];
 }
@@ -159,4 +163,31 @@ export interface ResumeSummaryGenerateRequest {
 
 export interface ResumeSummaryGenerateResponse {
   summary: string;
+}
+
+export type ResumeOptimizeSection = "summary" | "experience" | "projects" | "skills" | "education";
+export type ResumeOptimizeChangeType = "rewrite" | "add" | "remove" | "reorder" | "emphasize";
+export type ResumeOptimizePriority = "high" | "medium" | "low";
+
+export interface ResumeOptimizationSuggestion {
+  id: string;
+  section: ResumeOptimizeSection;
+  targetId?: string;
+  changeType: ResumeOptimizeChangeType;
+  currentText: string;
+  suggestedText: string;
+  reason: string;
+  priority: ResumeOptimizePriority;
+}
+
+export interface ResumeOptimizeForJobRequest {
+  resume: StructuredResume;
+  job: JobContext;
+}
+
+export interface ResumeOptimizeForJobResponse {
+  summary: string;
+  suggestions: ResumeOptimizationSuggestion[];
+  keywordsToAdd: string[];
+  warnings: string[];
 }

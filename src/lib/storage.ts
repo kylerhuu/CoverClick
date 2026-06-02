@@ -18,6 +18,11 @@ const PREFS_KEY = STORAGE_KEYS.generationPrefs;
 const LETTER_CACHE_KEY = STORAGE_KEYS.letterCache;
 const RESUME_STUDIO_KEY = STORAGE_KEYS.resumeStudio;
 
+function makeStableId(seed: string, idx: number): string {
+  return `${seed}-${idx + 1}`;
+}
+
+
 function normalizeProfile(raw: unknown): UserProfile {
   if (!raw || typeof raw !== "object") return { ...EMPTY_PROFILE };
   const p = raw as Record<string, unknown>;
@@ -211,7 +216,8 @@ function normalizeStructuredResume(raw: unknown): StructuredResume {
     education: Array.isArray(r.education)
       ? r.education
           .filter((x): x is Record<string, unknown> => typeof x === "object" && x != null)
-          .map((x) => ({
+          .map((x, idx) => ({
+            id: typeof x.id === "string" && x.id.trim() ? x.id : makeStableId("edu", idx),
             school: typeof x.school === "string" ? x.school : "",
             degree: typeof x.degree === "string" ? x.degree : "",
             dates: typeof x.dates === "string" ? x.dates : "",
@@ -221,7 +227,8 @@ function normalizeStructuredResume(raw: unknown): StructuredResume {
     experience: Array.isArray(r.experience)
       ? r.experience
           .filter((x): x is Record<string, unknown> => typeof x === "object" && x != null)
-          .map((x) => ({
+          .map((x, idx) => ({
+            id: typeof x.id === "string" && x.id.trim() ? x.id : makeStableId("exp", idx),
             company: typeof x.company === "string" ? x.company : "",
             title: typeof x.title === "string" ? x.title : "",
             dates: typeof x.dates === "string" ? x.dates : "",
@@ -232,7 +239,8 @@ function normalizeStructuredResume(raw: unknown): StructuredResume {
     projects: Array.isArray(r.projects)
       ? r.projects
           .filter((x): x is Record<string, unknown> => typeof x === "object" && x != null)
-          .map((x) => ({
+          .map((x, idx) => ({
+            id: typeof x.id === "string" && x.id.trim() ? x.id : makeStableId("proj", idx),
             name: typeof x.name === "string" ? x.name : "",
             role: typeof x.role === "string" ? x.role : "",
             dates: typeof x.dates === "string" ? x.dates : "",
@@ -242,7 +250,8 @@ function normalizeStructuredResume(raw: unknown): StructuredResume {
     skills: Array.isArray(r.skills)
       ? r.skills
           .filter((x): x is Record<string, unknown> => typeof x === "object" && x != null)
-          .map((x) => ({
+          .map((x, idx) => ({
+            id: typeof x.id === "string" && x.id.trim() ? x.id : makeStableId("skills", idx),
             category: typeof x.category === "string" ? x.category : "",
             items: arr(x.items),
           }))

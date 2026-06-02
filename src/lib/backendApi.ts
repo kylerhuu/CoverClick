@@ -1,6 +1,8 @@
 import type {
   AccountMeResponse,
   AuthExchangeResponse,
+  ResumeOptimizeForJobRequest,
+  ResumeOptimizeForJobResponse,
   ResumeSummaryGenerateRequest,
   ResumeSummaryGenerateResponse,
   UserProfile,
@@ -186,4 +188,18 @@ export async function apiGenerateResumeSummary(
   });
   await requireOk(res);
   return res.json() as Promise<ResumeSummaryGenerateResponse>;
+}
+
+export async function apiOptimizeResumeForJob(
+  apiBaseUrl: string,
+  token: string,
+  body: ResumeOptimizeForJobRequest,
+): Promise<ResumeOptimizeForJobResponse> {
+  const res = await apiFetch(apiUrl(apiBaseUrl, "/api/resume/optimize-for-job"), {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  await requireOk(res);
+  return res.json() as Promise<ResumeOptimizeForJobResponse>;
 }

@@ -8,12 +8,13 @@ import { Prisma, PrismaClient, type SubscriptionStatus } from "@prisma/client";
 import { CodeChallengeMethod, OAuth2Client } from "google-auth-library";
 import Stripe from "stripe";
 import { createHash, randomBytes } from "node:crypto";
-import type { GenerationRequest, ResumeSummaryGenerateRequest } from "./contract.js";
+import type { GenerationRequest, ResumeOptimizeForJobRequest, ResumeSummaryGenerateRequest } from "./contract.js";
 import { extractTextFromResumeBuffer } from "./textExtract.js";
 import { extractProfileFromResumeText } from "./extractProfileWithOpenAI.js";
 import { cleanJobDescriptionWithOpenAI } from "./cleanJobDescriptionOpenAI.js";
 import { generateCoverLetterWithOpenAI } from "./generateCoverLetterOpenAI.js";
 import { generateResumeSummaryWithOpenAI } from "./generateResumeSummaryWithOpenAI.js";
+import { resumeOptimizeForJobWithOpenAI } from "./resumeOptimizeForJobWithOpenAI.js";
 import { hasPaidSubscription, subscriptionStatusFromStripe } from "./access.js";
 
 const prisma = new PrismaClient();
@@ -823,6 +824,12 @@ function isResumeSummaryRequest(body: unknown): body is ResumeSummaryGenerateReq
   return typeof b.resume === "object" && b.resume !== null;
 }
 
+function isResumeOptimizeForJobRequest(body: unknown): body is ResumeOptimizeForJobRequest {
+  if (!body || typeof body !== "object") return false;
+  const b = body as Record<string, unknown>;
+  return typeof b.resume === "object" && b.resume !== null && typeof b.job === "object" && b.job !== null;
+}
+
 app.post("/api/clean-job-description", authMiddleware, requirePaidMiddleware, authedAiLimiter, async (req, res) => {
   try {
     const rawText = typeof req.body?.rawText === "string" ? req.body.rawText : "";
@@ -869,6 +876,21 @@ app.post("/api/resume/generate-summary", authMiddleware, requirePaidMiddleware, 
     res.json({ summary });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Summary generation failed";
+    const status = msg.includes("OPENAI_API_KEY") ? 503 : 500;
+    res.status(status).json({ error: status === 503 || !IS_PRODUCTION ? msg : publicApiError(e) });
+  }
+});
+
+app.post("/api/resume/optimize-for-job", authMiddleware, requirePaidMiddleware, authedAiLimiter, async (req, res) => {
+  try {
+    if (!isResumeOptimizeForJobRequest(req.body)) {
+      res.status(400).json({ error: "Invalid body: expected resume and job." });
+      return;
+    }
+    const out = await resumeOptimizeForJobWithOpenAI(req.body);
+    res.json(out);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Resume optimization failed";
     const status = msg.includes("OPENAI_API_KEY") ? 503 : 500;
     res.status(status).json({ error: status === 503 || !IS_PRODUCTION ? msg : publicApiError(e) });
   }

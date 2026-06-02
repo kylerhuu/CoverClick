@@ -4,6 +4,8 @@ import type {
   Emphasis,
   JobContext,
   LetterLength,
+  ResumeOptimizationSuggestion,
+  ResumeOptimizeForJobResponse,
   ResponseShapePreference,
   StructuredResume,
   StructuredCoverLetter,
@@ -35,7 +37,7 @@ import { requestCleanJobDescription } from "../lib/jobDescriptionCleanApi";
 import { shouldUseAiDescriptionClean } from "../lib/jobDescriptionQuality";
 import { buildDefaultExportBasename } from "../lib/utils";
 import { cn } from "../lib/classNames";
-import { apiGenerateResumeSummary, ApiHttpError } from "../lib/backendApi";
+import { apiGenerateResumeSummary, apiOptimizeResumeForJob, ApiHttpError } from "../lib/backendApi";
 import { JobPane } from "../popup/components/JobPane";
 import { LetterPane } from "../popup/components/LetterPane";
 import { ResumeStudioPane } from "../popup/components/ResumeStudioPane";
@@ -71,6 +73,22 @@ function WorkspaceBrandMark({ className }: { className?: string }) {
 }
 
 export function WorkspaceApp() {
+
+function stableItemId(prefix: string, idx: number, explicit?: string): string {
+  if (explicit && explicit.trim()) return explicit;
+  return `${prefix}-${idx + 1}`;
+}
+
+function withStableResumeIds(resume: StructuredResume): StructuredResume {
+  return {
+    ...resume,
+    education: resume.education.map((item, idx) => ({ ...item, id: stableItemId("edu", idx, item.id) })),
+    experience: resume.experience.map((item, idx) => ({ ...item, id: stableItemId("exp", idx, item.id) })),
+    projects: resume.projects.map((item, idx) => ({ ...item, id: stableItemId("proj", idx, item.id) })),
+    skills: resume.skills.map((item, idx) => ({ ...item, id: stableItemId("skills", idx, item.id) })),
+  };
+}
+
   const [profile, setProfile] = useState<UserProfile>(EMPTY_PROFILE);
   const [job, setJob] = useState<JobContext | null>(null);
   const [tone, setTone] = useState<DefaultTone>("professional");
@@ -115,6 +133,10 @@ export function WorkspaceApp() {
   const [resumeTargetRole, setResumeTargetRole] = useState("");
   const [resumeSummaryBusy, setResumeSummaryBusy] = useState(false);
   const [resumeSummaryError, setResumeSummaryError] = useState<string | null>(null);
+  const [resumeOptimizeBusy, setResumeOptimizeBusy] = useState(false);
+  const [resumeOptimizeError, setResumeOptimizeError] = useState<string | null>(null);
+  const [resumeOptimizeResult, setResumeOptimizeResult] = useState<ResumeOptimizeForJobResponse | null>(null);
+  const [suggestionDecisions, setSuggestionDecisions] = useState<Record<string, "pending" | "accepted" | "rejected">>({});
 
   const refreshScrape = useCallback(async () => {
     setScrapeBusy(true);
@@ -146,6 +168,12 @@ export function WorkspaceApp() {
   }, [job?.pageUrl, job?.scrapedAt]);
 
   useEffect(() => {
+    setResumeOptimizeResult(null);
+    setSuggestionDecisions({});
+    setResumeOptimizeError(null);
+  }, [job?.pageUrl, job?.scrapedAt]);
+
+  useEffect(() => {
     void loadSettings().then((s) =>
       setLiveSettings({
         useMock: s.useMock,
@@ -156,7 +184,7 @@ export function WorkspaceApp() {
   }, []);
 
   useEffect(() => {
-    void loadResumeStudio().then((r) => setResume(r));
+    void loadResumeStudio().then((r) => setResume(withStableResumeIds(r)));
   }, []);
 
   useEffect(() => {
@@ -434,8 +462,12 @@ export function WorkspaceApp() {
   }, []);
 
   const onResumeChange = useCallback((next: StructuredResume) => {
-    setResume(next);
-    void saveResumeStudio(next);
+    const normalized = withStableResumeIds(next);
+    setResume(normalized);
+    void saveResumeStudio(normalized);
+    setResumeOptimizeResult(null);
+    setSuggestionDecisions({});
+    setResumeOptimizeError(null);
   }, []);
 
   const onGenerateResumeSummary = useCallback(async () => {
@@ -463,6 +495,126 @@ export function WorkspaceApp() {
       setResumeSummaryBusy(false);
     }
   }, [onResumeChange, resume, resumeTargetRole]);
+
+  const runResumeOptimizeForJob = useCallback(async () => {
+    if (!job) {
+      setResumeOptimizeError("Scrape a job posting before optimizing.");
+      return;
+    }
+    setResumeOptimizeBusy(true);
+    setResumeOptimizeError(null);
+    try {
+      const settings = await loadSettings();
+      if (settings.useMock) {
+        setResumeOptimizeResult({
+          summary: "Mock optimization: sharpen wording and align key bullets to job requirements.",
+          suggestions: [],
+          keywordsToAdd: ["stakeholder management", "cross-functional collaboration"],
+          warnings: ["Disable mock mode to run full AI optimization."],
+        });
+        setSuggestionDecisions({});
+        return;
+      }
+      const token = settings.authToken?.trim();
+      const base = settings.apiBaseUrl.trim();
+      if (!token || !base) throw new Error("Sign in and configure API access to optimize resume.");
+      const out = await apiOptimizeResumeForJob(base, token, { resume, job });
+      setResumeOptimizeResult(out);
+      setSuggestionDecisions(Object.fromEntries(out.suggestions.map((sg) => [sg.id, "pending"] as const)));
+    } catch (e) {
+      setResumeOptimizeError(e instanceof Error ? e.message : "Resume optimization failed");
+    } finally {
+      setResumeOptimizeBusy(false);
+    }
+  }, [job, resume]);
+
+  function applyAcceptedSuggestion(baseResume: StructuredResume, sg: ResumeOptimizationSuggestion): StructuredResume {
+    const next = withStableResumeIds({ ...baseResume });
+    const applyByText = (items: string[], currentText: string, suggestedText: string): string[] => {
+      if (!suggestedText.trim()) return items;
+      const current = currentText.trim();
+      const idx = current ? items.findIndex((x) => x.trim() === current) : -1;
+      if (sg.changeType === "add") return [...items, suggestedText.trim()];
+      if (idx < 0) return items;
+      if (sg.changeType === "remove") return items.filter((_, i) => i !== idx);
+      if (sg.changeType === "rewrite" || sg.changeType === "emphasize") {
+        const copy = [...items];
+        copy[idx] = suggestedText.trim();
+        return copy;
+      }
+      return items;
+    };
+
+    if (sg.section === "summary") {
+      if ((sg.changeType === "rewrite" || sg.changeType === "emphasize" || sg.changeType === "add") && sg.suggestedText.trim()) {
+        return { ...next, summary: sg.suggestedText.trim() };
+      }
+      return next;
+    }
+
+    if (sg.section === "experience") {
+      const idx = next.experience.findIndex((e) => e.id === sg.targetId);
+      if (idx < 0) return next;
+      const item = next.experience[idx];
+      const updatedBullets = applyByText(item.bullets, sg.currentText, sg.suggestedText);
+      const copy = [...next.experience];
+      copy[idx] = { ...item, bullets: updatedBullets };
+      return { ...next, experience: copy };
+    }
+
+    if (sg.section === "projects") {
+      const idx = next.projects.findIndex((e) => e.id === sg.targetId);
+      if (idx < 0) return next;
+      const item = next.projects[idx];
+      const updatedBullets = applyByText(item.bullets, sg.currentText, sg.suggestedText);
+      const copy = [...next.projects];
+      copy[idx] = { ...item, bullets: updatedBullets };
+      return { ...next, projects: copy };
+    }
+
+    if (sg.section === "skills") {
+      const idx = next.skills.findIndex((e) => e.id === sg.targetId);
+      if (idx < 0) return next;
+      const item = next.skills[idx];
+      const updated = applyByText(item.items, sg.currentText, sg.suggestedText);
+      const copy = [...next.skills];
+      copy[idx] = { ...item, items: updated };
+      return { ...next, skills: copy };
+    }
+
+    if (sg.section === "education") {
+      const idx = next.education.findIndex((e) => e.id === sg.targetId);
+      if (idx < 0) return next;
+      const item = next.education[idx];
+      const updated = applyByText(item.details, sg.currentText, sg.suggestedText);
+      const copy = [...next.education];
+      copy[idx] = { ...item, details: updated };
+      return { ...next, education: copy };
+    }
+
+    return next;
+  }
+
+  const onAcceptOptimizeSuggestion = useCallback((id: string) => {
+    if (!resumeOptimizeResult) return;
+    const sg = resumeOptimizeResult.suggestions.find((x) => x.id === id);
+    if (!sg) return;
+
+    const safeAutoApply = sg.section === "summary" || (sg.targetId && (sg.changeType === "rewrite" || sg.changeType === "add" || sg.changeType === "remove" || sg.changeType === "emphasize"));
+    if (!safeAutoApply) {
+      setResumeOptimizeError("Suggestion marked accepted but requires manual edit due ambiguous target mapping.");
+      setSuggestionDecisions((prev) => ({ ...prev, [id]: "accepted" }));
+      return;
+    }
+
+    const updated = applyAcceptedSuggestion(resume, sg);
+    onResumeChange(updated);
+    setSuggestionDecisions((prev) => ({ ...prev, [id]: "accepted" }));
+  }, [resumeOptimizeResult, resume, onResumeChange]);
+
+  const onRejectOptimizeSuggestion = useCallback((id: string) => {
+    setSuggestionDecisions((prev) => ({ ...prev, [id]: "rejected" }));
+  }, []);
 
   const onResumeDocx = useCallback(async () => {
     try {
@@ -563,9 +715,17 @@ export function WorkspaceApp() {
             targetRole={resumeTargetRole}
             summaryBusy={resumeSummaryBusy}
             summaryError={resumeSummaryError}
+            jobAvailable={Boolean(job)}
+            optimizeBusy={resumeOptimizeBusy}
+            optimizeError={resumeOptimizeError}
+            optimizeResult={resumeOptimizeResult}
+            suggestionDecisions={suggestionDecisions}
             onTargetRoleChange={setResumeTargetRole}
             onResumeChange={onResumeChange}
             onGenerateSummary={() => void onGenerateResumeSummary()}
+            onOptimizeForJob={() => void runResumeOptimizeForJob()}
+            onAcceptSuggestion={onAcceptOptimizeSuggestion}
+            onRejectSuggestion={onRejectOptimizeSuggestion}
             onExportDocx={() => void onResumeDocx()}
           />
         ) : workspaceTab === "letter" ? (
