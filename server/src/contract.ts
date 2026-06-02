@@ -104,3 +104,59 @@ export interface ResumeTailoringResponse {
   sectionPriority: string[];
   warnings: string[];
 }
+
+export interface ResumeContact {
+  fullName: string;
+  email: string;
+  phone: string;
+  location: string;
+  links: string[];
+}
+
+export interface ResumeEducationItem {
+  school: string;
+  degree: string;
+  dates: string;
+  details: string[];
+}
+
+export interface ResumeExperienceItem {
+  company: string;
+  title: string;
+  dates: string;
+  location: string;
+  bullets: string[];
+}
+
+export interface ResumeProjectItem {
+  name: string;
+  role: string;
+  dates: string;
+  bullets: string[];
+}
+
+export interface ResumeSkillGroup {
+  category: string;
+  items: string[];
+}
+
+export interface StructuredResume {
+  contact: ResumeContact;
+  summary: string;
+  education: ResumeEducationItem[];
+  experience: ResumeExperienceItem[];
+  projects: ResumeProjectItem[];
+  skills: ResumeSkillGroup[];
+  certifications: string[];
+  leadership: string[];
+  links: string[];
+}
+
+export interface ResumeSummaryGenerateRequest {
+  targetRole?: string;
+  resume: StructuredResume;
+}
+
+export interface ResumeSummaryGenerateResponse {
+  summary: string;
+}

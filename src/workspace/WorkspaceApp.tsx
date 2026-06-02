@@ -4,14 +4,15 @@ import type {
   Emphasis,
   JobContext,
   LetterLength,
-  ResumeTailoringResponse,
   ResponseShapePreference,
+  StructuredResume,
   StructuredCoverLetter,
   UserProfile,
 } from "../lib/types";
-import { EMPTY_PROFILE } from "../lib/types";
+import { EMPTY_PROFILE, EMPTY_STRUCTURED_RESUME } from "../lib/types";
 import { generateCoverLetter, resolveStructuredLetter } from "../lib/api";
 import { downloadStructuredCoverLetterDocx } from "../lib/exportDocx";
+import { downloadResumeDocx } from "../lib/exportResumeDocx";
 import {
   emptyStructuredFromContext,
   plainTextToStructuredLetter,
@@ -22,9 +23,11 @@ import {
   loadCachedLetter,
   loadGenerationPrefs,
   loadProfile,
+  loadResumeStudio,
   loadSettings,
   saveCachedLetter,
   saveGenerationPrefs,
+  saveResumeStudio,
 } from "../lib/storage";
 import type { AppSettings } from "../lib/types";
 import { requestJobContextFromActiveTab } from "../lib/tabScrape";
@@ -32,9 +35,10 @@ import { requestCleanJobDescription } from "../lib/jobDescriptionCleanApi";
 import { shouldUseAiDescriptionClean } from "../lib/jobDescriptionQuality";
 import { buildDefaultExportBasename } from "../lib/utils";
 import { cn } from "../lib/classNames";
-import { apiPostResumeTailoring, ApiHttpError } from "../lib/backendApi";
+import { apiGenerateResumeSummary, ApiHttpError } from "../lib/backendApi";
 import { JobPane } from "../popup/components/JobPane";
 import { LetterPane } from "../popup/components/LetterPane";
+import { ResumeStudioPane } from "../popup/components/ResumeStudioPane";
 import { WorkspaceToolbar } from "./components/WorkspaceToolbar";
 import { SPLIT_STACK_MAX_WIDTH, type WorkspaceTab, panelDensityFromWidth } from "./workspaceLayout";
 
@@ -100,17 +104,17 @@ export function WorkspaceApp() {
   const [docEditEpoch, setDocEditEpoch] = useState(0);
   const [jobDescriptionAiBusy, setJobDescriptionAiBusy] = useState(false);
   const [jobDescriptionAiError, setJobDescriptionAiError] = useState<string | null>(null);
-  const [resumeTailorBusy, setResumeTailorBusy] = useState(false);
-  const [resumeTailorError, setResumeTailorError] = useState<string | null>(null);
-  const [resumeTailorResult, setResumeTailorResult] = useState<ResumeTailoringResponse | null>(null);
   const aiCleanAttemptedRef = useRef<string>("");
   const aiCleanGenerationRef = useRef(0);
-  const resumeTailorSessionCacheRef = useRef<Map<string, ResumeTailoringResponse>>(new Map());
   const [liveSettings, setLiveSettings] = useState<Pick<AppSettings, "useMock" | "authToken" | "apiBaseUrl">>(() => ({
     useMock: true,
     authToken: undefined,
     apiBaseUrl: "",
   }));
+  const [resume, setResume] = useState<StructuredResume>(EMPTY_STRUCTURED_RESUME);
+  const [resumeTargetRole, setResumeTargetRole] = useState("");
+  const [resumeSummaryBusy, setResumeSummaryBusy] = useState(false);
+  const [resumeSummaryError, setResumeSummaryError] = useState<string | null>(null);
 
   const refreshScrape = useCallback(async () => {
     setScrapeBusy(true);
@@ -142,11 +146,6 @@ export function WorkspaceApp() {
   }, [job?.pageUrl, job?.scrapedAt]);
 
   useEffect(() => {
-    setResumeTailorError(null);
-    setResumeTailorResult(null);
-  }, [job?.pageUrl, job?.scrapedAt]);
-
-  useEffect(() => {
     void loadSettings().then((s) =>
       setLiveSettings({
         useMock: s.useMock,
@@ -154,6 +153,10 @@ export function WorkspaceApp() {
         apiBaseUrl: s.apiBaseUrl,
       }),
     );
+  }, []);
+
+  useEffect(() => {
+    void loadResumeStudio().then((r) => setResume(r));
   }, []);
 
   useEffect(() => {
@@ -430,56 +433,50 @@ export function WorkspaceApp() {
     void chrome.runtime.openOptionsPage();
   }, []);
 
-  const handleJobChange = useCallback((next: JobContext) => {
-    setJob(next);
-    setResumeTailorError(null);
-    setResumeTailorResult(null);
+  const onResumeChange = useCallback((next: StructuredResume) => {
+    setResume(next);
+    void saveResumeStudio(next);
   }, []);
 
-  const runResumeTailoring = useCallback(async () => {
-    if (!job) return;
-    setResumeTailorBusy(true);
-    setResumeTailorError(null);
+  const onGenerateResumeSummary = useCallback(async () => {
+    setResumeSummaryBusy(true);
+    setResumeSummaryError(null);
     try {
       const settings = await loadSettings();
       if (settings.useMock) {
-        throw new Error("Disable mock mode to run resume tailoring suggestions.");
-      }
-      const token = settings.authToken?.trim();
-      if (!token) {
-        throw new Error("Sign in with Google in the side panel to tailor your resume.");
-      }
-      const base = settings.apiBaseUrl.trim();
-      if (!base) {
-        throw new Error("No API URL configured. Set it in Options → Backend.");
-      }
-
-      const cacheKey = JSON.stringify({
-        url: job.pageUrl,
-        title: job.jobTitle,
-        company: job.companyName,
-        profileSummary: profile.summary,
-        skills: profile.skills,
-        experience: profile.experienceBullets,
-        projects: profile.projectBullets,
-        resumeText: profile.resumeText,
-      });
-
-      const cached = resumeTailorSessionCacheRef.current.get(cacheKey);
-      if (cached) {
-        setResumeTailorResult(cached);
+        const name = resume.contact.fullName.trim() || "Candidate";
+        const role = resumeTargetRole.trim() || "target role";
+        onResumeChange({
+          ...resume,
+          summary: `${name} is a motivated candidate with hands-on experience and a practical, results-focused approach. Ready to contribute in ${role} through strong execution, communication, and ownership.`,
+        });
         return;
       }
-
-      const response = await apiPostResumeTailoring(base, token, { job, profile });
-      resumeTailorSessionCacheRef.current.set(cacheKey, response);
-      setResumeTailorResult(response);
+      const token = settings.authToken?.trim();
+      const base = settings.apiBaseUrl.trim();
+      if (!token || !base) throw new Error("Sign in and configure API access to generate summary.");
+      const out = await apiGenerateResumeSummary(base, token, { targetRole: resumeTargetRole, resume });
+      onResumeChange({ ...resume, summary: out.summary });
     } catch (e) {
-      setResumeTailorError(e instanceof Error ? e.message : "Resume tailoring failed");
+      setResumeSummaryError(e instanceof Error ? e.message : "Summary generation failed");
     } finally {
-      setResumeTailorBusy(false);
+      setResumeSummaryBusy(false);
     }
-  }, [job, profile]);
+  }, [onResumeChange, resume, resumeTargetRole]);
+
+  const onResumeDocx = useCallback(async () => {
+    try {
+      await downloadResumeDocx(resume, exportBasename || "CoverClick_Resume");
+      setStatus("Resume DOCX saved");
+      window.setTimeout(() => setStatus(null), 900);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Resume DOCX failed");
+    }
+  }, [resume, exportBasename]);
+
+  const handleJobChange = useCallback((next: JobContext) => {
+    setJob(next);
+  }, []);
 
   const panelDensity = panelDensityFromWidth(panelWidth);
   const stackedSplit = workspaceTab === "split" && panelWidth < SPLIT_STACK_MAX_WIDTH;
@@ -496,10 +493,6 @@ export function WorkspaceApp() {
     regenLetterBusy: genBusy,
     descriptionAiCleaning: jobDescriptionAiBusy,
     descriptionAiError: jobDescriptionAiError,
-    onTailorResume: () => void runResumeTailoring(),
-    resumeTailorBusy,
-    resumeTailorError,
-    resumeTailorResult,
   };
 
   const renderLetterPane = () => (
@@ -564,6 +557,17 @@ export function WorkspaceApp() {
       <div ref={panelShellRef} className="flex min-h-0 flex-1 flex-col">
         {workspaceTab === "job" ? (
           <JobPane {...jobPaneBase} stackedInSplit={false} />
+        ) : workspaceTab === "resume" ? (
+          <ResumeStudioPane
+            resume={resume}
+            targetRole={resumeTargetRole}
+            summaryBusy={resumeSummaryBusy}
+            summaryError={resumeSummaryError}
+            onTargetRoleChange={setResumeTargetRole}
+            onResumeChange={onResumeChange}
+            onGenerateSummary={() => void onGenerateResumeSummary()}
+            onExportDocx={() => void onResumeDocx()}
+          />
         ) : workspaceTab === "letter" ? (
           renderLetterPane()
         ) : stackedSplit ? (

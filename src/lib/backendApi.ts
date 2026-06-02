@@ -1,4 +1,10 @@
-import type { AccountMeResponse, AuthExchangeResponse, ResumeTailoringRequest, ResumeTailoringResponse, UserProfile } from "./types";
+import type {
+  AccountMeResponse,
+  AuthExchangeResponse,
+  ResumeSummaryGenerateRequest,
+  ResumeSummaryGenerateResponse,
+  UserProfile,
+} from "./types";
 
 /** Thrown on non-2xx API responses so callers can distinguish 401 (clear session) from transient errors. */
 export class ApiHttpError extends Error {
@@ -168,19 +174,16 @@ export async function apiParseResume(
   return res.json() as Promise<{ profile: UserProfile; warnings?: string[] }>;
 }
 
-export async function apiPostResumeTailoring(
+export async function apiGenerateResumeSummary(
   apiBaseUrl: string,
   token: string,
-  body: ResumeTailoringRequest,
-): Promise<ResumeTailoringResponse> {
-  const res = await apiFetch(apiUrl(apiBaseUrl, "/api/resume-tailoring"), {
+  body: ResumeSummaryGenerateRequest,
+): Promise<ResumeSummaryGenerateResponse> {
+  const res = await apiFetch(apiUrl(apiBaseUrl, "/api/resume/generate-summary"), {
     method: "POST",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-    },
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
   await requireOk(res);
-  return res.json() as Promise<ResumeTailoringResponse>;
+  return res.json() as Promise<ResumeSummaryGenerateResponse>;
 }

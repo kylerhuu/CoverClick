@@ -8,12 +8,12 @@ import { Prisma, PrismaClient, type SubscriptionStatus } from "@prisma/client";
 import { CodeChallengeMethod, OAuth2Client } from "google-auth-library";
 import Stripe from "stripe";
 import { createHash, randomBytes } from "node:crypto";
-import type { GenerationRequest, ResumeTailoringRequest } from "./contract.js";
+import type { GenerationRequest, ResumeSummaryGenerateRequest } from "./contract.js";
 import { extractTextFromResumeBuffer } from "./textExtract.js";
 import { extractProfileFromResumeText } from "./extractProfileWithOpenAI.js";
 import { cleanJobDescriptionWithOpenAI } from "./cleanJobDescriptionOpenAI.js";
 import { generateCoverLetterWithOpenAI } from "./generateCoverLetterOpenAI.js";
-import { resumeTailoringWithOpenAI } from "./resumeTailoringWithOpenAI.js";
+import { generateResumeSummaryWithOpenAI } from "./generateResumeSummaryWithOpenAI.js";
 import { hasPaidSubscription, subscriptionStatusFromStripe } from "./access.js";
 
 const prisma = new PrismaClient();
@@ -817,10 +817,10 @@ function isGenerationRequest(body: unknown): body is GenerationRequest {
   return typeof b.profile === "object" && b.profile !== null && typeof b.job === "object" && b.job !== null;
 }
 
-function isResumeTailoringRequest(body: unknown): body is ResumeTailoringRequest {
+function isResumeSummaryRequest(body: unknown): body is ResumeSummaryGenerateRequest {
   if (!body || typeof body !== "object") return false;
   const b = body as Record<string, unknown>;
-  return typeof b.profile === "object" && b.profile !== null && typeof b.job === "object" && b.job !== null;
+  return typeof b.resume === "object" && b.resume !== null;
 }
 
 app.post("/api/clean-job-description", authMiddleware, requirePaidMiddleware, authedAiLimiter, async (req, res) => {
@@ -859,16 +859,16 @@ app.post("/api/generate-cover-letter", authMiddleware, requirePaidMiddleware, au
   }
 });
 
-app.post("/api/resume-tailoring", authMiddleware, requirePaidMiddleware, authedAiLimiter, async (req, res) => {
+app.post("/api/resume/generate-summary", authMiddleware, requirePaidMiddleware, authedAiLimiter, async (req, res) => {
   try {
-    if (!isResumeTailoringRequest(req.body)) {
-      res.status(400).json({ error: "Invalid body: expected profile and job." });
+    if (!isResumeSummaryRequest(req.body)) {
+      res.status(400).json({ error: "Invalid body: expected resume and optional targetRole." });
       return;
     }
-    const out = await resumeTailoringWithOpenAI(req.body);
-    res.json(out);
+    const summary = await generateResumeSummaryWithOpenAI(req.body);
+    res.json({ summary });
   } catch (e) {
-    const msg = e instanceof Error ? e.message : "Resume tailoring failed";
+    const msg = e instanceof Error ? e.message : "Summary generation failed";
     const status = msg.includes("OPENAI_API_KEY") ? 503 : 500;
     res.status(status).json({ error: status === 503 || !IS_PRODUCTION ? msg : publicApiError(e) });
   }

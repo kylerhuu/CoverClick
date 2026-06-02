@@ -1,5 +1,5 @@
 /** Main workspace area: job only, letter only, or letter column inside split. */
-export type WorkspaceTab = "split" | "job" | "letter";
+export type WorkspaceTab = "split" | "job" | "letter" | "resume";
 
 export type PanelDensity = "narrow" | "comfortable" | "wide";
 

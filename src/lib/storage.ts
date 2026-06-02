@@ -2,9 +2,10 @@ import type {
   AppSettings,
   CachedLetter,
   GenerationPreferences,
+  StructuredResume,
   UserProfile,
 } from "./types";
-import { DEFAULT_GENERATION_PREFS, DEFAULT_SETTINGS, EMPTY_PROFILE } from "./types";
+import { DEFAULT_GENERATION_PREFS, DEFAULT_SETTINGS, EMPTY_PROFILE, EMPTY_STRUCTURED_RESUME } from "./types";
 import { parseStructuredLetter } from "./generationNormalize";
 import { STORAGE_KEYS } from "./storageKeys";
 import { hasBuiltInApiOrigin, resolveApiBaseUrl, VITE_COVERCLICK_API_ORIGIN } from "./apiOrigin";
@@ -15,6 +16,7 @@ const PROFILE_KEY = STORAGE_KEYS.profile;
 const SETTINGS_KEY = STORAGE_KEYS.settings;
 const PREFS_KEY = STORAGE_KEYS.generationPrefs;
 const LETTER_CACHE_KEY = STORAGE_KEYS.letterCache;
+const RESUME_STUDIO_KEY = STORAGE_KEYS.resumeStudio;
 
 function normalizeProfile(raw: unknown): UserProfile {
   if (!raw || typeof raw !== "object") return { ...EMPTY_PROFILE };
@@ -187,4 +189,75 @@ export async function saveCachedLetter(cache: CachedLetter): Promise<void> {
 /** Clears the last generated letter cache (call on sign-out to avoid showing another account’s letter). */
 export async function clearCachedLetter(): Promise<void> {
   await chrome.storage.local.remove(LETTER_CACHE_KEY);
+}
+
+function normalizeStructuredResume(raw: unknown): StructuredResume {
+  if (!raw || typeof raw !== "object") return { ...EMPTY_STRUCTURED_RESUME };
+  const r = raw as Record<string, unknown>;
+  const arr = (v: unknown): string[] =>
+    Array.isArray(v)
+      ? v.filter((x): x is string => typeof x === "string").map((s) => s.trim()).filter(Boolean)
+      : [];
+  const contactRaw = r.contact && typeof r.contact === "object" ? (r.contact as Record<string, unknown>) : {};
+  return {
+    contact: {
+      fullName: typeof contactRaw.fullName === "string" ? contactRaw.fullName : "",
+      email: typeof contactRaw.email === "string" ? contactRaw.email : "",
+      phone: typeof contactRaw.phone === "string" ? contactRaw.phone : "",
+      location: typeof contactRaw.location === "string" ? contactRaw.location : "",
+      links: arr(contactRaw.links),
+    },
+    summary: typeof r.summary === "string" ? r.summary : "",
+    education: Array.isArray(r.education)
+      ? r.education
+          .filter((x): x is Record<string, unknown> => typeof x === "object" && x != null)
+          .map((x) => ({
+            school: typeof x.school === "string" ? x.school : "",
+            degree: typeof x.degree === "string" ? x.degree : "",
+            dates: typeof x.dates === "string" ? x.dates : "",
+            details: arr(x.details),
+          }))
+      : [],
+    experience: Array.isArray(r.experience)
+      ? r.experience
+          .filter((x): x is Record<string, unknown> => typeof x === "object" && x != null)
+          .map((x) => ({
+            company: typeof x.company === "string" ? x.company : "",
+            title: typeof x.title === "string" ? x.title : "",
+            dates: typeof x.dates === "string" ? x.dates : "",
+            location: typeof x.location === "string" ? x.location : "",
+            bullets: arr(x.bullets),
+          }))
+      : [],
+    projects: Array.isArray(r.projects)
+      ? r.projects
+          .filter((x): x is Record<string, unknown> => typeof x === "object" && x != null)
+          .map((x) => ({
+            name: typeof x.name === "string" ? x.name : "",
+            role: typeof x.role === "string" ? x.role : "",
+            dates: typeof x.dates === "string" ? x.dates : "",
+            bullets: arr(x.bullets),
+          }))
+      : [],
+    skills: Array.isArray(r.skills)
+      ? r.skills
+          .filter((x): x is Record<string, unknown> => typeof x === "object" && x != null)
+          .map((x) => ({
+            category: typeof x.category === "string" ? x.category : "",
+            items: arr(x.items),
+          }))
+      : [],
+    certifications: arr(r.certifications),
+    leadership: arr(r.leadership),
+    links: arr(r.links),
+  };
+}
+
+export async function loadResumeStudio(): Promise<StructuredResume> {
+  const data = await chrome.storage.local.get(RESUME_STUDIO_KEY);
+  return normalizeStructuredResume(data[RESUME_STUDIO_KEY]);
+}
+
+export async function saveResumeStudio(resume: StructuredResume): Promise<void> {
+  await chrome.storage.local.set({ [RESUME_STUDIO_KEY]: resume });
 }

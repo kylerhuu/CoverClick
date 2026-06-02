@@ -55,9 +55,60 @@ export interface GenerationRequest {
   responseShape: ResponseShapePreference;
 }
 
-export interface ResumeTailoringRequest {
-  profile: UserProfile;
-  job: JobContext;
+export interface ResumeContact {
+  fullName: string;
+  email: string;
+  phone: string;
+  location: string;
+  links: string[];
+}
+
+export interface ResumeEducationItem {
+  school: string;
+  degree: string;
+  dates: string;
+  details: string[];
+}
+
+export interface ResumeExperienceItem {
+  company: string;
+  title: string;
+  dates: string;
+  location: string;
+  bullets: string[];
+}
+
+export interface ResumeProjectItem {
+  name: string;
+  role: string;
+  dates: string;
+  bullets: string[];
+}
+
+export interface ResumeSkillGroup {
+  category: string;
+  items: string[];
+}
+
+export interface StructuredResume {
+  contact: ResumeContact;
+  summary: string;
+  education: ResumeEducationItem[];
+  experience: ResumeExperienceItem[];
+  projects: ResumeProjectItem[];
+  skills: ResumeSkillGroup[];
+  certifications: string[];
+  leadership: string[];
+  links: string[];
+}
+
+export interface ResumeSummaryGenerateRequest {
+  targetRole?: string;
+  resume: StructuredResume;
+}
+
+export interface ResumeSummaryGenerateResponse {
+  summary: string;
 }
 
 export interface ResumeTailoringBulletSuggestion {
@@ -196,4 +247,22 @@ export const DEFAULT_GENERATION_PREFS: GenerationPreferences = {
   emphasis: "general",
   length: "medium",
   responseShape: "structured",
+};
+
+export const EMPTY_STRUCTURED_RESUME: StructuredResume = {
+  contact: {
+    fullName: "",
+    email: "",
+    phone: "",
+    location: "",
+    links: [],
+  },
+  summary: "",
+  education: [],
+  experience: [],
+  projects: [],
+  skills: [],
+  certifications: [],
+  leadership: [],
+  links: [],
 };
