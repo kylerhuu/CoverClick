@@ -1,8 +1,10 @@
 import type { ResumeSectionKey, StructuredResume } from "./types";
 import {
+  applyTrimById,
   cloneRenderPlanDeep,
   estimatePageUse,
   experienceEntryKey,
+  isEntryLocked,
   mergeRenderPlans,
   projectEntryKey,
   projectLabel,
@@ -113,6 +115,7 @@ export function buildTrimSuggestions(
 
   resume.projects.forEach((p, i) => {
     const key = projectEntryKey(p, i);
+    if (isEntryLocked(p.locked)) return;
     if (merged.hiddenSections.includes(key)) return;
     if (!p.name && !p.subtitle && !p.bullets.length) return;
     const name = projectLabel(p);
@@ -158,6 +161,7 @@ export function buildTrimSuggestions(
   });
 
   resume.experience.forEach((e, i) => {
+    if (isEntryLocked(e.locked)) return;
     const key = experienceEntryKey(e, i);
     const count = e.bullets.length;
     if (count === 0) return;
@@ -206,33 +210,55 @@ export function applyTrimSuggestion(
   return next;
 }
 
-export function applyTrimById(resume: StructuredResume, plan: ResumeRenderPlan, id: string): void {
-  if (id === "hide-summary") {
-    if (!plan.hiddenSections.includes("summary")) plan.hiddenSections.push("summary");
-    return;
+export function applySelectedTrimSuggestions(
+  resume: StructuredResume,
+  manualPlan: ResumeRenderPlan,
+  suggestionIds: string[],
+): ResumeRenderPlan {
+  const next = cloneRenderPlanDeep(manualPlan);
+  for (const id of suggestionIds) applyTrimById(resume, next, id);
+  return next;
+}
+
+export type TrimProjectionStep = {
+  id: string;
+  label: string;
+  pagesAfter: number;
+};
+
+export type TrimProjection = {
+  currentPages: number;
+  steps: TrimProjectionStep[];
+  projectedPages: number;
+};
+
+/** Project page count after applying selected trims (anchors to measured pages when provided). */
+export function projectTrimImpact(
+  resume: StructuredResume,
+  sectionKeys: ResumeSectionKey[],
+  basePlan: ResumeRenderPlan,
+  suggestions: TrimSuggestion[],
+  selectedIds: string[],
+  anchorPagesUsed: number | null,
+): TrimProjection {
+  const unitBase = planPagesUsed(resume, basePlan, sectionKeys);
+  const scale = anchorPagesUsed != null && unitBase > 0 ? anchorPagesUsed / unitBase : 1;
+  const currentPages = Math.round(unitBase * scale * 100) / 100;
+
+  const ordered = suggestions
+    .filter((s) => selectedIds.includes(s.id))
+    .sort((a, b) => b.savingsPages - a.savingsPages);
+
+  const plan = cloneRenderPlanDeep(basePlan);
+  const steps: TrimProjectionStep[] = [];
+  for (const s of ordered) {
+    applyTrimById(resume, plan, s.id);
+    const pagesAfter = Math.round(planPagesUsed(resume, plan, sectionKeys) * scale * 100) / 100;
+    steps.push({ id: s.id, label: s.label, pagesAfter });
   }
-  if (id === "shorten-summary") {
-    plan.shortenedSummary = true;
-    plan.summaryText = shortenSummaryText(resume.summary);
-    return;
-  }
-  if (id === "compact-skills") {
-    plan.compactSkills = true;
-    return;
-  }
-  if (id === "compact-education") {
-    plan.compactEducation = true;
-    return;
-  }
-  const limitMatch = id.match(/^limit-(.+)-(\d+)$/);
-  if (limitMatch) {
-    plan.bulletLimits[limitMatch[1]] = Number(limitMatch[2]);
-    return;
-  }
-  if (id.startsWith("hide-")) {
-    const key = id.slice("hide-".length);
-    if (!plan.hiddenSections.includes(key)) plan.hiddenSections.push(key);
-  }
+
+  const projectedPages = steps.length ? steps[steps.length - 1].pagesAfter : currentPages;
+  return { currentPages, steps, projectedPages };
 }
 
 /** DOM height → pages (for live preview). */

@@ -133,6 +133,8 @@ export type ResumeEntryPriority = "high" | "medium" | "low";
 
 export interface ResumeExperienceItem {
   id?: string;
+  /** Never hidden or auto-trimmed in export layout. */
+  locked?: boolean;
   /** Used by one-page layout to compress lower-priority entries first. Defaults to high. */
   priority?: ResumeEntryPriority;
   company: string;
@@ -145,6 +147,7 @@ export interface ResumeExperienceItem {
 
 export interface ResumeProjectItem {
   id?: string;
+  locked?: boolean;
   priority?: ResumeEntryPriority;
   name: string;
   subtitle: string;

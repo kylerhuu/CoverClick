@@ -11,6 +11,7 @@ import {
   cloneRenderPlanDeep,
   getResumeRenderModel,
   getVisibleResumeSections,
+  mergeRenderPlans,
   normalizeResumeForRender,
   tightenRenderPlanOneStep,
 } from "../../lib/resumeRender";
@@ -18,7 +19,11 @@ import { computeOnePageLayoutPlan, MAX_DOM_TIGHTEN_STEPS, type ResumeRenderPlan 
 import type { ResumeFitMode, ResumeStudioLayoutSettings } from "../../lib/resumeFitSettings";
 import type { ResumeTargetLength } from "../../lib/resumePageMetrics";
 import { formatPageFitDisplay } from "../../lib/resumePageMetrics";
-import { buildTrimSuggestions, applyTrimSuggestion } from "../../lib/resumeTrimSuggestions";
+import {
+  applySelectedTrimSuggestions,
+  buildTrimSuggestions,
+  projectTrimImpact,
+} from "../../lib/resumeTrimSuggestions";
 import { loadResumeStudioLayoutSettings, saveResumeStudioLayoutSettings } from "../../lib/storage";
 import { ResumePreview } from "./resume/ResumePreview";
 
@@ -126,6 +131,7 @@ export function ResumeStudioPane({
   const [forcePlanOverride, setForcePlanOverride] = useState<ResumeRenderPlan | null>(null);
   const [pagesUsed, setPagesUsed] = useState<number | null>(null);
   const [forceOptimizerExhausted, setForceOptimizerExhausted] = useState(false);
+  const [selectedTrimIds, setSelectedTrimIds] = useState<Set<string>>(() => new Set());
 
   useEffect(() => {
     const el = containerRef.current;
@@ -155,6 +161,7 @@ export function ResumeStudioPane({
     domTightenStepsRef.current = 0;
     setPagesUsed(null);
     setForceOptimizerExhausted(false);
+    setSelectedTrimIds(new Set());
   }, [resume]);
 
   const persistLayoutSettings = useCallback((next: ResumeStudioLayoutSettings) => {
@@ -190,6 +197,16 @@ export function ResumeStudioPane({
     return formatPageFitDisplay(pagesUsed, layoutSettings.targetLength);
   }, [pagesUsed, layoutSettings.targetLength]);
 
+  const mergedBasePlan = useMemo(() => {
+    const auto = computeOnePageLayoutPlan(
+      model.sourceResume,
+      sectionKeys,
+      layoutSettings.fitMode,
+      layoutSettings.targetLength,
+    ).renderPlan;
+    return mergeRenderPlans(auto, manualTrimPlan);
+  }, [model.sourceResume, sectionKeys, layoutSettings, manualTrimPlan]);
+
   const trimSuggestions = useMemo(() => {
     if (pagesUsed == null || pagesUsed <= layoutSettings.targetLength) return [];
     const auto = computeOnePageLayoutPlan(
@@ -200,6 +217,18 @@ export function ResumeStudioPane({
     ).renderPlan;
     return buildTrimSuggestions(model.sourceResume, sectionKeys, auto, manualTrimPlan);
   }, [pagesUsed, layoutSettings, model.sourceResume, sectionKeys, manualTrimPlan]);
+
+  const trimProjection = useMemo(() => {
+    if (pagesUsed == null || selectedTrimIds.size === 0) return null;
+    return projectTrimImpact(
+      model.sourceResume,
+      sectionKeys,
+      mergedBasePlan,
+      trimSuggestions,
+      [...selectedTrimIds],
+      pagesUsed,
+    );
+  }, [pagesUsed, selectedTrimIds, trimSuggestions, mergedBasePlan, model.sourceResume, sectionKeys]);
 
   const handleExportPageMeasure = useCallback(
     ({ pagesUsed: used, overflows }: { contentHeight: number; pagesUsed: number; overflows: boolean }) => {
@@ -222,13 +251,23 @@ export function ResumeStudioPane({
     [resume, sectionKeys, layoutSettings.fitMode, model.layout.renderPlan],
   );
 
-  const applySuggestion = useCallback(
-    (id: string) => {
-      setTrimUndoStack((stack) => [...stack, cloneRenderPlanDeep(manualTrimPlan)]);
-      setManualTrimPlan((prev) => applyTrimSuggestion(normalizeResumeForRender(resume), prev, id));
-    },
-    [resume, manualTrimPlan],
-  );
+  const toggleTrimSelection = useCallback((id: string) => {
+    setSelectedTrimIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+
+  const applySelectedTrims = useCallback(() => {
+    if (selectedTrimIds.size === 0) return;
+    setTrimUndoStack((stack) => [...stack, cloneRenderPlanDeep(manualTrimPlan)]);
+    setManualTrimPlan((prev) =>
+      applySelectedTrimSuggestions(normalizeResumeForRender(resume), prev, [...selectedTrimIds]),
+    );
+    setSelectedTrimIds(new Set());
+  }, [resume, manualTrimPlan, selectedTrimIds]);
 
   const undoLastTrim = useCallback(() => {
     setTrimUndoStack((stack) => {
@@ -239,12 +278,51 @@ export function ResumeStudioPane({
     });
   }, []);
 
-  const resetLayoutTrims = useCallback(() => {
+  const restoreAllContent = useCallback(() => {
     setManualTrimPlan(cloneRenderPlan());
     setTrimUndoStack([]);
     setForcePlanOverride(null);
+    setSelectedTrimIds(new Set());
     domTightenStepsRef.current = 0;
+    setForceOptimizerExhausted(false);
   }, []);
+
+  const renderEntryControls = (
+    locked: boolean,
+    priority: ResumeEntryPriority,
+    onLock: (next: boolean) => void,
+    onPriority: (p: ResumeEntryPriority) => void,
+  ) => (
+    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200/80 pb-2">
+      <button
+        type="button"
+        onClick={() => onLock(!locked)}
+        className={cn(
+          "inline-flex items-center gap-1.5 rounded-lg border-2 px-2.5 py-1.5 text-[11px] font-bold transition",
+          locked
+            ? "border-amber-500 bg-amber-100 text-amber-950 shadow-sm"
+            : "border-slate-300 bg-white text-slate-700 hover:border-amber-300 hover:bg-amber-50/80",
+        )}
+      >
+        <span aria-hidden>{locked ? "🔒" : "🔓"}</span>
+        {locked ? "Locked — never trimmed on export" : "Lock this entry"}
+      </button>
+      <label className="flex items-center gap-1.5 text-[10px] font-medium text-slate-500">
+        Priority
+        <select
+          className={cn(inputCls, "max-w-[96px] py-1 text-[10px] font-normal")}
+          value={priority}
+          onChange={(e) => onPriority(e.target.value as ResumeEntryPriority)}
+        >
+          {priorityOptions.map((o) => (
+            <option key={o.value} value={o.value}>
+              {o.label}
+            </option>
+          ))}
+        </select>
+      </label>
+    </div>
+  );
 
   const editor = (
     <div className="min-w-0 space-y-4">
@@ -306,31 +384,25 @@ export function ResumeStudioPane({
       <section className="space-y-2 rounded-lg border border-slate-200 bg-white p-3">
         <div className="flex items-center justify-between border-b border-slate-200 pb-1">
           <h3 className="text-[11px] font-bold uppercase tracking-wide text-slate-600">Experience</h3>
-          <button type="button" className="rounded border px-2 py-0.5 text-[10px]" onClick={() => onResumeChange({ ...resume, experience: [...resume.experience, { id: `exp-${resume.experience.length + 1}`, priority: "high", company: "", companySubtitle: "", title: "", dates: "", location: "", bullets: [] }] })}>Add Experience</button>
+          <button type="button" className="rounded border px-2 py-0.5 text-[10px]" onClick={() => onResumeChange({ ...resume, experience: [...resume.experience, { id: `exp-${resume.experience.length + 1}`, locked: false, priority: "high", company: "", companySubtitle: "", title: "", dates: "", location: "", bullets: [] }] })}>Add Experience</button>
         </div>
+        <p className="text-[10px] text-slate-500">Lock important roles first. High priority entries are trimmed after Low.</p>
         {resume.experience.map((exp, idx) => (
           <div key={exp.id ?? `exp-${idx}`} className="space-y-2 rounded border border-slate-200 bg-slate-50/60 p-2">
-            <label className="flex items-center gap-2 text-[10px] font-medium text-slate-600">
-              Priority
-              <select
-                className={cn(inputCls, "max-w-[120px] py-1 text-[11px]")}
-                value={exp.priority ?? "high"}
-                onChange={(e) =>
-                  onResumeChange({
-                    ...resume,
-                    experience: resume.experience.map((x, i) =>
-                      i === idx ? { ...x, priority: e.target.value as ResumeEntryPriority } : x,
-                    ),
-                  })
-                }
-              >
-                {priorityOptions.map((o) => (
-                  <option key={o.value} value={o.value}>
-                    {o.label}
-                  </option>
-                ))}
-              </select>
-            </label>
+            {renderEntryControls(
+              exp.locked === true,
+              exp.priority ?? "high",
+              (locked) =>
+                onResumeChange({
+                  ...resume,
+                  experience: resume.experience.map((x, i) => (i === idx ? { ...x, locked } : x)),
+                }),
+              (priority) =>
+                onResumeChange({
+                  ...resume,
+                  experience: resume.experience.map((x, i) => (i === idx ? { ...x, priority } : x)),
+                }),
+            )}
             <div className="grid grid-cols-2 gap-2">
               <input className={inputCls} placeholder="Company" value={exp.company} onChange={(e) => onResumeChange({ ...resume, experience: resume.experience.map((x, i) => i === idx ? { ...x, company: e.target.value } : x) })} />
               <input className={inputCls} placeholder="Company subtitle (optional)" value={exp.companySubtitle ?? ""} onChange={(e) => onResumeChange({ ...resume, experience: resume.experience.map((x, i) => i === idx ? { ...x, companySubtitle: e.target.value } : x) })} />
@@ -347,31 +419,24 @@ export function ResumeStudioPane({
       <section className="space-y-2 rounded-lg border border-slate-200 bg-white p-3">
         <div className="flex items-center justify-between border-b border-slate-200 pb-1">
           <h3 className="text-[11px] font-bold uppercase tracking-wide text-slate-600">Projects</h3>
-          <button type="button" className="rounded border px-2 py-0.5 text-[10px]" onClick={() => onResumeChange({ ...resume, projects: [...resume.projects, { id: `proj-${resume.projects.length + 1}`, priority: "high", name: "", subtitle: "", techStack: [], bullets: [] }] })}>Add Project</button>
+          <button type="button" className="rounded border px-2 py-0.5 text-[10px]" onClick={() => onResumeChange({ ...resume, projects: [...resume.projects, { id: `proj-${resume.projects.length + 1}`, locked: false, priority: "high", name: "", subtitle: "", techStack: [], bullets: [] }] })}>Add Project</button>
         </div>
         {resume.projects.map((proj, idx) => (
           <div key={proj.id ?? `proj-${idx}`} className="space-y-2 rounded border border-slate-200 bg-slate-50/60 p-2">
-            <label className="flex items-center gap-2 text-[10px] font-medium text-slate-600">
-              Priority
-              <select
-                className={cn(inputCls, "max-w-[120px] py-1 text-[11px]")}
-                value={proj.priority ?? "high"}
-                onChange={(e) =>
-                  onResumeChange({
-                    ...resume,
-                    projects: resume.projects.map((x, i) =>
-                      i === idx ? { ...x, priority: e.target.value as ResumeEntryPriority } : x,
-                    ),
-                  })
-                }
-              >
-                {priorityOptions.map((o) => (
-                  <option key={o.value} value={o.value}>
-                    {o.label}
-                  </option>
-                ))}
-              </select>
-            </label>
+            {renderEntryControls(
+              proj.locked === true,
+              proj.priority ?? "high",
+              (locked) =>
+                onResumeChange({
+                  ...resume,
+                  projects: resume.projects.map((x, i) => (i === idx ? { ...x, locked } : x)),
+                }),
+              (priority) =>
+                onResumeChange({
+                  ...resume,
+                  projects: resume.projects.map((x, i) => (i === idx ? { ...x, priority } : x)),
+                }),
+            )}
             <input className={inputCls} placeholder="Project name" value={proj.name} onChange={(e) => onResumeChange({ ...resume, projects: resume.projects.map((x, i) => i === idx ? { ...x, name: e.target.value } : x) })} />
             <input className={inputCls} placeholder="Subtitle / description" value={proj.subtitle} onChange={(e) => onResumeChange({ ...resume, projects: resume.projects.map((x, i) => i === idx ? { ...x, subtitle: e.target.value } : x) })} />
             <input className={inputCls} placeholder="Tech stack (comma-separated)" value={proj.techStack.join(", ")} onChange={(e) => onResumeChange({ ...resume, projects: resume.projects.map((x, i) => i === idx ? { ...x, techStack: e.target.value.split(",").map((s) => s.trim()).filter(Boolean) } : x) })} />
@@ -519,10 +584,10 @@ export function ResumeStudioPane({
         <div className="flex flex-wrap gap-2">
           <button
             type="button"
-            className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[10px] font-semibold text-slate-700"
-            onClick={resetLayoutTrims}
+            className="rounded-lg border-2 border-indigo-300 bg-indigo-50 px-3 py-1.5 text-[11px] font-bold text-indigo-950"
+            onClick={restoreAllContent}
           >
-            Reset layout trims
+            Restore All Content
           </button>
           <button
             type="button"
@@ -554,24 +619,54 @@ export function ResumeStudioPane({
             <div className={cn(wide ? "sticky top-2" : "")}>
               {trimSuggestions.length > 0 ? (
                 <section className="mb-3 rounded-lg border border-sky-200/90 bg-sky-50/70 p-3">
-                  <h3 className="text-[11px] font-semibold text-sky-950">Suggestions to fit your target</h3>
-                  <ul className="mt-2 space-y-1.5">
+                  <h3 className="text-[11px] font-semibold text-sky-950">Trim suggestions</h3>
+                  <p className="mt-1 text-[10px] text-sky-900/90">
+                    Your resume is longer than your {layoutSettings.targetLength}-page target. Select changes to preview impact, then apply together.
+                  </p>
+                  <p className="mt-2 text-[11px] font-semibold text-sky-950">
+                    Current: {pagesUsed?.toFixed(2)} pages
+                  </p>
+                  <ul className="mt-2 space-y-2">
                     {trimSuggestions.map((s) => (
-                      <li key={s.id} className="flex items-center justify-between gap-2 text-[10px] text-sky-950">
-                        <span>
-                          {s.label}
-                          <span className="text-sky-700"> (−{s.savingsPages.toFixed(2)} pages)</span>
-                        </span>
-                        <button
-                          type="button"
-                          className="shrink-0 rounded border border-sky-300 bg-white px-2 py-0.5 text-[10px] font-semibold"
-                          onClick={() => applySuggestion(s.id)}
-                        >
-                          Apply
-                        </button>
+                      <li key={s.id}>
+                        <label className="flex cursor-pointer items-start gap-2 text-[10px] text-sky-950">
+                          <input
+                            type="checkbox"
+                            className="mt-0.5"
+                            checked={selectedTrimIds.has(s.id)}
+                            onChange={() => toggleTrimSelection(s.id)}
+                          />
+                          <span>
+                            {s.label}
+                            <span className="text-sky-700"> — saves ~{s.savingsPages.toFixed(2)} pages</span>
+                          </span>
+                        </label>
                       </li>
                     ))}
                   </ul>
+                  {trimProjection && selectedTrimIds.size > 0 ? (
+                    <div className="mt-3 rounded-md border border-sky-200 bg-white/80 p-2 text-[10px] text-sky-950">
+                      <p className="font-semibold">Projected if applied:</p>
+                      <ul className="mt-1 space-y-0.5">
+                        {trimProjection.steps.map((step) => (
+                          <li key={step.id}>
+                            → {step.label}: <span className="font-semibold">{step.pagesAfter.toFixed(2)} pages</span>
+                          </li>
+                        ))}
+                      </ul>
+                      <p className="mt-2 text-[11px] font-bold text-sky-950">
+                        Final: {trimProjection.projectedPages.toFixed(2)} pages
+                      </p>
+                    </div>
+                  ) : null}
+                  <button
+                    type="button"
+                    disabled={selectedTrimIds.size === 0}
+                    className="mt-3 w-full rounded-lg border border-sky-400 bg-sky-100 py-2 text-[11px] font-bold text-sky-950 disabled:opacity-40"
+                    onClick={applySelectedTrims}
+                  >
+                    Apply selected
+                  </button>
                 </section>
               ) : null}
               {omittedNotes.length > 0 ? (

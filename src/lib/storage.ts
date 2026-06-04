@@ -403,6 +403,7 @@ function normalizeStructuredResume(raw: unknown): StructuredResume {
             dates: typeof x.dates === "string" ? x.dates : "",
             location: typeof x.location === "string" ? x.location : "",
             bullets: arr(x.bullets),
+            locked: x.locked === true,
             priority:
               x.priority === "medium" || x.priority === "low" || x.priority === "high" ? x.priority : undefined,
           }))
@@ -421,6 +422,7 @@ function normalizeStructuredResume(raw: unknown): StructuredResume {
                   : "",
             techStack: arr(x.techStack),
             bullets: arr(x.bullets),
+            locked: x.locked === true,
             priority:
               x.priority === "medium" || x.priority === "low" || x.priority === "high" ? x.priority : undefined,
           }))

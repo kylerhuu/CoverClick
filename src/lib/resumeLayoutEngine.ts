@@ -68,8 +68,18 @@ export function entryImportanceSortKey(priority: ResumeEntryPriority, index: num
   return PRIORITY_RANK[priority] * 1000 + index;
 }
 
-export function entryCompressionSortKey(priority: ResumeEntryPriority, index: number): number {
+/** Higher sort value = hide / compress first. Locked entries sort last. */
+export function entryCompressionSortKey(
+  priority: ResumeEntryPriority,
+  index: number,
+  locked = false,
+): number {
+  if (locked) return -10_000 - index;
   return PRIORITY_RANK[priority] * 1000 + index;
+}
+
+export function isEntryLocked(locked?: boolean): boolean {
+  return locked === true;
 }
 
 /** Rank bullets for render-time selection (higher = keep). */
@@ -370,9 +380,13 @@ function rankProjects(resume: StructuredResume): RankedEntry<ResumeProjectItem>[
     .filter(({ item }) => item.name || item.subtitle || item.techStack.length || item.bullets.length);
 }
 
-function sortedByCompressionFirst<T>(entries: RankedEntry<T>[]): RankedEntry<T>[] {
+function sortedByCompressionFirst<T extends { priority: ResumeEntryPriority; index: number; item: { locked?: boolean } }>(
+  entries: T[],
+): T[] {
   return [...entries].sort(
-    (a, b) => entryCompressionSortKey(b.priority, b.index) - entryCompressionSortKey(a.priority, a.index),
+    (a, b) =>
+      entryCompressionSortKey(b.priority, b.index, isEntryLocked(b.item.locked)) -
+      entryCompressionSortKey(a.priority, a.index, isEntryLocked(a.item.locked)),
   );
 }
 
@@ -431,6 +445,35 @@ function pushNote(plan: ResumeRenderPlan, note: string): void {
   if (!plan.omittedNotes.includes(note)) plan.omittedNotes.push(note);
 }
 
+export function applyTrimById(resume: StructuredResume, plan: ResumeRenderPlan, id: string): void {
+  if (id === "hide-summary") {
+    if (!plan.hiddenSections.includes("summary")) plan.hiddenSections.push("summary");
+    return;
+  }
+  if (id === "shorten-summary") {
+    plan.shortenedSummary = true;
+    plan.summaryText = shortenSummaryText(resume.summary);
+    return;
+  }
+  if (id === "compact-skills") {
+    plan.compactSkills = true;
+    return;
+  }
+  if (id === "compact-education") {
+    plan.compactEducation = true;
+    return;
+  }
+  const limitMatch = id.match(/^limit-(.+)-(\d+)$/);
+  if (limitMatch) {
+    plan.bulletLimits[limitMatch[1]] = Number(limitMatch[2]);
+    return;
+  }
+  if (id.startsWith("hide-")) {
+    const key = id.slice("hide-".length);
+    if (!plan.hiddenSections.includes(key)) plan.hiddenSections.push(key);
+  }
+}
+
 function effectiveBulletCap(key: string, bulletCount: number, plan: ResumeRenderPlan): number {
   return plan.bulletLimits[key] ?? bulletCount;
 }
@@ -444,6 +487,7 @@ function nextBulletCap(effective: number): number | null {
 
 function reduceOneExperienceBullet(resume: StructuredResume, plan: ResumeRenderPlan): boolean {
   for (const row of sortedByCompressionFirst(rankExperience(resume))) {
+    if (isEntryLocked(row.item.locked)) continue;
     const count = row.item.bullets.length;
     if (count === 0) continue;
     const effective = effectiveBulletCap(row.key, count, plan);
@@ -457,7 +501,9 @@ function reduceOneExperienceBullet(resume: StructuredResume, plan: ResumeRenderP
 }
 
 function reduceOneProjectBullet(resume: StructuredResume, plan: ResumeRenderPlan): boolean {
-  for (const row of sortedByCompressionFirst(rankProjects(resume)).filter((r) => !isProjectHidden(plan, r.key))) {
+  for (const row of sortedByCompressionFirst(rankProjects(resume)).filter(
+    (r) => !isProjectHidden(plan, r.key) && !isEntryLocked(r.item.locked),
+  )) {
     const count = row.item.bullets.length;
     if (count === 0) continue;
     const effective = effectiveBulletCap(row.key, count, plan);
@@ -481,7 +527,9 @@ function allProjectsAtOneBullet(resume: StructuredResume, plan: ResumeRenderPlan
 
 function hideNextProject(resume: StructuredResume, plan: ResumeRenderPlan): boolean {
   if (!allProjectsAtOneBullet(resume, plan)) return false;
-  const candidate = sortedByCompressionFirst(rankProjects(resume)).find((r) => !isProjectHidden(plan, r.key));
+  const candidate = sortedByCompressionFirst(rankProjects(resume)).find(
+    (r) => !isProjectHidden(plan, r.key) && !isEntryLocked(r.item.locked),
+  );
   if (!candidate) return false;
   plan.hiddenSections.push(candidate.key);
   const name = projectLabel(candidate.item);
