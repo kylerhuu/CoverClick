@@ -57,6 +57,8 @@ export type ResumeRenderOptions = {
   manualTrimPlan?: ResumeRenderPlan;
   /** Full render plan override (legacy / force DOM pass). */
   renderPlan?: ResumeRenderPlan;
+  /** Show full resume content (no auto/manual trims) after Restore All Content. */
+  fullContentPreview?: boolean;
 };
 
 export type ResumeRenderModel = {
@@ -304,11 +306,17 @@ export function getResumeRenderModel(
   const sectionKeys = getVisibleResumeSections(sourceResume).map((s) => s.key);
   const fitMode = options?.fitMode ?? "preserve";
   const targetPages = options?.targetPages ?? 1;
-  const computed = computeOnePageLayoutPlan(sourceResume, sectionKeys, fitMode, targetPages);
+  const fullContentPreview = options?.fullContentPreview === true;
   const manual = options?.manualTrimPlan ?? cloneRenderPlan();
-  const autoPlan = computed.renderPlan;
-  const renderPlan =
-    options?.renderPlan ?? mergeRenderPlans(autoPlan, manual);
+  const computed = computeOnePageLayoutPlan(
+    sourceResume,
+    sectionKeys,
+    fullContentPreview ? "preserve" : fitMode,
+    targetPages,
+  );
+  const renderPlan = fullContentPreview
+    ? cloneRenderPlan()
+    : (options?.renderPlan ?? mergeRenderPlans(computed.renderPlan, manual));
   const spacing = spacingTokensForMode(renderPlan.layoutMode);
   const estimatedPageUse = estimatePageUse(sourceResume, renderPlan, spacing, sectionKeys);
   const layout: OnePageLayoutResult = {
