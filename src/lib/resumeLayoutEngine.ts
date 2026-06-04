@@ -1,5 +1,9 @@
 import type { ResumeFitMode } from "./resumeFitSettings";
-import { healthyPageBand } from "./resumePageMetrics";
+import { healthyPageBand, type ResumeDomFitContext } from "./resumePageMetrics";
+
+export type { ResumeDomFitContext } from "./resumePageMetrics";
+
+const BULLET_TRIM_ESTIMATE_THRESHOLD = 1.0001;
 import type {
   ResumeEducationItem,
   ResumeEntryPriority,
@@ -479,13 +483,61 @@ function effectiveBulletCap(key: string, bulletCount: number, plan: ResumeRender
   return plan.bulletLimits[key] ?? bulletCount;
 }
 
-/** One step down per entry (3→2→1); never skip multiple caps in a single step. */
-function nextBulletCapForForce(effective: number, stillOverflowing: boolean): number | null {
-  if (!stillOverflowing) return null;
+/** One step down per entry; preserve 2 bullets unless single-bullet trim is allowed. */
+function nextBulletCapForForce(effective: number, allowSingleBullet: boolean): number | null {
   if (effective > 3) return 3;
   if (effective > 2) return effective - 1;
-  if (effective === 2) return 1;
+  if (effective === 2 && allowSingleBullet) return 1;
   return null;
+}
+
+/** DOM is primary when available; otherwise estimate must be strictly over one page. */
+export function canTrimBulletsForForce(
+  estimatedUnits: number,
+  dom?: ResumeDomFitContext,
+): boolean {
+  if (dom) return dom.overflows;
+  return estimatedPagesFromUnits(estimatedUnits) > BULLET_TRIM_ESTIMATE_THRESHOLD;
+}
+
+/** Continue non-bullet tightening: DOM overflow wins over estimate. */
+export function shouldTightenLayoutForForce(
+  estimatedUnits: number,
+  targetPages: number,
+  dom?: ResumeDomFitContext,
+  baselineUnits?: number,
+): boolean {
+  if (dom) return dom.overflows;
+  return shouldContinueForceTightening(estimatedUnits, targetPages, baselineUnits);
+}
+
+/**
+ * When DOM says the page fits, undo aggressive bullet caps (keep ≥2 bullets per entry).
+ */
+export function applyDomPrimaryTruthToPlan(
+  resume: StructuredResume,
+  plan: ResumeRenderPlan,
+  dom: ResumeDomFitContext,
+  targetPages: number,
+): void {
+  if (dom.overflows) return;
+
+  const relaxEntry = (key: string, bulletCount: number) => {
+    if (bulletCount < 2) return;
+    const cap = plan.bulletLimits[key];
+    if (cap != null && cap < 2) {
+      delete plan.bulletLimits[key];
+    }
+  };
+
+  resume.experience.forEach((e, i) => relaxEntry(experienceEntryKey(e, i), e.bullets.length));
+  resume.projects.forEach((p, i) => relaxEntry(projectEntryKey(p, i), p.bullets.length));
+
+  if (!dom.overflows && dom.pagesUsed <= targetPages) {
+    plan.omittedNotes = plan.omittedNotes.filter(
+      (n) => !/\breduced from \d+ bullets? to \d+\b/i.test(n) && !/\blimited to \d+ bullets?\b/i.test(n),
+    );
+  }
 }
 
 function estimatedPagesFromUnits(units: number): number {
@@ -510,20 +562,32 @@ export function shouldContinueForceTightening(
   return pages > targetPages;
 }
 
+function pushBulletReductionNote(
+  plan: ResumeRenderPlan,
+  label: string,
+  fromCount: number,
+  toCount: number,
+): void {
+  pushNote(
+    plan,
+    `${label} reduced from ${fromCount} bullet${fromCount === 1 ? "" : "s"} to ${toCount}`,
+  );
+}
+
 function reduceOneExperienceBullet(
   resume: StructuredResume,
   plan: ResumeRenderPlan,
-  stillOverflowing = true,
+  allowSingleBullet: boolean,
 ): boolean {
   for (const row of sortedByCompressionFirst(rankExperience(resume))) {
     if (isEntryLocked(row.item.locked)) continue;
     const count = row.item.bullets.length;
     if (count === 0) continue;
     const effective = effectiveBulletCap(row.key, count, plan);
-    const next = nextBulletCapForForce(effective, stillOverflowing);
+    const next = nextBulletCapForForce(effective, allowSingleBullet);
     if (next == null || next >= effective) continue;
     plan.bulletLimits[row.key] = next;
-    pushNote(plan, `${experienceLabel(row.item)} limited to ${next} bullet${next === 1 ? "" : "s"}`);
+    pushBulletReductionNote(plan, experienceLabel(row.item), effective, next);
     return true;
   }
   return false;
@@ -532,7 +596,7 @@ function reduceOneExperienceBullet(
 function reduceOneProjectBullet(
   resume: StructuredResume,
   plan: ResumeRenderPlan,
-  stillOverflowing = true,
+  allowSingleBullet: boolean,
 ): boolean {
   for (const row of sortedByCompressionFirst(rankProjects(resume)).filter(
     (r) => !isProjectHidden(plan, r.key) && !isEntryLocked(r.item.locked),
@@ -540,10 +604,10 @@ function reduceOneProjectBullet(
     const count = row.item.bullets.length;
     if (count === 0) continue;
     const effective = effectiveBulletCap(row.key, count, plan);
-    const next = nextBulletCapForForce(effective, stillOverflowing);
+    const next = nextBulletCapForForce(effective, allowSingleBullet);
     if (next == null || next >= effective) continue;
     plan.bulletLimits[row.key] = next;
-    pushNote(plan, `${projectLabel(row.item)} limited to ${next} bullet${next === 1 ? "" : "s"}`);
+    pushBulletReductionNote(plan, projectLabel(row.item), effective, next);
     return true;
   }
   return false;
@@ -625,15 +689,19 @@ export function tightenRenderPlanOneStep(
   plan: ResumeRenderPlan,
   visibleSectionKeys: ResumeSectionKey[],
   targetPages = 1,
+  dom?: ResumeDomFitContext,
 ): TightenStepResult {
+  const measureUnits = () =>
+    estimatePageUse(resume, plan, spacingTokensForMode(plan.layoutMode), visibleSectionKeys);
+  const layoutStillTightening = shouldTightenLayoutForForce(measureUnits(), targetPages, dom);
   // 1. Compact spacing
-  if (plan.layoutMode !== "compact") {
+  if (layoutStillTightening && plan.layoutMode !== "compact") {
     plan.layoutMode = "compact";
     return { applied: true, layoutMode: "compact" };
   }
 
   // 2. Summary shortening
-  if (!isSummaryHidden(plan) && visibleSectionKeys.includes("summary")) {
+  if (layoutStillTightening && !isSummaryHidden(plan) && visibleSectionKeys.includes("summary")) {
     const raw = resume.summary.trim();
     if (raw && !plan.shortenedSummary) {
       const short = shortenSummaryText(raw);
@@ -647,42 +715,44 @@ export function tightenRenderPlanOneStep(
   }
 
   // 3. Summary hiding
-  if (!isSummaryHidden(plan) && visibleSectionKeys.includes("summary") && resume.summary.trim()) {
+  if (layoutStillTightening && !isSummaryHidden(plan) && visibleSectionKeys.includes("summary") && resume.summary.trim()) {
     plan.hiddenSections.push("summary");
-    pushNote(plan, "Summary hidden to fit one page");
+    pushNote(plan, "Summary hidden to save space");
     return { applied: true, layoutMode: plan.layoutMode };
   }
 
   // 4. Skills compression
-  if (!plan.compactSkills && visibleSectionKeys.includes("skills")) {
+  if (layoutStillTightening && !plan.compactSkills && visibleSectionKeys.includes("skills")) {
     plan.compactSkills = true;
     pushNote(plan, "Skills compressed into fewer lines");
     return { applied: true, layoutMode: plan.layoutMode };
   }
 
   // 5. Education compression
-  if (!plan.compactEducation && visibleSectionKeys.includes("education")) {
+  if (layoutStillTightening && !plan.compactEducation && visibleSectionKeys.includes("education")) {
     plan.compactEducation = true;
     pushNote(plan, "Education details omitted from export");
     return { applied: true, layoutMode: plan.layoutMode };
   }
 
-  // 6. One project entry: reduce bullets on lowest-priority unlocked project only
-  const stillOverflowing = shouldContinueForceTightening(
-    estimatePageUse(resume, plan, spacingTokensForMode(plan.layoutMode), visibleSectionKeys),
-    targetPages,
-  );
-  if (stillOverflowing && reduceOneProjectBullet(resume, plan, true)) {
+  const units = measureUnits();
+  const canTrimBullets = canTrimBulletsForForce(units, dom);
+  const allowSingleBullet = dom
+    ? dom.overflows
+    : estimatedPagesFromUnits(units) > BULLET_TRIM_ESTIMATE_THRESHOLD;
+
+  // 6. One project entry (compress projects before experience)
+  if (canTrimBullets && reduceOneProjectBullet(resume, plan, allowSingleBullet)) {
     return { applied: true, layoutMode: plan.layoutMode };
   }
 
-  // 7. One experience entry: reduce bullets (never hide experience)
-  if (stillOverflowing && reduceOneExperienceBullet(resume, plan, true)) {
+  // 7. One experience entry (never hide experience)
+  if (canTrimBullets && reduceOneExperienceBullet(resume, plan, allowSingleBullet)) {
     return { applied: true, layoutMode: plan.layoutMode };
   }
 
   // 8. Project hiding (only after that project's bullets are at 1)
-  if (hideNextProject(resume, plan)) {
+  if (layoutStillTightening && hideNextProject(resume, plan)) {
     return { applied: true, layoutMode: plan.layoutMode };
   }
 
@@ -740,7 +810,7 @@ export function computeOnePageLayoutPlan(
   const baselinePageUse = estimatedPageUse;
   let steps = 0;
   while (
-    shouldContinueForceTightening(estimatedPageUse, targetPages, baselinePageUse) &&
+    shouldTightenLayoutForForce(estimatedPageUse, targetPages, undefined, baselinePageUse) &&
     steps < MAX_COMPUTE_TIGHTEN_STEPS
   ) {
     const pagesBefore = estimatedPagesFromUnits(estimatedPageUse);
@@ -748,7 +818,7 @@ export function computeOnePageLayoutPlan(
     if (pagesBefore < band.min) break;
 
     const before = JSON.stringify(plan);
-    const result = tightenRenderPlanOneStep(resume, plan, visibleSectionKeys, targetPages);
+    const result = tightenRenderPlanOneStep(resume, plan, visibleSectionKeys, targetPages, undefined);
     if (!result.applied) break;
     plan.layoutMode = result.layoutMode;
     estimatedPageUse = measure();

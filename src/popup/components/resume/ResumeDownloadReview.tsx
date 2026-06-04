@@ -24,6 +24,8 @@ type Props = {
   targetLength: number;
   manualEditMode: boolean;
   onEnterManualEdit: () => void;
+  onDoneManualEdit: () => void;
+  onResetManualEdits: () => void;
   onFinalOverrideChange: (key: string, value: string) => void;
   onExportDocx: (ctx: ResumeExportContext) => void;
   onExportPdf: (ctx: ResumeExportContext) => void;
@@ -39,6 +41,8 @@ export function ResumeDownloadReview({
   targetLength,
   manualEditMode,
   onEnterManualEdit,
+  onDoneManualEdit,
+  onResetManualEdits,
   onFinalOverrideChange,
   onExportDocx,
   onExportPdf,
@@ -67,7 +71,7 @@ export function ResumeDownloadReview({
               </h2>
               <p className="mt-0.5 text-[11px] text-slate-500">
                 {manualEditMode
-                  ? "Click any text to edit. Changes apply to your PDF and DOCX download only."
+                  ? "Final export preview with inline editing."
                   : "Final export preview — same layout as your PDF and DOCX files."}
               </p>
             </div>
@@ -102,13 +106,36 @@ export function ResumeDownloadReview({
 
         <div className="min-h-0 flex-1 overflow-y-auto bg-slate-50/80 px-4 py-4 sm:px-5">
           {manualEditMode ? (
-            <p className="mb-3 rounded-lg border border-indigo-200 bg-indigo-50/90 px-3 py-2 text-[10px] text-indigo-950">
-              Tip: clear a bullet line to remove it from the export. Your structured resume in the editor is unchanged.
-            </p>
+            <section className="mb-3 rounded-lg border-2 border-indigo-400 bg-indigo-50 px-3 py-3 shadow-sm">
+              <p className="text-[12px] font-bold text-indigo-950">Manual Edit Mode ON</p>
+              <p className="mt-1 text-[11px] leading-snug text-indigo-900">
+                Click directly into the resume to make final export edits.
+              </p>
+              <p className="mt-1 text-[10px] text-indigo-800/90">
+                These edits affect the final export only and do not change your saved structured resume.
+              </p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={onDoneManualEdit}
+                  className="rounded-lg border border-indigo-500 bg-white px-3 py-1.5 text-[11px] font-bold text-indigo-950"
+                >
+                  Done Editing
+                </button>
+                <button
+                  type="button"
+                  onClick={onResetManualEdits}
+                  className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-[11px] font-semibold text-slate-800"
+                >
+                  Reset Manual Edits
+                </button>
+              </div>
+            </section>
           ) : null}
           {omittedNotes.length > 0 ? (
             <section className="mb-3 rounded-lg border border-amber-200/90 bg-amber-50/80 p-3">
-              <h3 className="text-[11px] font-semibold text-amber-950">Applied layout trims (export only)</h3>
+              <h3 className="text-[11px] font-semibold text-amber-950">Auto-fit changes</h3>
+              <p className="mt-0.5 text-[10px] text-amber-900/80">Layout adjustments applied for export (not saved to your resume).</p>
               <ul className="mt-1.5 list-disc space-y-0.5 pl-4 text-[10px] text-amber-900/90">
                 {omittedNotes.map((note) => (
                   <li key={note}>{note}</li>

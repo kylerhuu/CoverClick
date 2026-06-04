@@ -49,6 +49,8 @@ export type ResumeTypographyTokens = {
 };
 
 import type { ResumeFitMode } from "./resumeFitSettings";
+import { applyDomPrimaryTruthToPlan } from "./resumeLayoutEngine";
+import type { ResumeDomFitContext } from "./resumePageMetrics";
 import { applyExportOverridesToResume, type FinalExportOverrides } from "./finalExportOverrides";
 
 export type ResumeRenderOptions = {
@@ -62,7 +64,11 @@ export type ResumeRenderOptions = {
   fullContentPreview?: boolean;
   /** Last-mile text edits for export (review modal). */
   finalExportOverrides?: FinalExportOverrides;
+  /** Measured export DOM — overrides estimate when trimming. */
+  domFitContext?: ResumeDomFitContext;
 };
+
+export type { ResumeDomFitContext } from "./resumePageMetrics";
 
 export type { FinalExportOverrides } from "./finalExportOverrides";
 export { buildDefaultFinalExportOverrides, exportDisplayText, emptyFinalExportOverrides } from "./finalExportOverrides";
@@ -320,9 +326,12 @@ export function getResumeRenderModel(
     fullContentPreview ? "preserve" : fitMode,
     targetPages,
   );
-  const renderPlan = fullContentPreview
+  let renderPlan = fullContentPreview
     ? cloneRenderPlan()
     : (options?.renderPlan ?? mergeRenderPlans(computed.renderPlan, manual));
+  if (options?.domFitContext && fitMode === "force" && !fullContentPreview) {
+    applyDomPrimaryTruthToPlan(sourceResume, renderPlan, options.domFitContext, targetPages);
+  }
   const spacing = spacingTokensForMode(renderPlan.layoutMode);
   const estimatedPageUse = estimatePageUse(sourceResume, renderPlan, spacing, sectionKeys);
   const layout: OnePageLayoutResult = {

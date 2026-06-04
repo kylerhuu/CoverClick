@@ -17,10 +17,15 @@ import {
   tightenRenderPlanOneStep,
   type FinalExportOverrides,
 } from "../../lib/resumeRender";
-import { computeOnePageLayoutPlan, MAX_DOM_TIGHTEN_STEPS, type ResumeRenderPlan } from "../../lib/resumeLayoutEngine";
+import {
+  applyDomPrimaryTruthToPlan,
+  computeOnePageLayoutPlan,
+  MAX_DOM_TIGHTEN_STEPS,
+  type ResumeRenderPlan,
+} from "../../lib/resumeLayoutEngine";
 import type { ResumeFitMode, ResumeStudioLayoutSettings } from "../../lib/resumeFitSettings";
 import type { ResumeTargetLength } from "../../lib/resumePageMetrics";
-import { formatPageFitDisplay, healthyPageBand } from "../../lib/resumePageMetrics";
+import { formatPageFitDisplay, type ResumeDomFitContext } from "../../lib/resumePageMetrics";
 import {
   ResumeDownloadReview,
   seedFinalExportOverrides,
@@ -140,6 +145,7 @@ export function ResumeStudioPane({
   const [trimUndoStack, setTrimUndoStack] = useState<ResumeRenderPlan[]>([]);
   const [forcePlanOverride, setForcePlanOverride] = useState<ResumeRenderPlan | null>(null);
   const [pagesUsed, setPagesUsed] = useState<number | null>(null);
+  const [domFitContext, setDomFitContext] = useState<ResumeDomFitContext | null>(null);
   const [forceOptimizerExhausted, setForceOptimizerExhausted] = useState(false);
   const [selectedTrimIds, setSelectedTrimIds] = useState<Set<string>>(() => new Set());
   const [fullContentPreview, setFullContentPreview] = useState(false);
@@ -179,6 +185,7 @@ export function ResumeStudioPane({
     setForcePlanOverride(null);
     domTightenStepsRef.current = 0;
     setPagesUsed(null);
+    setDomFitContext(null);
     setForceOptimizerExhausted(false);
     setSelectedTrimIds(new Set());
     setFullContentPreview(false);
@@ -210,12 +217,13 @@ export function ResumeStudioPane({
       targetPages: layoutSettings.targetLength,
       manualTrimPlan,
       finalExportOverrides,
+      domFitContext: domFitContext ?? undefined,
     };
     if (layoutSettings.fitMode === "force" && forcePlanOverride) {
       return { ...opts, renderPlan: forcePlanOverride };
     }
     return opts;
-  }, [layoutSettings, manualTrimPlan, forcePlanOverride, fullContentPreview, finalExportOverrides]);
+  }, [layoutSettings, manualTrimPlan, forcePlanOverride, fullContentPreview, finalExportOverrides, domFitContext]);
 
   const model = useMemo(() => getResumeRenderModel(resume, renderOptions), [resume, renderOptions]);
   const omittedNotes = model.layout.renderPlan.omittedNotes;
@@ -265,19 +273,28 @@ export function ResumeStudioPane({
 
   const handleExportPageMeasure = useCallback(
     ({ pagesUsed: used, overflows }: { contentHeight: number; pagesUsed: number; overflows: boolean }) => {
+      const dom: ResumeDomFitContext = { pagesUsed: used, overflows };
       setPagesUsed(used);
+      setDomFitContext(dom);
       if (fullContentPreview) return;
       if (layoutSettings.fitMode !== "force") return;
+
       const target = layoutSettings.targetLength;
-      const band = healthyPageBand(target);
-      if (used < band.min) return;
-      if (!overflows && used <= target && used >= band.min) return;
-      if (!overflows && used <= target) return;
-      if (domTightenStepsRef.current >= MAX_DOM_TIGHTEN_STEPS) return;
       const sourceResume = normalizeResumeForRender(resume);
-      const currentFull = model.layout.renderPlan;
+
+      if (!overflows) {
+        if (forcePlanOverride) {
+          const relaxed = cloneRenderPlanDeep(forcePlanOverride);
+          applyDomPrimaryTruthToPlan(sourceResume, relaxed, dom, target);
+          setForcePlanOverride(relaxed);
+        }
+        return;
+      }
+
+      if (domTightenStepsRef.current >= MAX_DOM_TIGHTEN_STEPS) return;
+      const currentFull = forcePlanOverride ?? model.layout.renderPlan;
       const next = cloneRenderPlanDeep(currentFull);
-      const { applied } = tightenRenderPlanOneStep(sourceResume, next, sectionKeys, target);
+      const { applied } = tightenRenderPlanOneStep(sourceResume, next, sectionKeys, target, dom);
       if (!applied) {
         setForceOptimizerExhausted(true);
         return;
@@ -286,7 +303,7 @@ export function ResumeStudioPane({
       if (domTightenStepsRef.current >= MAX_DOM_TIGHTEN_STEPS) setForceOptimizerExhausted(true);
       setForcePlanOverride(next);
     },
-    [resume, sectionKeys, layoutSettings, model.layout.renderPlan, fullContentPreview],
+    [resume, sectionKeys, layoutSettings, model.layout.renderPlan, fullContentPreview, forcePlanOverride],
   );
 
   const toggleTrimSelection = useCallback((id: string) => {
@@ -570,30 +587,21 @@ export function ResumeStudioPane({
   return (
     <div ref={containerRef} className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-gradient-to-b from-white via-slate-50/40 to-slate-50/90">
       {!wide && !narrowHintDismissed ? (
-        <div
-          className="pointer-events-none absolute inset-x-0 top-14 z-20 mx-3 flex justify-end"
-          aria-live="polite"
-        >
-          <div className="pointer-events-auto max-w-[280px] rounded-lg border border-sky-300/90 bg-sky-50 px-3 py-2.5 shadow-lg">
-            <div className="flex items-start gap-2">
-              <span className="text-lg leading-none text-sky-700" aria-hidden>
-                ↔
-              </span>
-              <div className="min-w-0 flex-1">
-                <p className="text-[11px] font-semibold text-sky-950">Widen the side panel</p>
-                <p className="mt-0.5 text-[10px] leading-snug text-sky-900/90">
-                  Expand the side panel to see the resume preview and editor side by side.
-                </p>
-                <p className="mt-1 text-[9px] font-medium text-sky-800/80">Drag the panel edge →</p>
-              </div>
-              <button
-                type="button"
-                onClick={dismissNarrowHint}
-                className="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold text-sky-800 hover:bg-sky-100"
-              >
-                Dismiss
-              </button>
-            </div>
+        <div className="shrink-0 border-b-2 border-sky-400 bg-gradient-to-r from-sky-100 via-sky-50 to-sky-100 px-4 py-3 shadow-sm" aria-live="polite">
+          <div className="flex items-center gap-3">
+            <span className="text-2xl font-bold leading-none text-sky-600" aria-hidden>
+              →
+            </span>
+            <p className="min-w-0 flex-1 text-[12px] font-semibold leading-snug text-sky-950">
+              For the best experience, drag the right edge of this panel wider →
+            </p>
+            <button
+              type="button"
+              onClick={dismissNarrowHint}
+              className="shrink-0 rounded-lg border border-sky-400 bg-white px-3 py-1.5 text-[11px] font-bold text-sky-900 shadow-sm hover:bg-sky-50"
+            >
+              Dismiss
+            </button>
           </div>
         </div>
       ) : null}
@@ -758,7 +766,7 @@ export function ResumeStudioPane({
               ) : null}
               {omittedNotes.length > 0 ? (
                 <section className="mb-3 rounded-lg border border-amber-200/90 bg-amber-50/80 p-3">
-                  <h3 className="text-[11px] font-semibold text-amber-950">Applied layout trims (export only)</h3>
+                  <h3 className="text-[11px] font-semibold text-amber-950">Auto-fit changes</h3>
                   <ul className="mt-1.5 list-disc space-y-0.5 pl-4 text-[10px] text-amber-900/90">
                     {omittedNotes.map((note) => (
                       <li key={note}>{note}</li>
@@ -807,6 +815,8 @@ export function ResumeStudioPane({
         onFinalOverrideChange={(key, value) => {
           setFinalExportOverrides((prev) => ({ ...prev, [key]: value }));
         }}
+        onDoneManualEdit={() => setDownloadReviewManualEdit(false)}
+        onResetManualEdits={() => setFinalExportOverrides(emptyFinalExportOverrides())}
         onExportDocx={onExportDocx}
         onExportPdf={onExportPdf}
       />
