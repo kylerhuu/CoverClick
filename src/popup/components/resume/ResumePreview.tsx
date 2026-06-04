@@ -6,6 +6,7 @@ import {
   formatExperienceSecondary,
   formatProjectPrimary,
   formatProjectSecondary,
+  formatSkillRenderLines,
   getResumeRenderModel,
   RESUME_EXPORT_CONTAINER_ID,
 } from "../../../lib/resumeRender";
@@ -35,6 +36,8 @@ export function ResumePreview({ resume, template = "ats-classic", variant = "pre
   const contact = formatContactLine(r);
   const spacing = model.spacing;
   const typography = model.typography;
+  const skillLines = formatSkillRenderLines(r, model.layout.renderPlan);
+  const onePageFit = model.layout.renderPlan.omittedNotes.length > 0;
 
   const page = (
     <div
@@ -130,14 +133,19 @@ export function ResumePreview({ resume, template = "ats-classic", variant = "pre
 
           {section.key === "skills" ? (
             <div style={{ marginTop: `${spacing.sectionHeaderAfter}px` }}>
-              {r.skills.map((s, i) => {
-                if (!s.category && !s.items.length) return null;
-                return (
-                  <p key={s.id ?? `skills-${i}`} className="text-slate-800" style={{ lineHeight: spacing.bulletLineHeight, marginBottom: `${spacing.bulletGap + 1}px`, fontSize: `${typography.bulletPt * (96 / 72)}px` }}>
-                    <span className="font-semibold text-slate-900">{s.category || "Skills"}:</span> {s.items.join(", ")}
-                  </p>
-                );
-              })}
+              {skillLines.map((line) => (
+                <p
+                  key={line.key}
+                  className="text-slate-800"
+                  style={{
+                    lineHeight: spacing.bulletLineHeight,
+                    marginBottom: `${spacing.bulletGap + 1}px`,
+                    fontSize: `${typography.bulletPt * (96 / 72)}px`,
+                  }}
+                >
+                  {line.text}
+                </p>
+              ))}
             </div>
           ) : null}
         </section>
@@ -146,5 +154,12 @@ export function ResumePreview({ resume, template = "ats-classic", variant = "pre
   );
 
   if (variant === "export") return page;
-  return <div className={cn(shellClass, className)}>{page}</div>;
+  return (
+    <div className={cn(shellClass, className)}>
+      {onePageFit ? (
+        <p className="mb-2 text-center text-[10px] font-medium text-slate-500">One-page layout applied to preview and export</p>
+      ) : null}
+      {page}
+    </div>
+  );
 }

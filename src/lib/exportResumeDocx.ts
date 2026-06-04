@@ -7,6 +7,7 @@ import {
   formatExperienceSecondary,
   formatProjectPrimary,
   formatProjectSecondary,
+  formatSkillRenderLines,
   getResumeRenderModel,
 } from "./resumeRender";
 import { sanitizeExportBasename } from "./utils";
@@ -150,9 +151,8 @@ export async function downloadResumeDocx(resume: StructuredResume, fileBaseName:
     }
 
     children.push(heading(section.label, headerBefore, headerAfter));
-    for (const s of r.skills) {
-      if (!s.category && !s.items.length) continue;
-      children.push(line(`${s.category || "Skills"}: ${s.items.join(", ")}`, Math.max(8, spacing.bulletGap * 4), toHalfPt(typography.bulletPt)));
+    for (const skillLine of formatSkillRenderLines(r, model.layout.renderPlan)) {
+      children.push(line(skillLine.text, Math.max(8, spacing.bulletGap * 4), toHalfPt(typography.bulletPt)));
     }
   }
 
