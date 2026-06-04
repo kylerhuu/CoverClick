@@ -91,9 +91,20 @@ export interface UserProfile {
   structuredEntries?: ProfileStructuredEntries;
 }
 
+/** Scraped company option shown when multiple plausible employers were found. */
+export type CompanyPickOption = {
+  value: string;
+  /** Human-readable origin, e.g. "Job page" or "Structured data". */
+  source: string;
+  /** Higher = more trusted default (merge layer assigns). */
+  confidence: number;
+};
+
 export interface JobContext {
   jobTitle: string;
   companyName: string;
+  /** When length > 1, UI can offer a picker defaulting to highest confidence. */
+  companyCandidates?: CompanyPickOption[];
   pageUrl: string;
   descriptionText: string;
   scrapedAt: number;

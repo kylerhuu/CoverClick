@@ -5,6 +5,8 @@
 export type JobExtractionPartial = {
   jobTitle?: string;
   companyName?: string;
+  /** Raw employer strings from board DOM (merge normalizes and ranks). */
+  companyCandidates?: string[];
   descriptionText?: string;
 };
 

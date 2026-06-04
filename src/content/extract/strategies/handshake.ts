@@ -1,36 +1,36 @@
 import type { JobExtractionPartial } from "../types";
 import { normalizeCompanyCandidate } from "../companyPlatform";
-import { asPartial, firstMatchText, pickText } from "../dom";
+import { asPartial, firstMatchText, orderedMatchTexts, pickText } from "../dom";
 import { longestDescriptionFromRoots, readDescriptionFromRoot } from "../descriptionDom";
 
-function employerFromHandshakeDom(doc: Document): string {
-  const selectors = [
-    '[data-hook="employer-name"]',
-    '[data-hook*="employer"]',
-    '[class*="EmployerName"]',
-    '[class*="employer-name"]',
-    '[class*="EmployerTitle"]',
-    'a[href*="/employers/"]',
-    'a[href*="/emp/"]',
-    '[data-testid*="employer"]',
-    "main header a[href*='employer']",
-    "h1 + p a",
-    "h1 ~ a",
-  ];
-  const direct = firstMatchText(doc, selectors);
-  if (direct) return direct;
+/** High-confidence employer fields only — avoid nav links like /employers/. */
+const EMPLOYER_DOM_SELECTORS = [
+  '[data-hook="employer-name"]',
+  '[class*="EmployerName"]',
+  '[class*="employer-name"]',
+  '[class*="EmployerTitle"]',
+  '[data-testid*="employer-name"]',
+  '[data-testid="employer-name"]',
+];
 
+function employerCandidatesFromHandshakeDom(doc: Document, hostname: string): string[] {
+  const raw = orderedMatchTexts(doc, EMPLOYER_DOM_SELECTORS);
   const h1 = doc.querySelector("main h1, h1");
   if (h1?.parentElement) {
-    const links = h1.parentElement.querySelectorAll("a");
-    for (const a of links) {
+    for (const a of h1.parentElement.querySelectorAll("a")) {
       const t = pickText(a);
       const href = a.getAttribute("href") ?? "";
-      if (t && (href.includes("employer") || href.includes("/e/"))) return t;
+      if (!t || (!href.includes("employer") && !href.includes("/e/"))) continue;
+      if (normalizeCompanyCandidate(t, { hostname, board: "handshake" }).ok) raw.push(t);
     }
   }
-
-  return "";
+  const seen = new Set<string>();
+  return raw.filter((t) => {
+    const k = t.toLowerCase();
+    if (seen.has(k)) return false;
+    seen.add(k);
+    return true;
+  });
 }
 
 function employerFromJsonLdOnPage(doc: Document, hostname: string): string | undefined {
@@ -86,14 +86,17 @@ export function extractHandshake(doc: Document, hostname: string): JobExtraction
       "h1",
     ]) || firstMatchText(doc, ['[class*="job-title"]']);
 
-  let company = employerFromHandshakeDom(doc);
-  let normalized = normalizeCompanyCandidate(company, { hostname, board: "handshake" });
-  if (!normalized.ok) {
-    const fromLd = employerFromJsonLdOnPage(doc, hostname);
-    if (fromLd) company = fromLd;
-    else company = "";
-  } else {
-    company = normalized.value;
+  const companyCandidates = employerCandidatesFromHandshakeDom(doc, hostname);
+  const fromLd = employerFromJsonLdOnPage(doc, hostname);
+  if (fromLd) companyCandidates.push(fromLd);
+
+  let company = "";
+  for (const raw of companyCandidates) {
+    const normalized = normalizeCompanyCandidate(raw, { hostname, board: "handshake" });
+    if (normalized.ok) {
+      company = normalized.value;
+      break;
+    }
   }
 
   const description =
@@ -114,6 +117,7 @@ export function extractHandshake(doc: Document, hostname: string): JobExtraction
   return asPartial({
     jobTitle: title,
     companyName: company || undefined,
+    companyCandidates: companyCandidates.length ? companyCandidates : undefined,
     descriptionText: description,
   });
 }

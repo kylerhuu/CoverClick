@@ -66,8 +66,9 @@ export function stripPlatformSuffix(name: string): string {
   return s;
 }
 
+/** Nav / section labels that sometimes match employer DOM selectors on job boards. */
 const GENERIC_JUNK =
-  /^(careers|jobs|home|about|apply|company|sign in|log in|job posting|view job|search jobs)$/i;
+  /^(careers|jobs|home|about|apply|company|sign in|log in|job posting|view job|search jobs|employers?|students?|faculty|alumni|campus|explore|discover|resources|help|support|blog|news)$/i;
 
 export function normalizeCompanyCandidate(
   raw: string | undefined,

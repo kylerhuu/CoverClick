@@ -17,6 +17,23 @@ export function firstMatchText(doc: Document, selectors: string[]): string {
   return "";
 }
 
+/** Unique non-empty texts in selector order (first selector wins ties). */
+export function orderedMatchTexts(doc: Document, selectors: string[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const sel of selectors) {
+    const nodes = doc.querySelectorAll(sel);
+    for (const el of nodes) {
+      const t = pickText(el);
+      const key = t.toLowerCase();
+      if (!t || seen.has(key)) continue;
+      seen.add(key);
+      out.push(t);
+    }
+  }
+  return out;
+}
+
 export function longestTextAmong(doc: Document, selectors: string[], minLength: number): string {
   let best = "";
   for (const sel of selectors) {
