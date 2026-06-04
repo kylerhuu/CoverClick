@@ -18,7 +18,8 @@ import {
 import { computeOnePageLayoutPlan, MAX_DOM_TIGHTEN_STEPS, type ResumeRenderPlan } from "../../lib/resumeLayoutEngine";
 import type { ResumeFitMode, ResumeStudioLayoutSettings } from "../../lib/resumeFitSettings";
 import type { ResumeTargetLength } from "../../lib/resumePageMetrics";
-import { formatPageFitDisplay } from "../../lib/resumePageMetrics";
+import { formatPageFitDisplay, healthyPageBand } from "../../lib/resumePageMetrics";
+import { ResumeDownloadReview } from "./resume/ResumeDownloadReview";
 import {
   applySelectedTrimSuggestions,
   buildTrimSuggestions,
@@ -132,6 +133,8 @@ export function ResumeStudioPane({
   const [pagesUsed, setPagesUsed] = useState<number | null>(null);
   const [forceOptimizerExhausted, setForceOptimizerExhausted] = useState(false);
   const [selectedTrimIds, setSelectedTrimIds] = useState<Set<string>>(() => new Set());
+  const [fullContentPreview, setFullContentPreview] = useState(false);
+  const [downloadReviewOpen, setDownloadReviewOpen] = useState(false);
 
   useEffect(() => {
     const el = containerRef.current;
@@ -162,11 +165,13 @@ export function ResumeStudioPane({
     setPagesUsed(null);
     setForceOptimizerExhausted(false);
     setSelectedTrimIds(new Set());
+    setFullContentPreview(false);
   }, [resume]);
 
   const persistLayoutSettings = useCallback((next: ResumeStudioLayoutSettings) => {
     setLayoutSettings(next);
     void saveResumeStudioLayoutSettings(next);
+    setFullContentPreview(false);
     if (next.fitMode !== "force") {
       setForcePlanOverride(null);
       domTightenStepsRef.current = 0;
@@ -174,6 +179,14 @@ export function ResumeStudioPane({
   }, []);
 
   const renderOptions = useMemo(() => {
+    if (fullContentPreview) {
+      return {
+        fitMode: "preserve" as const,
+        targetPages: layoutSettings.targetLength,
+        manualTrimPlan: cloneRenderPlan(),
+        fullContentPreview: true,
+      };
+    }
     const opts = {
       fitMode: layoutSettings.fitMode,
       targetPages: layoutSettings.targetLength,
@@ -183,7 +196,7 @@ export function ResumeStudioPane({
       return { ...opts, renderPlan: forcePlanOverride };
     }
     return opts;
-  }, [layoutSettings, manualTrimPlan, forcePlanOverride]);
+  }, [layoutSettings, manualTrimPlan, forcePlanOverride, fullContentPreview]);
 
   const model = useMemo(() => getResumeRenderModel(resume, renderOptions), [resume, renderOptions]);
   const omittedNotes = model.layout.renderPlan.omittedNotes;
@@ -198,6 +211,7 @@ export function ResumeStudioPane({
   }, [pagesUsed, layoutSettings.targetLength]);
 
   const mergedBasePlan = useMemo(() => {
+    if (fullContentPreview) return cloneRenderPlan();
     const auto = computeOnePageLayoutPlan(
       model.sourceResume,
       sectionKeys,
@@ -205,7 +219,7 @@ export function ResumeStudioPane({
       layoutSettings.targetLength,
     ).renderPlan;
     return mergeRenderPlans(auto, manualTrimPlan);
-  }, [model.sourceResume, sectionKeys, layoutSettings, manualTrimPlan]);
+  }, [model.sourceResume, sectionKeys, layoutSettings, manualTrimPlan, fullContentPreview]);
 
   const trimSuggestions = useMemo(() => {
     if (pagesUsed == null || pagesUsed <= layoutSettings.targetLength) return [];
@@ -233,13 +247,17 @@ export function ResumeStudioPane({
   const handleExportPageMeasure = useCallback(
     ({ pagesUsed: used, overflows }: { contentHeight: number; pagesUsed: number; overflows: boolean }) => {
       setPagesUsed(used);
+      if (fullContentPreview) return;
       if (layoutSettings.fitMode !== "force") return;
-      if (!overflows) return;
+      const target = layoutSettings.targetLength;
+      const band = healthyPageBand(target);
+      if (used < band.min) return;
+      if (!overflows && used <= target) return;
       if (domTightenStepsRef.current >= MAX_DOM_TIGHTEN_STEPS) return;
       const sourceResume = normalizeResumeForRender(resume);
       const currentFull = model.layout.renderPlan;
       const next = cloneRenderPlanDeep(currentFull);
-      const { applied } = tightenRenderPlanOneStep(sourceResume, next, sectionKeys);
+      const { applied } = tightenRenderPlanOneStep(sourceResume, next, sectionKeys, target);
       if (!applied) {
         setForceOptimizerExhausted(true);
         return;
@@ -248,7 +266,7 @@ export function ResumeStudioPane({
       if (domTightenStepsRef.current >= MAX_DOM_TIGHTEN_STEPS) setForceOptimizerExhausted(true);
       setForcePlanOverride(next);
     },
-    [resume, sectionKeys, layoutSettings.fitMode, model.layout.renderPlan],
+    [resume, sectionKeys, layoutSettings, model.layout.renderPlan, fullContentPreview],
   );
 
   const toggleTrimSelection = useCallback((id: string) => {
@@ -262,6 +280,7 @@ export function ResumeStudioPane({
 
   const applySelectedTrims = useCallback(() => {
     if (selectedTrimIds.size === 0) return;
+    setFullContentPreview(false);
     setTrimUndoStack((stack) => [...stack, cloneRenderPlanDeep(manualTrimPlan)]);
     setManualTrimPlan((prev) =>
       applySelectedTrimSuggestions(normalizeResumeForRender(resume), prev, [...selectedTrimIds]),
@@ -285,6 +304,7 @@ export function ResumeStudioPane({
     setSelectedTrimIds(new Set());
     domTightenStepsRef.current = 0;
     setForceOptimizerExhausted(false);
+    setFullContentPreview(true);
   }, []);
 
   const renderEntryControls = (
@@ -305,7 +325,7 @@ export function ResumeStudioPane({
         )}
       >
         <span aria-hidden>{locked ? "🔒" : "🔓"}</span>
-        {locked ? "Locked — never trimmed on export" : "Lock this entry"}
+        {locked ? "Never Trim (on)" : "Never Trim"}
       </button>
       <label className="flex items-center gap-1.5 text-[10px] font-medium text-slate-500">
         Priority
@@ -321,6 +341,11 @@ export function ResumeStudioPane({
           ))}
         </select>
       </label>
+      <p className="w-full text-[9px] leading-snug text-slate-500">
+        <span className="font-semibold text-slate-600">Never Trim</span> — never hide or trim this entry during export
+        fitting. <span className="font-semibold text-slate-600">Priority</span> — what compresses first when space is
+        tight.
+      </p>
     </div>
   );
 
@@ -578,6 +603,11 @@ export function ResumeStudioPane({
             {pageFit.detail ? <span className="mt-0.5 block font-normal text-slate-600">{pageFit.detail}</span> : null}
           </p>
         ) : null}
+        {fullContentPreview ? (
+          <p className="text-[11px] font-medium text-indigo-800">
+            Showing full resume content. Change fit mode or apply trims to re-enable automatic fitting.
+          </p>
+        ) : null}
         {layoutSettings.fitMode === "force" && forceOptimizerExhausted && pagesUsed != null && pagesUsed > layoutSettings.targetLength ? (
           <p className="text-[11px] font-semibold text-amber-800">⚠ Optimizer still cannot fit your target</p>
         ) : null}
@@ -686,14 +716,29 @@ export function ResumeStudioPane({
                 renderOptions={renderOptions}
                 showPageBoundary
               />
-              <div className="mt-2 grid grid-cols-2 gap-2">
-                <button type="button" onClick={onExportDocx} className="rounded-lg border border-indigo-200 bg-indigo-50 py-2 text-[12px] font-semibold text-indigo-950">Export DOCX</button>
-                <button type="button" onClick={onExportPdf} className="rounded-lg border border-slate-300 bg-white py-2 text-[12px] font-semibold text-slate-800">Export PDF</button>
-              </div>
+              <button
+                type="button"
+                onClick={() => setDownloadReviewOpen(true)}
+                className="mt-2 w-full rounded-lg border border-slate-800 bg-slate-900 py-2.5 text-[12px] font-semibold text-white"
+              >
+                Review &amp; Download
+              </button>
             </div>
           </div>
         ) : null}
       </div>
+
+      <ResumeDownloadReview
+        open={downloadReviewOpen}
+        onClose={() => setDownloadReviewOpen(false)}
+        onEditResume={() => setDownloadReviewOpen(false)}
+        resume={resume}
+        renderOptions={renderOptions}
+        pagesUsed={pagesUsed}
+        targetLength={layoutSettings.targetLength}
+        onExportDocx={onExportDocx}
+        onExportPdf={onExportPdf}
+      />
     </div>
   );
 }

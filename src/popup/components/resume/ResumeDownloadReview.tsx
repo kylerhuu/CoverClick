@@ -1,0 +1,137 @@
+import { useMemo } from "react";
+import type { StructuredResume } from "../../../lib/types";
+import { cn } from "../../../lib/classNames";
+import { getResumeRenderModel, type ResumeRenderOptions } from "../../../lib/resumeRender";
+import { formatPageFitDisplay, healthyPageBand } from "../../../lib/resumePageMetrics";
+import { ResumePreview } from "./ResumePreview";
+
+type Props = {
+  open: boolean;
+  onClose: () => void;
+  onEditResume: () => void;
+  resume: StructuredResume;
+  renderOptions: ResumeRenderOptions;
+  pagesUsed: number | null;
+  targetLength: number;
+  onExportDocx: () => void;
+  onExportPdf: () => void;
+};
+
+export function ResumeDownloadReview({
+  open,
+  onClose,
+  onEditResume,
+  resume,
+  renderOptions,
+  pagesUsed,
+  targetLength,
+  onExportDocx,
+  onExportPdf,
+}: Props) {
+  const model = useMemo(() => getResumeRenderModel(resume, renderOptions), [resume, renderOptions]);
+  const omittedNotes = model.layout.renderPlan.omittedNotes;
+  const pageFit = pagesUsed != null ? formatPageFitDisplay(pagesUsed, targetLength) : null;
+  const band = healthyPageBand(targetLength);
+
+  if (!open) return null;
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex flex-col bg-slate-900/40 p-3 backdrop-blur-[2px] sm:p-5"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="resume-download-review-title"
+    >
+      <div className="mx-auto flex min-h-0 w-full max-w-4xl flex-1 flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl">
+        <header className="shrink-0 border-b border-slate-200 px-4 py-3 sm:px-5">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h2 id="resume-download-review-title" className="text-[14px] font-semibold text-slate-900">
+                Review before download
+              </h2>
+              <p className="mt-0.5 text-[11px] text-slate-500">
+                Final export preview — same layout as your PDF and DOCX files.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-semibold text-slate-700 hover:bg-slate-50"
+            >
+              Close
+            </button>
+          </div>
+          {pagesUsed == null ? (
+            <p className="mt-2 text-[11px] text-slate-500">Measuring page length…</p>
+          ) : pageFit ? (
+            <div className="mt-2 space-y-1">
+              <p
+                className={cn(
+                  "text-[11px] font-semibold",
+                  pageFit.tone === "ok" ? "text-emerald-700" : pageFit.tone === "slight" ? "text-amber-800" : "text-red-700",
+                )}
+              >
+                {pageFit.headline}
+              </p>
+              <p className="text-[10px] text-slate-600">
+                Target fill for {targetLength} page{targetLength === 1 ? "" : "s"}: {band.min.toFixed(2)}–
+                {band.max.toFixed(2)} pages
+              </p>
+              {pageFit.detail ? <p className="text-[10px] text-slate-500">{pageFit.detail}</p> : null}
+            </div>
+          ) : null}
+        </header>
+
+        <div className="min-h-0 flex-1 overflow-y-auto bg-slate-50/80 px-4 py-4 sm:px-5">
+          {omittedNotes.length > 0 ? (
+            <section className="mb-3 rounded-lg border border-amber-200/90 bg-amber-50/80 p-3">
+              <h3 className="text-[11px] font-semibold text-amber-950">Applied layout trims (export only)</h3>
+              <ul className="mt-1.5 list-disc space-y-0.5 pl-4 text-[10px] text-amber-900/90">
+                {omittedNotes.map((note) => (
+                  <li key={note}>{note}</li>
+                ))}
+              </ul>
+            </section>
+          ) : null}
+          <ResumePreview
+            resume={resume}
+            template="ats-classic"
+            variant="preview"
+            renderOptions={renderOptions}
+            showPageBoundary
+            className="mx-auto"
+          />
+        </div>
+
+        <footer className="shrink-0 border-t border-slate-200 bg-white px-4 py-3 sm:px-5">
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                onEditResume();
+                onClose();
+              }}
+              className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-[12px] font-semibold text-slate-800"
+            >
+              Edit Resume
+            </button>
+            <button
+              type="button"
+              onClick={onExportDocx}
+              className="rounded-lg border border-indigo-200 bg-indigo-50 px-4 py-2 text-[12px] font-semibold text-indigo-950"
+            >
+              Download DOCX
+            </button>
+            <button
+              type="button"
+              onClick={onExportPdf}
+              className="rounded-lg border border-slate-800 bg-slate-900 px-4 py-2 text-[12px] font-semibold text-white"
+            >
+              Download PDF
+            </button>
+          </div>
+        </footer>
+      </div>
+    </div>
+  );
+}

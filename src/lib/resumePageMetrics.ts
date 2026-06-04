@@ -37,6 +37,18 @@ export type PageFitDisplay = {
   detail?: string;
 };
 
+/** Target fill band for force-fit (stop tightening once within range). */
+export function healthyPageBand(targetPages: number): { min: number; max: number } {
+  if (targetPages <= 1) return { min: 0.92, max: 1.0 };
+  if (targetPages <= 1.5) return { min: 1.38, max: 1.5 };
+  return { min: 1.84, max: 2.0 };
+}
+
+export function pagesWithinHealthyBand(pagesUsed: number, targetPages: number): boolean {
+  const band = healthyPageBand(targetPages);
+  return pagesUsed >= band.min && pagesUsed <= band.max;
+}
+
 export function formatPageFitDisplay(pagesUsed: number, targetPages: number): PageFitDisplay {
   const rounded = Math.round(pagesUsed * 100) / 100;
   const label = `${rounded.toFixed(2)} page${rounded === 1 ? "" : "s"}`;
