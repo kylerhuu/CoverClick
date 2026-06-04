@@ -145,7 +145,8 @@ export function ResumeStudioPane({
   const [trimUndoStack, setTrimUndoStack] = useState<ResumeRenderPlan[]>([]);
   const [forcePlanOverride, setForcePlanOverride] = useState<ResumeRenderPlan | null>(null);
   const [pagesUsed, setPagesUsed] = useState<number | null>(null);
-  const [domFitContext, setDomFitContext] = useState<ResumeDomFitContext | null>(null);
+  const domFitRef = useRef<ResumeDomFitContext | null>(null);
+  const [domFitRevision, setDomFitRevision] = useState(0);
   const [forceOptimizerExhausted, setForceOptimizerExhausted] = useState(false);
   const [selectedTrimIds, setSelectedTrimIds] = useState<Set<string>>(() => new Set());
   const [fullContentPreview, setFullContentPreview] = useState(false);
@@ -185,7 +186,8 @@ export function ResumeStudioPane({
     setForcePlanOverride(null);
     domTightenStepsRef.current = 0;
     setPagesUsed(null);
-    setDomFitContext(null);
+    domFitRef.current = null;
+    setDomFitRevision((n) => n + 1);
     setForceOptimizerExhausted(false);
     setSelectedTrimIds(new Set());
     setFullContentPreview(false);
@@ -217,13 +219,13 @@ export function ResumeStudioPane({
       targetPages: layoutSettings.targetLength,
       manualTrimPlan,
       finalExportOverrides,
-      domFitContext: domFitContext ?? undefined,
+      domFitContext: domFitRef.current ?? undefined,
     };
     if (layoutSettings.fitMode === "force" && forcePlanOverride) {
       return { ...opts, renderPlan: forcePlanOverride };
     }
     return opts;
-  }, [layoutSettings, manualTrimPlan, forcePlanOverride, fullContentPreview, finalExportOverrides, domFitContext]);
+  }, [layoutSettings, manualTrimPlan, forcePlanOverride, fullContentPreview, finalExportOverrides, domFitRevision]);
 
   const model = useMemo(() => getResumeRenderModel(resume, renderOptions), [resume, renderOptions]);
   const omittedNotes = model.layout.renderPlan.omittedNotes;
@@ -274,8 +276,15 @@ export function ResumeStudioPane({
   const handleExportPageMeasure = useCallback(
     ({ pagesUsed: used, overflows }: { contentHeight: number; pagesUsed: number; overflows: boolean }) => {
       const dom: ResumeDomFitContext = { pagesUsed: used, overflows };
-      setPagesUsed(used);
-      setDomFitContext(dom);
+      const prevDom = domFitRef.current;
+      const domChanged =
+        !prevDom || prevDom.overflows !== overflows || Math.abs(prevDom.pagesUsed - used) >= 0.01;
+      if (domChanged) {
+        domFitRef.current = dom;
+        setDomFitRevision((n) => n + 1);
+      }
+      setPagesUsed((prev) => (prev === used ? prev : used));
+
       if (fullContentPreview) return;
       if (layoutSettings.fitMode !== "force") return;
 
@@ -286,7 +295,9 @@ export function ResumeStudioPane({
         if (forcePlanOverride) {
           const relaxed = cloneRenderPlanDeep(forcePlanOverride);
           applyDomPrimaryTruthToPlan(sourceResume, relaxed, dom, target);
-          setForcePlanOverride(relaxed);
+          const before = JSON.stringify(forcePlanOverride);
+          const after = JSON.stringify(relaxed);
+          if (before !== after) setForcePlanOverride(relaxed);
         }
         return;
       }
@@ -301,7 +312,9 @@ export function ResumeStudioPane({
       }
       domTightenStepsRef.current += 1;
       if (domTightenStepsRef.current >= MAX_DOM_TIGHTEN_STEPS) setForceOptimizerExhausted(true);
-      setForcePlanOverride(next);
+      const nextJson = JSON.stringify(next);
+      const curJson = JSON.stringify(forcePlanOverride ?? model.layout.renderPlan);
+      if (nextJson !== curJson) setForcePlanOverride(next);
     },
     [resume, sectionKeys, layoutSettings, model.layout.renderPlan, fullContentPreview, forcePlanOverride],
   );
@@ -611,6 +624,7 @@ export function ResumeStudioPane({
           template="ats-classic"
           variant="export"
           renderOptions={renderOptions}
+          layoutEpoch={domFitRevision + (forcePlanOverride ? 1 : 0)}
           onExportPageMeasure={handleExportPageMeasure}
         />
       </div>

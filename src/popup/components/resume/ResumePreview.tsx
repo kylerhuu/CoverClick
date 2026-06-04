@@ -1,4 +1,6 @@
 import { useLayoutEffect, useRef, useState, type CSSProperties } from "react";
+
+const PAGE_MEASURE_EPSILON_PX = 2;
 import type { StructuredResume } from "../../../lib/types";
 import { experienceEntryKey, projectEntryKey } from "../../../lib/resumeLayoutEngine";
 import {
@@ -33,6 +35,8 @@ type Props = {
   /** Final-review inline edits (print-preview step). */
   editable?: boolean;
   onFinalOverrideChange?: (key: string, value: string) => void;
+  /** Bumps when export layout plan changes (force-fit DOM passes). */
+  layoutEpoch?: number;
 };
 
 const shellClass = "rounded-xl border border-slate-300/80 bg-slate-200/50 p-3";
@@ -95,8 +99,12 @@ export function ResumePreview({
   onExportPageMeasure,
   editable = false,
   onFinalOverrideChange,
+  layoutEpoch = 0,
 }: Props) {
   const pageRef = useRef<HTMLDivElement>(null);
+  const lastReportedHeightRef = useRef(0);
+  const onMeasureRef = useRef(onExportPageMeasure);
+  onMeasureRef.current = onExportPageMeasure;
   const [scrollHeight, setScrollHeight] = useState(0);
   const model = getResumeRenderModel(resume, renderOptions);
   const r = model.resume;
@@ -115,22 +123,23 @@ export function ResumePreview({
 
     const report = () => {
       const h = el.scrollHeight;
-      setScrollHeight(h);
-      if (variant === "export" && onExportPageMeasure) {
-        const pagesUsed = pagesUsedFromHeight(h);
-        onExportPageMeasure({
-          contentHeight: h,
-          pagesUsed,
-          overflows: h > targetContentMaxPx(targetPages) + 1,
-        });
-      }
+      setScrollHeight((prev) => (prev === h ? prev : h));
+      if (variant !== "export" || !onMeasureRef.current) return;
+      if (Math.abs(h - lastReportedHeightRef.current) < PAGE_MEASURE_EPSILON_PX) return;
+      lastReportedHeightRef.current = h;
+      const pagesUsed = pagesUsedFromHeight(h);
+      onMeasureRef.current({
+        contentHeight: h,
+        pagesUsed,
+        overflows: h > targetContentMaxPx(targetPages) + 1,
+      });
     };
 
     report();
     const ro = new ResizeObserver(() => report());
     ro.observe(el);
     return () => ro.disconnect();
-  }, [variant, onExportPageMeasure, resume, renderOptions, model.layout.renderPlan, targetPages]);
+  }, [variant, resume, targetPages, renderOptions?.fitMode, renderOptions?.targetPages, renderOptions?.fullContentPreview, layoutEpoch]);
 
   const pageBody = (
     <>
