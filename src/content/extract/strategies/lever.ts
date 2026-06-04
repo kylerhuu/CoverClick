@@ -1,4 +1,5 @@
 import type { JobExtractionPartial } from "../types";
+import { normalizeCompanyCandidate } from "../companyPlatform";
 import { asPartial, companyFromFirstPathSegment, firstMatchText, pickText } from "../dom";
 import { longestDescriptionFromRoots, readDescriptionFromRoot } from "../descriptionDom";
 
@@ -27,6 +28,10 @@ export function extractLever(doc: Document, url: URL): JobExtractionPartial {
 
   if (!company && pathCompany) company = pathCompany;
 
+  const normalized = normalizeCompanyCandidate(company, { hostname: url.hostname, board: "lever" });
+  const pathNorm = normalizeCompanyCandidate(pathCompany, { hostname: url.hostname, board: "lever" });
+  const companyName = normalized.ok ? normalized.value : pathNorm.ok ? pathNorm.value : undefined;
+
   const description =
     longestDescriptionFromRoots(
       doc,
@@ -41,5 +46,5 @@ export function extractLever(doc: Document, url: URL): JobExtractionPartial {
       120,
     ) || readDescriptionFromRoot(doc.querySelector("main"));
 
-  return asPartial({ jobTitle: title, companyName: company, descriptionText: description });
+  return asPartial({ jobTitle: title, companyName: companyName, descriptionText: description });
 }

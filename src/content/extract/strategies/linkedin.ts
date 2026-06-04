@@ -1,8 +1,9 @@
 import type { JobExtractionPartial } from "../types";
+import { normalizeCompanyCandidate } from "../companyPlatform";
 import { asPartial, firstMatchText } from "../dom";
 import { longestDescriptionFromRoots, readDescriptionFromRoot } from "../descriptionDom";
 
-export function extractLinkedIn(doc: Document): JobExtractionPartial {
+export function extractLinkedIn(doc: Document, hostname: string): JobExtractionPartial {
   const title = firstMatchText(doc, [
     ".jobs-unified-top-card__job-title",
     ".job-details-jobs-unified-top-card__title",
@@ -44,5 +45,10 @@ export function extractLinkedIn(doc: Document): JobExtractionPartial {
       80,
     ) || readDescriptionFromRoot(doc.querySelector(".jobs-description"));
 
-  return asPartial({ jobTitle: title, companyName: company, descriptionText: description });
+  const normalized = normalizeCompanyCandidate(company, { hostname, board: "linkedin" });
+  return asPartial({
+    jobTitle: title,
+    companyName: normalized.ok ? normalized.value : undefined,
+    descriptionText: description,
+  });
 }

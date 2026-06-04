@@ -11,6 +11,7 @@
     "build:content": "vite build --config vite.content.config.ts",
     "store:zip": "npm run build && rm -f coverclick-extension.zip && cd dist && zip -r ../coverclick-extension.zip .",
     "typecheck": "tsc --noEmit",
+    "test:company-platform": "node --experimental-strip-types --test src/content/extract/companyPlatform.node.test.mjs",
     "server:dev": "npm run dev --prefix server",
     "server:build": "npm run build --prefix server"
   },

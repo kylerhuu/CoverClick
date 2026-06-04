@@ -1,4 +1,5 @@
 import type { JobExtractionPartial } from "../types";
+import { normalizeCompanyCandidate } from "../companyPlatform";
 import {
   asPartial,
   companyFromFirstPathSegment,
@@ -33,6 +34,10 @@ export function extractGreenhouse(doc: Document, url: URL): JobExtractionPartial
 
   if (!company && pathCompany) company = pathCompany;
 
+  const normalized = normalizeCompanyCandidate(company, { hostname: url.hostname, board: "greenhouse" });
+  const pathNorm = normalizeCompanyCandidate(pathCompany, { hostname: url.hostname, board: "greenhouse" });
+  const companyName = normalized.ok ? normalized.value : pathNorm.ok ? pathNorm.value : undefined;
+
   const description =
     longestDescriptionFromRoots(
       doc,
@@ -52,5 +57,5 @@ export function extractGreenhouse(doc: Document, url: URL): JobExtractionPartial
       120,
     ) || readDescriptionFromRoot(doc.querySelector("#app_body"));
 
-  return asPartial({ jobTitle: title, companyName: company, descriptionText: description });
+  return asPartial({ jobTitle: title, companyName: companyName, descriptionText: description });
 }

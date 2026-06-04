@@ -1,4 +1,5 @@
 import type { JobExtractionPartial } from "./types";
+import { normalizeCompanyCandidate } from "./companyPlatform";
 import { asPartial, stripHtmlToText } from "./dom";
 
 type UnknownRecord = Record<string, unknown>;
@@ -39,10 +40,12 @@ function orgName(org: unknown): string | undefined {
   return undefined;
 }
 
-function extractFromJobPosting(node: UnknownRecord): JobExtractionPartial {
+function extractFromJobPosting(node: UnknownRecord, hostname: string): JobExtractionPartial {
   const title = typeof node.title === "string" ? node.title.trim() : undefined;
   const ho = node.hiringOrganization;
-  const company = orgName(ho);
+  const rawCompany = orgName(ho);
+  const normalized = normalizeCompanyCandidate(rawCompany, { hostname });
+  const company = normalized.ok ? normalized.value : undefined;
   let description: string | undefined;
   const descRaw = node.description;
   if (typeof descRaw === "string") {
@@ -62,7 +65,7 @@ function collapseDescriptionText(s: string): string {
 /**
  * Reads JobPosting objects from JSON-LD blocks (common on ATS + career sites).
  */
-export function extractJsonLdJob(doc: Document): JobExtractionPartial {
+export function extractJsonLdJob(doc: Document, hostname: string): JobExtractionPartial {
   const scripts = doc.querySelectorAll('script[type="application/ld+json"]');
   const merged: JobExtractionPartial = {};
 
@@ -76,7 +79,7 @@ export function extractJsonLdJob(doc: Document): JobExtractionPartial {
     for (const node of flattenJsonLdNodes(parsed)) {
       const types = readType(node);
       if (!types.has("JobPosting")) continue;
-      const part = extractFromJobPosting(node);
+      const part = extractFromJobPosting(node, hostname);
       if (part.jobTitle && !merged.jobTitle) merged.jobTitle = part.jobTitle;
       if (part.companyName && !merged.companyName) merged.companyName = part.companyName;
       if (part.descriptionText) {

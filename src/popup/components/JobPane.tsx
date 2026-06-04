@@ -208,7 +208,9 @@ export function JobPane({
               aria-label="Company name"
             />
           ) : (
-            <span className="min-w-0 font-semibold leading-snug text-slate-900">{job?.companyName?.trim() || "—"}</span>
+            <span className="min-w-0 font-semibold leading-snug text-slate-900">
+              {job?.companyName?.trim() || "Unknown"}
+            </span>
           )}
           <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Link</span>
           <span className="min-w-0 break-all text-[11px] leading-snug text-slate-500">

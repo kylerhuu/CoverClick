@@ -8,4 +8,16 @@ export type JobExtractionPartial = {
   descriptionText?: string;
 };
 
-export type JobBoardId = "linkedin" | "greenhouse" | "lever" | "handshake" | "generic";
+export type JobBoardId =
+  | "linkedin"
+  | "greenhouse"
+  | "lever"
+  | "handshake"
+  | "indeed"
+  | "glassdoor"
+  | "ziprecruiter"
+  | "workday"
+  | "generic";
+
+/** Where a company name candidate originated (merge / debug). */
+export type CompanyCandidateSource = "boardExtractor" | "jsonLd" | "genericDom" | "metaFallback";
