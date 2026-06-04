@@ -29,4 +29,13 @@ describe("companyPlatform", () => {
   it("rejects LinkedIn platform name", () => {
     assert.equal(isJobPlatformName("LinkedIn", "www.linkedin.com"), true);
   });
+
+  it("rejects Handshake nav label Employers", () => {
+    const r = normalizeCompanyCandidate("Employers", {
+      hostname: "joinhandshake.com",
+      board: "handshake",
+    });
+    assert.equal(r.ok, false);
+    if (!r.ok) assert.equal(r.reason, "generic_junk");
+  });
 });

@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import type { JobContext, ResumeTailoringResponse, UserProfile } from "../../lib/types";
 import { profileCompleteness } from "../../lib/profileCompleteness";
 import { truncate } from "../../lib/utils";
@@ -59,6 +60,13 @@ export function JobPane({
   const circumference = 2 * Math.PI * r;
   const pct = Math.min(100, Math.max(0, score)) / 100;
   const editable = Boolean(job && onJobChange);
+  const companyPicks = job?.companyCandidates ?? [];
+  const showCompanySelect = editable && companyPicks.length > 1;
+  const [companyManual, setCompanyManual] = useState(false);
+
+  useEffect(() => {
+    setCompanyManual(false);
+  }, [job?.pageUrl, job?.scrapedAt]);
 
   const patchJob = (partial: Partial<JobContext>) => {
     if (!job || !onJobChange) return;
@@ -199,7 +207,41 @@ export function JobPane({
             <span className="min-w-0 font-semibold leading-snug text-slate-900">{job?.jobTitle?.trim() || "—"}</span>
           )}
           <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Company</span>
-          {editable ? (
+          {editable && showCompanySelect && !companyManual ? (
+            <div className="min-w-0 space-y-1">
+              <select
+                className={inputCls}
+                value={
+                  companyPicks.some((p) => p.value === (job?.companyName ?? ""))
+                    ? (job?.companyName ?? "")
+                    : "__other__"
+                }
+                onChange={(e) => {
+                  if (e.target.value === "__other__") {
+                    setCompanyManual(true);
+                    return;
+                  }
+                  patchJob({ companyName: e.target.value });
+                }}
+                aria-label="Company name"
+              >
+                {companyPicks.map((p) => (
+                  <option key={`${p.value}-${p.source}`} value={p.value}>
+                    {p.value}
+                    {p.source ? ` (${p.source})` : ""}
+                  </option>
+                ))}
+                <option value="__other__">Other…</option>
+              </select>
+              <button
+                type="button"
+                className="text-[10px] font-medium text-indigo-700 hover:text-indigo-900"
+                onClick={() => setCompanyManual(true)}
+              >
+                Type a different name
+              </button>
+            </div>
+          ) : editable ? (
             <input
               className={inputCls}
               value={job?.companyName ?? ""}
