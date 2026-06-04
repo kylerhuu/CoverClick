@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import type { JobContext, ResumeTailoringResponse, UserProfile } from "../../lib/types";
-import { useCompanyExtractionDebugEnabled } from "../../lib/useCompanyExtractionDebugEnabled";
 import { UNKNOWN_COMPANY_VALUE, companySelectOptions } from "../../lib/jobCompanyScrape";
 import { profileCompleteness } from "../../lib/profileCompleteness";
 import { truncate } from "../../lib/utils";
@@ -36,6 +35,8 @@ type Props = {
   resumeTailorBusy?: boolean;
   resumeTailorError?: string | null;
   resumeTailorResult?: ResumeTailoringResponse | null;
+  /** From chrome.storage/local debug flag (WorkspaceApp). */
+  companyDebugEnabled?: boolean;
 };
 
 export function JobPane({
@@ -57,6 +58,7 @@ export function JobPane({
   resumeTailorBusy = false,
   resumeTailorError = null,
   resumeTailorResult = null,
+  companyDebugEnabled = false,
 }: Props) {
   const { score, missingLabels } = profileCompleteness(profile);
   const r = 15.5;
@@ -67,7 +69,6 @@ export function JobPane({
   const companyNotFound = job?.companyResolution === "not_found" || (!job?.companyName?.trim() && !acceptedPicks.length);
   const selectOptions = companySelectOptions(acceptedPicks);
   const showCompanySelect = editable && (acceptedPicks.length > 0 || companyNotFound);
-  const companyDebugEnabled = useCompanyExtractionDebugEnabled();
   const [companyManual, setCompanyManual] = useState(false);
 
   useEffect(() => {
@@ -202,6 +203,12 @@ export function JobPane({
         </div>
       ) : null}
 
+      {companyDebugEnabled ? (
+        <div className="shrink-0 border-b border-amber-200/80 bg-amber-50/40 px-4 py-3">
+          <CompanyExtractionDebugStatus job={job} busy={busy} />
+        </div>
+      ) : null}
+
       <div className="shrink-0 space-y-2 border-b border-slate-200/50 bg-white/50 px-4 py-3">
         <div className="grid grid-cols-[52px_1fr] items-center gap-x-2 gap-y-2 text-[12px]">
           <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Role</span>
@@ -278,9 +285,6 @@ export function JobPane({
             {job?.pageUrl ? truncate(job.pageUrl, 80) : "—"}
           </span>
         </div>
-        {job && companyDebugEnabled && !busy ? (
-          <CompanyExtractionDebugStatus job={job} debugEnabled />
-        ) : null}
         {onRegenerateLetter ? (
           <button
             type="button"

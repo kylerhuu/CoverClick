@@ -37,6 +37,7 @@ import {
   logScrapedJobContextForDebug,
   readCompanyExtractionDebugEnabled,
 } from "../lib/companyExtractionDebugClient";
+import { useCompanyExtractionDebugEnabled } from "../lib/useCompanyExtractionDebugEnabled";
 import { applyScrapedCompanyDefaults } from "../lib/jobCompanyScrape";
 import { requestJobContextFromActiveTab } from "../lib/tabScrape";
 import { requestCleanJobDescription } from "../lib/jobDescriptionCleanApi";
@@ -153,16 +154,18 @@ function withStableResumeIds(resume: StructuredResume): StructuredResume {
   const [resumeOptimizeError, setResumeOptimizeError] = useState<string | null>(null);
   const [resumeOptimizeResult, setResumeOptimizeResult] = useState<ResumeOptimizeForJobResponse | null>(null);
   const [suggestionDecisions, setSuggestionDecisions] = useState<Record<string, "pending" | "accepted" | "rejected">>({});
+  const companyDebugEnabled = useCompanyExtractionDebugEnabled();
 
   const refreshScrape = useCallback(async () => {
     setScrapeBusy(true);
     setScrapeError(null);
     try {
+      const debugOn = await readCompanyExtractionDebugEnabled();
       const scraped = await requestJobContextFromActiveTab();
       const next = applyScrapedCompanyDefaults(scraped);
-      void readCompanyExtractionDebugEnabled().then((debugOn) => {
-        if (debugOn) logScrapedJobContextForDebug(next, "JobContext after scrape (side panel)");
-      });
+      if (debugOn) {
+        logScrapedJobContextForDebug(next, "JobContext after Re-scan (side panel)");
+      }
       setJob(next);
     } catch (e) {
       setScrapeError(e instanceof Error ? e.message : "Scrape failed");
@@ -714,6 +717,7 @@ function withStableResumeIds(resume: StructuredResume): StructuredResume {
     regenLetterBusy: genBusy,
     descriptionAiCleaning: jobDescriptionAiBusy,
     descriptionAiError: jobDescriptionAiError,
+    companyDebugEnabled,
   };
 
   const renderLetterPane = () => (
