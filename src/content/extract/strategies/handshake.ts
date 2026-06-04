@@ -2,6 +2,7 @@ import type { CompanyRawEntry, JobExtractionPartial } from "../types";
 import { normalizeCompanyCandidate } from "../companyPlatform";
 import { asPartial, firstMatchText, orderedMatchTexts, pickText } from "../dom";
 import { longestDescriptionFromRoots, readDescriptionFromRoot } from "../descriptionDom";
+import { collectHandshakeAboutEmployer, pushHandshakeRaw } from "./handshakeAboutEmployer";
 
 /** High-confidence employer fields (Phase 3 may expand using debug origins). */
 const EMPLOYER_DOM_SELECTORS = [
@@ -20,8 +21,13 @@ function pushRaw(entries: CompanyRawEntry[], raw: string, origin: string): void 
   entries.push({ raw: t, origin });
 }
 
-function employerRawEntriesFromHandshakeDom(doc: Document): CompanyRawEntry[] {
+function employerRawEntriesFromHandshakeDom(doc: Document, descriptionText?: string): CompanyRawEntry[] {
   const entries: CompanyRawEntry[] = [];
+
+  for (const e of collectHandshakeAboutEmployer(doc, descriptionText)) {
+    pushHandshakeRaw(entries, e.raw, e.origin);
+  }
+  // About-the-employer entries are prepended first (highest merge priority).
 
   for (const sel of EMPLOYER_DOM_SELECTORS) {
     for (const t of orderedMatchTexts(doc, [sel])) {
@@ -93,19 +99,6 @@ export function extractHandshake(doc: Document, hostname: string): JobExtraction
       "h1",
     ]) || firstMatchText(doc, ['[class*="job-title"]']);
 
-  const companyRawEntries = employerRawEntriesFromHandshakeDom(doc);
-  const jsonLdRaw = employerJsonLdRaw(doc);
-  if (jsonLdRaw) pushRaw(companyRawEntries, jsonLdRaw, "handshake:jsonLd");
-
-  let company = "";
-  for (const { raw } of companyRawEntries) {
-    const normalized = normalizeCompanyCandidate(raw, { hostname, board: "handshake" });
-    if (normalized.ok) {
-      company = normalized.value;
-      break;
-    }
-  }
-
   const description =
     longestDescriptionFromRoots(
       doc,
@@ -120,6 +113,19 @@ export function extractHandshake(doc: Document, hostname: string): JobExtraction
       ],
       120,
     ) || readDescriptionFromRoot(doc.querySelector("main"));
+
+  const companyRawEntries = employerRawEntriesFromHandshakeDom(doc, description);
+  const jsonLdRaw = employerJsonLdRaw(doc);
+  if (jsonLdRaw) pushRaw(companyRawEntries, jsonLdRaw, "handshake:jsonLd");
+
+  let company = "";
+  for (const { raw } of companyRawEntries) {
+    const normalized = normalizeCompanyCandidate(raw, { hostname, board: "handshake" });
+    if (normalized.ok) {
+      company = normalized.value;
+      break;
+    }
+  }
 
   return asPartial({
     jobTitle: title,
