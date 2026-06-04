@@ -4,14 +4,10 @@ import type { CompanyRawEntry, JobExtractionPartial } from "../types";
 import { normalizeCompanyCandidate } from "../companyPlatform";
 import { asPartial, orderedMatchTexts, pickText } from "../dom";
 import { longestDescriptionFromRoots, readDescriptionFromRoot } from "../descriptionDom";
-import {
-  findLinkedInJobDetailRoot,
-  isLinkedInJobDetailUrl,
-  spinWait,
-} from "./linkedinJobDetail";
+import { findLinkedInJobDetailRoot, isLinkedInJobDetailUrl, spinWait } from "./linkedinJobDetail";
 
-const RETRY_ATTEMPTS = 6;
-const RETRY_DELAY_MS = 280;
+const RETRY_ATTEMPTS = 10;
+const RETRY_DELAY_MS = 300;
 
 const TITLE_SELECTORS = [
   "h1[data-test-job-title]",
@@ -37,10 +33,12 @@ const DESCRIPTION_SELECTORS = [
   ".jobs-description__text",
   ".jobs-description-content__text",
   ".jobs-box__html-content",
+  ".show-more-less-html__markup",
   ".jobs-description",
   '[class*="jobs-description-content"]',
   '[class*="description-content"]',
   ".jobs-details__main-content",
+  ".decorated-job-posting__details",
 ] as const;
 
 const MIN_DESCRIPTION_OK = 120;
@@ -172,6 +170,14 @@ function evaluateQuality(
   return "linkedin_not_ready";
 }
 
+function emptyFieldCandidates(): {
+  titleCandidates: LinkedInFieldCandidate[];
+  companyCandidates: LinkedInFieldCandidate[];
+  descriptionCandidates: LinkedInFieldCandidate[];
+} {
+  return { titleCandidates: [], companyCandidates: [], descriptionCandidates: [] };
+}
+
 export function extractLinkedIn(
   doc: Document,
   url: URL,
@@ -179,27 +185,42 @@ export function extractLinkedIn(
   meta: { attempt: number; waitMsTotal: number; scrapePipelineVersion: number },
 ): LinkedInExtractionResult {
   const isJobDetailUrl = isLinkedInJobDetailUrl(url);
-  const { root, selectorUsed } = findLinkedInJobDetailRoot(doc);
-  const detailRootFound = Boolean(root);
-  const scope: ParentNode = root ?? doc;
+  const resolution = findLinkedInJobDetailRoot(doc, url);
+  const detailRootFound = Boolean(resolution.root);
+  const scope = resolution.root;
 
-  const titleCandidates = collectTitles(scope);
-  const companyCandidates: LinkedInFieldCandidate[] = [];
-  const descriptionCandidates = collectDescriptions(scope);
+  let titleCandidates: LinkedInFieldCandidate[] = [];
+  let companyCandidates: LinkedInFieldCandidate[] = [];
+  let descriptionCandidates: LinkedInFieldCandidate[] = [];
+  let jobTitle = "";
+  let companyName = "";
+  let descriptionText = "";
+  let rawEntries: CompanyRawEntry[] = [];
 
-  const jobTitle = pickTitle(titleCandidates, scope);
-  for (const c of titleCandidates) {
-    if (jobTitle && c.raw === jobTitle) {
-      c.status = "accepted";
-      c.reason = undefined;
-    } else {
-      c.status = "rejected";
-      c.reason = jobTitle ? "not_selected" : "empty";
+  if (scope) {
+    titleCandidates = collectTitles(scope);
+    descriptionCandidates = collectDescriptions(scope);
+    jobTitle = pickTitle(titleCandidates, scope);
+    for (const c of titleCandidates) {
+      if (jobTitle && c.raw === jobTitle) {
+        c.status = "accepted";
+        c.reason = undefined;
+      } else {
+        c.status = "rejected";
+        c.reason = jobTitle ? "not_selected" : "empty";
+      }
     }
-  }
 
-  const { companyName, rawEntries } = pickCompany(companyCandidates, scope, hostname);
-  const descriptionText = pickDescription(scope, descriptionCandidates);
+    const companyResult = pickCompany(companyCandidates, scope, hostname);
+    companyName = companyResult.companyName;
+    rawEntries = companyResult.rawEntries;
+    descriptionText = pickDescription(scope, descriptionCandidates);
+  } else {
+    const empty = emptyFieldCandidates();
+    titleCandidates = empty.titleCandidates;
+    companyCandidates = empty.companyCandidates;
+    descriptionCandidates = empty.descriptionCandidates;
+  }
 
   const scrapeQuality = evaluateQuality(isJobDetailUrl, detailRootFound, jobTitle, descriptionText);
 
@@ -209,7 +230,9 @@ export function extractLinkedIn(
     scrapePipelineVersion: meta.scrapePipelineVersion,
     isJobDetailUrl,
     detailRootFound,
-    detailRootSelectorUsed: selectorUsed,
+    detailRootSelectorUsed: resolution.selectorUsed,
+    rootResolutionMode: resolution.rootResolutionMode,
+    candidateRoots: resolution.candidateRoots,
     waitAttempts: meta.attempt + 1,
     waitMsTotal: meta.waitMsTotal,
     titleCandidates,
@@ -236,7 +259,14 @@ export function extractLinkedIn(
   };
 }
 
-/** Phase 1: retry while detail pane hydrates (LinkedIn SPA). */
+function debugHasUsableRoot(debug: LinkedInExtractionDebugReport): boolean {
+  if (!debug.detailRootFound) return false;
+  return debug.candidateRoots.some(
+    (c) => c.status === "accepted" && c.selector === debug.detailRootSelectorUsed,
+  );
+}
+
+/** Retry while detail pane hydrates (LinkedIn SPA). Stops early when a usable root is found. */
 export function extractLinkedInWithRetry(
   doc: Document,
   url: URL,
@@ -251,7 +281,7 @@ export function extractLinkedInWithRetry(
   });
 
   for (let attempt = 1; attempt < RETRY_ATTEMPTS; attempt++) {
-    if (result.scrapeQuality === "ok") break;
+    if (result.scrapeQuality === "ok" || debugHasUsableRoot(result.debug)) break;
     spinWait(RETRY_DELAY_MS);
     waitMsTotal += RETRY_DELAY_MS;
     result = extractLinkedIn(doc, url, hostname, { attempt, waitMsTotal, scrapePipelineVersion });

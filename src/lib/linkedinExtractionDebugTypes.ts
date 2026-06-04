@@ -5,6 +5,19 @@ export type LinkedInFieldCandidate = {
   reason?: string;
 };
 
+export type LinkedInRootCandidate = {
+  selector: string;
+  found: boolean;
+  textLength: number;
+  hasTitle: boolean;
+  hasCompany: boolean;
+  hasDescription: boolean;
+  status: "accepted" | "rejected" | "not_found";
+  reason?: string;
+};
+
+export type LinkedInRootResolutionMode = "strict" | "currentJobId" | "fallback" | "none";
+
 export type LinkedInExtractionDebugReport = {
   board: "linkedin";
   pageUrl: string;
@@ -12,6 +25,8 @@ export type LinkedInExtractionDebugReport = {
   isJobDetailUrl: boolean;
   detailRootFound: boolean;
   detailRootSelectorUsed: string;
+  rootResolutionMode: LinkedInRootResolutionMode;
+  candidateRoots: LinkedInRootCandidate[];
   waitAttempts: number;
   waitMsTotal: number;
   titleCandidates: LinkedInFieldCandidate[];

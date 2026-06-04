@@ -205,8 +205,9 @@ export function JobPane({
 
       {job?.scrapeQuality === "linkedin_not_ready" || job?.scrapeQuality === "linkedin_no_detail_root" ? (
         <div className="shrink-0 border-b border-sky-200/80 bg-sky-50/90 px-4 py-2.5 text-[11px] leading-snug text-sky-900">
-          Could not read this LinkedIn job yet. Try opening the full job page or click Re-scan after the page finishes
-          loading.
+          {job.pageUrl.includes("linkedin.com") && job.pageUrl.includes("/jobs/collections/")
+            ? "Open the job card, wait for the details pane to load, then click Re-scan."
+            : "Could not read this LinkedIn job yet. Try opening the full job page or click Re-scan after the page finishes loading."}
         </div>
       ) : null}
 

@@ -12,8 +12,12 @@ export function logLinkedInExtractionDebug(report: LinkedInExtractionDebugReport
       `isJobDetailUrl: ${report.isJobDetailUrl}`,
       `detailRootFound: ${report.detailRootFound}`,
       `detailRootSelectorUsed: ${report.detailRootSelectorUsed || "(none)"}`,
+      `rootResolutionMode: ${report.rootResolutionMode}`,
       `waitAttempts: ${report.waitAttempts} · waitMsTotal: ${report.waitMsTotal}`,
       `scrapeQuality: ${report.scrapeQuality}`,
+      "",
+      "Candidate roots:",
+      ...formatRootCandidates(report.candidateRoots),
       "",
       "Title candidates:",
       ...formatCandidates(report.titleCandidates),
@@ -34,6 +38,19 @@ export function logLinkedInExtractionDebug(report: LinkedInExtractionDebugReport
     for (const line of lines) console.log(line);
     console.log("Full report object:", report);
     console.groupEnd();
+  });
+}
+
+function formatRootCandidates(list: LinkedInExtractionDebugReport["candidateRoots"]): string[] {
+  if (!list.length) return ["- (none)"];
+  return list.map((c) => {
+    const why = c.reason ? ` (${c.reason})` : "";
+    const found = c.found ? "found" : "not found";
+    return (
+      `- ${c.selector} → ${found}, textLength ${c.textLength}, ` +
+      `hasTitle ${c.hasTitle}, hasCompany ${c.hasCompany}, hasDescription ${c.hasDescription} ` +
+      `[${c.status}]${why}`
+    );
   });
 }
 
