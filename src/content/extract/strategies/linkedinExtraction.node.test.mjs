@@ -16,11 +16,11 @@ describe("linkedin extraction (fixture)", () => {
     const result = extractLinkedIn(document, url, "www.linkedin.com", {
       attempt: 0,
       waitMsTotal: 0,
-      scrapePipelineVersion: 6,
+      scrapePipelineVersion: 7,
     });
 
     assert.equal(result.debug.detailRootFound, true);
-    assert.equal(result.debug.detailRootSelectorUsed, ".jobs-search__job-details");
+    assert.ok(result.debug.detailRootSelectorUsed.includes(".jobs-search__job-details"));
     assert.ok(result.debug.candidateRoots.length > 0);
     assert.ok(result.debug.candidateRoots.some((c) => c.status === "accepted"));
     assert.equal(result.debug.isJobDetailUrl, true);

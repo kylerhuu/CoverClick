@@ -185,7 +185,7 @@ export function extractLinkedIn(
   meta: { attempt: number; waitMsTotal: number; scrapePipelineVersion: number },
 ): LinkedInExtractionResult {
   const isJobDetailUrl = isLinkedInJobDetailUrl(url);
-  const resolution = findLinkedInJobDetailRoot(doc, url);
+  const resolution = findLinkedInJobDetailRoot(url, doc);
   const detailRootFound = Boolean(resolution.root);
   const scope = resolution.root;
 
@@ -232,6 +232,7 @@ export function extractLinkedIn(
     detailRootFound,
     detailRootSelectorUsed: resolution.selectorUsed,
     rootResolutionMode: resolution.rootResolutionMode,
+    sourceDocument: resolution.sourceDocument,
     candidateRoots: resolution.candidateRoots,
     waitAttempts: meta.attempt + 1,
     waitMsTotal: meta.waitMsTotal,
@@ -262,7 +263,11 @@ export function extractLinkedIn(
 function debugHasUsableRoot(debug: LinkedInExtractionDebugReport): boolean {
   if (!debug.detailRootFound) return false;
   return debug.candidateRoots.some(
-    (c) => c.status === "accepted" && c.selector === debug.detailRootSelectorUsed,
+    (c) =>
+      c.status === "accepted" &&
+      (c.selector === debug.detailRootSelectorUsed ||
+        c.selector === `winner:${debug.detailRootSelectorUsed}` ||
+        debug.detailRootSelectorUsed.startsWith("guestApi:")),
   );
 }
 

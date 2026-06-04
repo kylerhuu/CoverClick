@@ -24,7 +24,7 @@ describe("linkedinJobDetail root resolution", () => {
   it("resolves collections layout with candidateRoots diagnostics", () => {
     const { document } = parseHTML(collectionsHtml);
     const url = new URL("https://www.linkedin.com/jobs/collections/recommended/?currentJobId=4419936820");
-    const result = findLinkedInJobDetailRoot(document, url);
+    const result = findLinkedInJobDetailRoot(url, document);
 
     assert.equal(result.root !== null, true);
     assert.ok(result.selectorUsed.length > 0);
@@ -34,7 +34,7 @@ describe("linkedinJobDetail root resolution", () => {
     const extraction = extractLinkedIn(document, url, "www.linkedin.com", {
       attempt: 0,
       waitMsTotal: 0,
-      scrapePipelineVersion: 6,
+      scrapePipelineVersion: 7,
     });
     assert.equal(extraction.debug.detailRootFound, true);
     assert.ok(extraction.debug.candidateRoots.length > 0);

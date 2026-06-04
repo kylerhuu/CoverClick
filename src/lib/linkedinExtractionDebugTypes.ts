@@ -26,6 +26,8 @@ export type LinkedInExtractionDebugReport = {
   detailRootFound: boolean;
   detailRootSelectorUsed: string;
   rootResolutionMode: LinkedInRootResolutionMode;
+  /** top document vs same-origin iframe where the winning root was found */
+  sourceDocument?: "top" | "iframe";
   candidateRoots: LinkedInRootCandidate[];
   waitAttempts: number;
   waitMsTotal: number;

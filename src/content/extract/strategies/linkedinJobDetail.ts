@@ -1,9 +1,16 @@
-import { longestDescriptionFromRoots } from "../descriptionDom";
+import { longestDescriptionFromRoots, readDescriptionFromRoot } from "../descriptionDom";
 import { pickText } from "../dom";
 import type {
   LinkedInRootCandidate,
   LinkedInRootResolutionMode,
 } from "../../../lib/linkedinExtractionDebugTypes";
+import {
+  buildDocumentProbeCandidate,
+  deepQuerySelector,
+  deepQuerySelectorAll,
+  findElementsReferencingJobId,
+  linkedInDocuments,
+} from "./linkedinDomTraversal";
 
 /** Tier A: strict detail-pane selectors (first passing probe wins). */
 export const LINKEDIN_DETAIL_ROOT_SELECTORS = [
@@ -21,11 +28,14 @@ export const LINKEDIN_DETAIL_ROOT_SELECTORS = [
   ".jobs-unified-top-card",
   'div[class*="job-view-layout"]',
   'div[class*="jobs-details"]',
+  'div[class*="jobs-semantic-search"]',
+  'section[class*="job-details"]',
+  "article.jobs-description__container",
+  ".core-section-container__content",
   "article:has(.jobs-description__text)",
   "article:has(.show-more-less-html__markup)",
 ] as const;
 
-/** Tier B: broader fallbacks (scored; currentJobId runs before these). */
 const FALLBACK_ROOT_PROBES = [
   { selector: ".jobs-search", mode: "prune-list" as const },
   { selector: ".jobs-details", mode: "element" as const },
@@ -40,6 +50,7 @@ const LIST_EXCLUDE_SELECTORS = [
   ".jobs-search-results",
   '[class*="results-list"]',
   '[class*="job-card-list"]',
+  '[class*="jobs-search-results"]',
 ] as const;
 
 const TITLE_PROBE_SELECTORS = [
@@ -68,12 +79,20 @@ const DESCRIPTION_PROBE_SELECTORS = [
   ".jobs-description",
   '[class*="jobs-description-content"]',
   ".decorated-job-posting__details",
+  ".core-section-container__content",
+] as const;
+
+const DESCRIPTION_BLOCK_SELECTORS = [
+  ".show-more-less-html__markup",
+  ".jobs-description__text",
+  ".jobs-description-content__text",
+  ".jobs-box__html-content",
+  ".decorated-job-posting__details",
 ] as const;
 
 const MIN_DESCRIPTION_SIGNAL = 120;
 const MIN_TITLE_SIGNAL = 2;
 const MAX_JOB_CARDS_IN_ROOT = 2;
-const MAX_CANDIDATE_ROOTS_LOG = 16;
 
 const FEED_NOISE = /recommended for you|people also viewed|jobs you may like|similar jobs/i;
 
@@ -103,6 +122,7 @@ export type LinkedInDetailRoot = {
   selectorUsed: string;
   candidateRoots: LinkedInRootCandidate[];
   rootResolutionMode: LinkedInRootResolutionMode;
+  sourceDocument: "top" | "iframe";
 };
 
 type RootSignals = {
@@ -112,13 +132,10 @@ type RootSignals = {
   hasDescription: boolean;
 };
 
-function safeQuerySelector(parent: ParentNode, selector: string): Element | null {
-  try {
-    return parent.querySelector(selector);
-  } catch {
-    return null;
-  }
-}
+type DocContext = {
+  doc: Document;
+  label: "top" | "iframe";
+};
 
 export function spinWait(ms: number): void {
   if (ms <= 0) return;
@@ -126,6 +143,20 @@ export function spinWait(ms: number): void {
   while (Date.now() < end) {
     /* intentional sync delay for SPA hydration in content script */
   }
+}
+
+function isPriorityCandidate(selector: string): boolean {
+  return /^(documentProbe:|currentJobId:|fallback:|description-anchor|deep:|tierA:summary|winner:)/.test(selector);
+}
+
+function pushCandidateLog(list: LinkedInRootCandidate[], candidate: LinkedInRootCandidate): void {
+  const dup = list.some((c) => c.selector === candidate.selector && c.status === candidate.status);
+  if (dup) return;
+  if (!isPriorityCandidate(candidate.selector)) {
+    const nonPriority = list.filter((c) => !isPriorityCandidate(c.selector)).length;
+    if (nonPriority >= 6) return;
+  }
+  list.push(candidate);
 }
 
 function isVisible(el: Element): boolean {
@@ -296,14 +327,8 @@ function evaluateRoot(
   };
 }
 
-function pushCandidateLog(list: LinkedInRootCandidate[], candidate: LinkedInRootCandidate): void {
-  if (list.length >= MAX_CANDIDATE_ROOTS_LOG) return;
-  const dup = list.some((c) => c.selector === candidate.selector && c.status === candidate.status);
-  if (!dup) list.push(candidate);
-}
-
 function resolvePrunedJobsSearch(doc: Document): Element | null {
-  const shell = doc.querySelector(".jobs-search");
+  const shell = deepQuerySelector(doc, ".jobs-search") ?? doc.querySelector(".jobs-search");
   if (!shell) return null;
   const list = shell.querySelector(LIST_EXCLUDE_SELECTORS.join(", "));
   if (!list) return shell;
@@ -324,7 +349,7 @@ function resolvePrunedJobsSearch(doc: Document): Element | null {
 }
 
 function resolvePrunedMain(doc: Document, selector: string): Element | null {
-  const main = doc.querySelector(selector);
+  const main = deepQuerySelector(doc, selector) ?? doc.querySelector(selector);
   if (!main) return null;
 
   const list = main.querySelector(LIST_EXCLUDE_SELECTORS.join(", "));
@@ -336,9 +361,9 @@ function resolvePrunedMain(doc: Document, selector: string): Element | null {
     if (acceptable) return child;
   }
 
-  const descHost = main.querySelector(
-    ".jobs-description__text, .show-more-less-html__markup, .jobs-description, #job-details",
-  );
+  const descHost =
+    deepQuerySelector(doc, ".jobs-description__text, .show-more-less-html__markup, .jobs-description, #job-details") ??
+    main.querySelector(".jobs-description__text, .show-more-less-html__markup, .jobs-description, #job-details");
   if (descHost) {
     const climb =
       descHost.closest(".jobs-search__job-details") ??
@@ -352,7 +377,7 @@ function resolvePrunedMain(doc: Document, selector: string): Element | null {
 }
 
 function findDescriptionAnchorRoot(doc: Document): Element | null {
-  const anchor = safeQuerySelector(
+  const anchor = deepQuerySelector(
     doc,
     ".show-more-less-html__markup, .jobs-description__text, .decorated-job-posting__details",
   );
@@ -369,28 +394,60 @@ function findDescriptionAnchorRoot(doc: Document): Element | null {
   );
 }
 
-function findCurrentJobIdAnchoredRoot(doc: Document, jobId: string): { root: Element | null; candidate: LinkedInRootCandidate } {
-  const selector = `currentJobId:${jobId}`;
-  const anchorSelectors = [
-    `[data-job-id="${jobId}"]`,
-    `[data-occludable-job-id="${jobId}"]`,
-    `[data-entity-urn*=":${jobId}"]`,
-    `a[href*="/jobs/view/${jobId}"]`,
-    `a[href*="currentJobId=${jobId}"]`,
-  ];
+function findLargestDescriptionRoot(doc: Document): { root: Element | null; candidate: LinkedInRootCandidate } {
+  const selector = "deep:largest-description-block";
+  let best: { el: Element; len: number } | null = null;
 
-  const anchors = new Set<Element>();
-  for (const sel of anchorSelectors) {
-    try {
-      doc.querySelectorAll(sel).forEach((el) => {
-        if (!isInsideResultsList(el)) anchors.add(el);
-      });
-    } catch {
-      /* unsupported selector in this document */
+  for (const block of deepQuerySelectorAll(doc, DESCRIPTION_BLOCK_SELECTORS.join(", "))) {
+    if (isInsideResultsList(block)) continue;
+    const t = readDescriptionFromRoot(block);
+    if (t.length >= MIN_DESCRIPTION_SIGNAL && t.length > (best?.len ?? 0)) {
+      best = { el: block, len: t.length };
     }
   }
 
-  if (!anchors.size) {
+  if (!best) {
+    return {
+      root: null,
+      candidate: {
+        selector,
+        found: false,
+        textLength: 0,
+        hasTitle: false,
+        hasCompany: false,
+        hasDescription: false,
+        status: "not_found",
+        reason: "no_description_blocks_in_dom",
+      },
+    };
+  }
+
+  let node: Element | null = best.el;
+  let climbBest: Element | null = null;
+  let depth = 0;
+  while (node && node !== doc.body && depth < 12) {
+    const { acceptable } = evaluateRoot(node, selector);
+    if (acceptable) {
+      climbBest = node;
+      break;
+    }
+    node = node.parentElement;
+    depth++;
+  }
+
+  const target = climbBest ?? best.el;
+  const final = evaluateRoot(target, selector);
+  if (!final.acceptable) {
+    return { root: null, candidate: { ...final.candidate, found: true, status: "rejected", reason: final.candidate.reason } };
+  }
+  return { root: target, candidate: { ...final.candidate, status: "accepted" } };
+}
+
+function findCurrentJobIdAnchoredRoot(doc: Document, jobId: string): { root: Element | null; candidate: LinkedInRootCandidate } {
+  const selector = `currentJobId:${jobId}`;
+  const anchors = findElementsReferencingJobId(doc, jobId).filter((el) => !isInsideResultsList(el));
+
+  if (!anchors.length) {
     return {
       root: null,
       candidate: {
@@ -429,35 +486,77 @@ function findCurrentJobIdAnchoredRoot(doc: Document, jobId: string): { root: Ele
   }
 
   if (!best) {
-    const probe = evaluateRoot(null, selector);
-    return { root: null, candidate: { ...probe.candidate, found: false, reason: "anchor_found_no_usable_ancestor" } };
+    return {
+      root: null,
+      candidate: {
+        selector,
+        found: true,
+        textLength: 0,
+        hasTitle: false,
+        hasCompany: false,
+        hasDescription: false,
+        status: "rejected",
+        reason: `anchors=${anchors.length}, no_usable_ancestor`,
+      },
+    };
   }
 
   const final = evaluateRoot(best.el, selector);
   return { root: best.el, candidate: { ...final.candidate, status: "accepted", reason: undefined } };
 }
 
-export function findLinkedInJobDetailRoot(doc: Document, url: URL): LinkedInDetailRoot {
-  const candidateRoots: LinkedInRootCandidate[] = [];
+type ResolveState = {
+  root: Element | null;
+  selectorUsed: string;
+  rootResolutionMode: LinkedInRootResolutionMode;
+  sourceDocument: "top" | "iframe";
+};
+
+function resolveInDocument(ctx: DocContext, url: URL, candidateRoots: LinkedInRootCandidate[]): ResolveState {
+  const { doc, label } = ctx;
   let root: Element | null = null;
   let selectorUsed = "";
   let rootResolutionMode: LinkedInRootResolutionMode = "none";
 
+  let tierAMatched = 0;
+  let tierARejected = 0;
   for (const sel of LINKEDIN_DETAIL_ROOT_SELECTORS) {
-    const el = safeQuerySelector(doc, sel);
-    const { candidate, acceptable } = evaluateRoot(el, sel);
-    pushCandidateLog(candidateRoots, candidate);
+    const el = deepQuerySelector(doc, sel);
+    if (!el) continue;
+    tierAMatched++;
+    const { candidate, acceptable } = evaluateRoot(el, `${label}:${sel}`);
+    if (!acceptable) {
+      tierARejected++;
+      pushCandidateLog(candidateRoots, candidate);
+    }
     if (acceptable && !root) {
       root = el;
-      selectorUsed = sel;
+      selectorUsed = `${label}:${sel}`;
       rootResolutionMode = "strict";
+      pushCandidateLog(candidateRoots, { ...candidate, status: "accepted" });
     }
   }
 
+  pushCandidateLog(candidateRoots, {
+    selector: `tierA:summary (${label})`,
+    found: tierAMatched > 0,
+    textLength: 0,
+    hasTitle: false,
+    hasCompany: false,
+    hasDescription: false,
+    status: tierAMatched > 0 && root ? "accepted" : "rejected",
+    reason:
+      tierAMatched === 0
+        ? "no strict selector matched (light+shadow DOM)"
+        : root
+          ? `accepted ${selectorUsed}`
+          : `${tierAMatched} matched, ${tierARejected} rejected`,
+  });
+
   if (!root) {
     const descRoot = findDescriptionAnchorRoot(doc);
+    const sel = `description-anchor (${label})`;
     if (descRoot) {
-      const sel = "description-anchor-ancestor";
       const { candidate, acceptable } = evaluateRoot(descRoot, sel);
       pushCandidateLog(candidateRoots, candidate);
       if (acceptable) {
@@ -467,7 +566,7 @@ export function findLinkedInJobDetailRoot(doc: Document, url: URL): LinkedInDeta
       }
     } else {
       pushCandidateLog(candidateRoots, {
-        selector: "description-anchor-ancestor",
+        selector: sel,
         found: false,
         textLength: 0,
         hasTitle: false,
@@ -482,15 +581,22 @@ export function findLinkedInJobDetailRoot(doc: Document, url: URL): LinkedInDeta
   const jobId = getLinkedInCurrentJobId(url);
   if (!root && jobId) {
     const anchored = findCurrentJobIdAnchoredRoot(doc, jobId);
-    pushCandidateLog(candidateRoots, anchored.candidate);
+    pushCandidateLog(candidateRoots, { ...anchored.candidate, selector: `${anchored.candidate.selector} (${label})` });
     if (anchored.root) {
       root = anchored.root;
-      selectorUsed = anchored.candidate.selector;
+      selectorUsed = `${label}:${anchored.candidate.selector}`;
       rootResolutionMode = "currentJobId";
     }
-  } else if (jobId) {
-    const anchored = findCurrentJobIdAnchoredRoot(doc, jobId);
-    pushCandidateLog(candidateRoots, { ...anchored.candidate, status: "rejected", reason: "strict_root_already_chosen" });
+  }
+
+  if (!root) {
+    const deepDesc = findLargestDescriptionRoot(doc);
+    pushCandidateLog(candidateRoots, { ...deepDesc.candidate, selector: `${deepDesc.candidate.selector} (${label})` });
+    if (deepDesc.root) {
+      root = deepDesc.root;
+      selectorUsed = `${label}:${deepDesc.candidate.selector}`;
+      rootResolutionMode = "fallback";
+    }
   }
 
   if (!root) {
@@ -502,29 +608,85 @@ export function findLinkedInJobDetailRoot(doc: Document, url: URL): LinkedInDeta
             ? resolvePrunedJobsSearch(doc)
             : resolvePrunedMain(doc, probe.selector);
       } else {
-        el = doc.querySelector(probe.selector);
+        el = deepQuerySelector(doc, probe.selector) ?? doc.querySelector(probe.selector);
       }
 
-      const label =
+      const base =
         probe.mode === "prune-list" ? `fallback:${probe.selector} (pruned)` : `fallback:${probe.selector}`;
-      const { candidate, acceptable } = evaluateRoot(el, label);
+      const labelSel = `${base} (${label})`;
+      const { candidate, acceptable } = evaluateRoot(el, labelSel);
       pushCandidateLog(candidateRoots, candidate);
       if (acceptable && !root) {
         root = el;
-        selectorUsed = label;
+        selectorUsed = labelSel;
         rootResolutionMode = "fallback";
       }
     }
   }
 
-  return { root, selectorUsed, candidateRoots, rootResolutionMode };
+  return { root, selectorUsed, rootResolutionMode, sourceDocument: label };
+}
+
+function rootScore(state: ResolveState): number {
+  if (!state.root) return 0;
+  const signals = measureRoot(state.root);
+  return (
+    (signals.hasDescription ? 1000 : 0) +
+    (signals.hasTitle ? 100 : 0) +
+    (signals.hasCompany ? 100 : 0) +
+    (state.rootResolutionMode === "strict" ? 50 : state.rootResolutionMode === "currentJobId" ? 40 : 10)
+  );
+}
+
+export function findLinkedInJobDetailRoot(url: URL, rootDoc: Document = document): LinkedInDetailRoot {
+  const candidateRoots: LinkedInRootCandidate[] = [];
+  const docs = linkedInDocuments(rootDoc);
+  const contexts: DocContext[] = docs.map((doc, i) => ({
+    doc,
+    label: i === 0 ? "top" : "iframe",
+  }));
+
+  for (const ctx of contexts) {
+    const probe = buildDocumentProbeCandidate(ctx.doc, `documentProbe:${ctx.label}`);
+    pushCandidateLog(candidateRoots, probe);
+  }
+
+  let best: ResolveState = {
+    root: null,
+    selectorUsed: "",
+    rootResolutionMode: "none",
+    sourceDocument: "top",
+  };
+
+  for (const ctx of contexts) {
+    const resolved = resolveInDocument(ctx, url, candidateRoots);
+    if (rootScore(resolved) > rootScore(best)) best = resolved;
+  }
+
+  if (best.root) {
+    pushCandidateLog(candidateRoots, {
+      selector: `winner:${best.selectorUsed}`,
+      found: true,
+      ...measureRoot(best.root),
+      status: "accepted",
+      reason: best.rootResolutionMode,
+    });
+  }
+
+  return {
+    root: best.root,
+    selectorUsed: best.selectorUsed,
+    candidateRoots,
+    rootResolutionMode: best.rootResolutionMode,
+    sourceDocument: best.sourceDocument,
+  };
 }
 
 /** True when a detail root is resolved and looks ready for field extraction. */
 export function hasUsableLinkedInDetailRoot(result: LinkedInDetailRoot): boolean {
   if (!result.root) return false;
   const accepted = result.candidateRoots.find(
-    (c) => c.status === "accepted" && c.selector === result.selectorUsed,
+    (c) => c.status === "accepted" && (c.selector === result.selectorUsed || c.selector === `winner:${result.selectorUsed}`),
   );
   if (accepted) return true;
   const { acceptable } = evaluateRoot(result.root, result.selectorUsed || "resolved");

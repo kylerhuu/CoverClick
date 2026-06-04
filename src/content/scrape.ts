@@ -1,6 +1,7 @@
 import { SCRAPE_MESSAGE_TYPE } from "../lib/messages";
 import { serializeScrapedJobForMessage } from "../lib/serializeScrapedJobForMessage";
 import { extractJobContext } from "./extract";
+import { maybeEnhanceLinkedInFromGuestApi } from "./extract/strategies/linkedinGuestJobPosting";
 
 export type ScrapeMessage = { type: typeof SCRAPE_MESSAGE_TYPE } | { type: "COVERCLICK_PING" };
 
@@ -19,12 +20,15 @@ const scrapeListener: MessageListener = (message: ScrapeMessage, _sender, sendRe
     return;
   }
   if (message?.type === SCRAPE_MESSAGE_TYPE) {
-    try {
-      const job = serializeScrapedJobForMessage(extractJobContext());
-      sendResponse({ ok: true, job });
-    } catch (e) {
-      sendResponse({ ok: false, error: e instanceof Error ? e.message : "Scrape failed" });
-    }
+    void (async () => {
+      try {
+        let job = serializeScrapedJobForMessage(extractJobContext());
+        job = serializeScrapedJobForMessage(await maybeEnhanceLinkedInFromGuestApi(job));
+        sendResponse({ ok: true, job });
+      } catch (e) {
+        sendResponse({ ok: false, error: e instanceof Error ? e.message : "Scrape failed" });
+      }
+    })();
     return true;
   }
   return undefined;

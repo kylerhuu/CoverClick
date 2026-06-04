@@ -34,6 +34,7 @@ export function LinkedInExtractionDebugPanel({ report }: Props) {
         <li>detailRootFound: {String(report.detailRootFound)}</li>
         <li>detailRootSelectorUsed: {report.detailRootSelectorUsed || "(none)"}</li>
         <li>rootResolutionMode: {report.rootResolutionMode}</li>
+        <li>sourceDocument: {report.sourceDocument ?? "(unknown)"}</li>
         <li>isJobDetailUrl: {String(report.isJobDetailUrl)}</li>
         <li>scrapeQuality: {report.scrapeQuality}</li>
         <li>
