@@ -22,6 +22,8 @@ type Props = {
   renderOptions: ResumeRenderOptions;
   pagesUsed: number | null;
   targetLength: number;
+  exportFileBaseName: string;
+  onExportFileBaseNameChange: (value: string) => void;
   manualEditMode: boolean;
   onEnterManualEdit: () => void;
   onDoneManualEdit: () => void;
@@ -39,6 +41,8 @@ export function ResumeDownloadReview({
   renderOptions,
   pagesUsed,
   targetLength,
+  exportFileBaseName,
+  onExportFileBaseNameChange,
   manualEditMode,
   onEnterManualEdit,
   onDoneManualEdit,
@@ -156,6 +160,21 @@ export function ResumeDownloadReview({
         </div>
 
         <footer className="shrink-0 border-t border-slate-200 bg-white px-4 py-3 sm:px-5">
+          <label className="mb-3 block text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+            Download file name
+            <div className="mt-1 flex items-center gap-1.5">
+              <input
+                type="text"
+                value={exportFileBaseName}
+                onChange={(e) => onExportFileBaseNameChange(e.target.value)}
+                spellCheck={false}
+                autoComplete="off"
+                className="min-w-0 flex-1 rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-[12px] font-medium text-slate-900 outline-none focus:border-indigo-300 focus:ring-2 focus:ring-indigo-500/15"
+                placeholder="Your_Name_Role_Resume"
+              />
+              <span className="shrink-0 text-[11px] font-medium text-slate-500">.pdf / .docx</span>
+            </div>
+          </label>
           <div className="flex flex-wrap gap-2">
             <button
               type="button"

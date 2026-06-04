@@ -1,4 +1,4 @@
-import type { JobContext, UserProfile } from "./types";
+import type { JobContext, StructuredResume, UserProfile } from "./types";
 
 const INVALID_FILENAME_CHARS = /[<>:"/\\|?*\u0000-\u001f]/g;
 
@@ -24,6 +24,22 @@ export function buildDefaultExportBasename(profile: UserProfile, job: JobContext
   const role = sanitizeFilenamePart(job?.jobTitle ?? "", "Role");
   const co = sanitizeFilenamePart(job?.companyName ?? "", "Company");
   return `${name}_${role}_${co}_CoverLetter`;
+}
+
+/** Basename for resume PDF/DOCX (no extension). */
+export function buildDefaultResumeExportBasename(
+  resume: StructuredResume,
+  job: JobContext | null,
+  targetRole = "",
+): string {
+  const name = sanitizeFilenamePart(resume.contact.fullName, "Resume");
+  const role = sanitizeFilenamePart(targetRole || job?.jobTitle || "", "");
+  const co = sanitizeFilenamePart(job?.companyName ?? "", "");
+  const parts = [name];
+  if (role) parts.push(role);
+  if (co) parts.push(co);
+  parts.push("Resume");
+  return parts.join("_");
 }
 
 export function truncate(text: string, maxLen: number): string {

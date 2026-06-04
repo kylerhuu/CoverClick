@@ -42,7 +42,7 @@ import {
   isResumeStudioEmpty,
   profileToStructuredResume,
 } from "../lib/profileToStructuredResume";
-import { buildDefaultExportBasename } from "../lib/utils";
+import { buildDefaultExportBasename, buildDefaultResumeExportBasename } from "../lib/utils";
 import { cn } from "../lib/classNames";
 import { apiGenerateResumeSummary, apiOptimizeResumeForJob, ApiHttpError } from "../lib/backendApi";
 import { JobPane } from "../popup/components/JobPane";
@@ -124,6 +124,10 @@ function withStableResumeIds(resume: StructuredResume): StructuredResume {
   const [workspaceTab, setWorkspaceTab] = useState<WorkspaceTab>("split");
   const [exportBasename, setExportBasename] = useState(() => buildDefaultExportBasename(EMPTY_PROFILE, null));
   const exportDirtyRef = useRef(false);
+  const [resumeExportBasename, setResumeExportBasename] = useState(() =>
+    buildDefaultResumeExportBasename(EMPTY_STRUCTURED_RESUME, null),
+  );
+  const resumeExportDirtyRef = useRef(false);
   const panelShellRef = useRef<HTMLDivElement>(null);
   const [panelWidth, setPanelWidth] = useState(640);
   const [docEditEpoch, setDocEditEpoch] = useState(0);
@@ -337,6 +341,16 @@ function withStableResumeIds(resume: StructuredResume): StructuredResume {
   const onExportBasenameChange = useCallback((value: string) => {
     exportDirtyRef.current = true;
     setExportBasename(value);
+  }, []);
+
+  useEffect(() => {
+    if (resumeExportDirtyRef.current) return;
+    setResumeExportBasename(buildDefaultResumeExportBasename(resume, job, resumeTargetRole));
+  }, [resume.contact.fullName, job?.jobTitle, job?.companyName, resumeTargetRole, resume, job]);
+
+  const onResumeExportBasenameChange = useCallback((value: string) => {
+    resumeExportDirtyRef.current = true;
+    setResumeExportBasename(value);
   }, []);
 
   useEffect(() => {
@@ -654,23 +668,23 @@ function withStableResumeIds(resume: StructuredResume): StructuredResume {
 
   const onResumeDocx = useCallback(async (ctx?: { renderOptions?: import("../lib/resumeRender").ResumeRenderOptions }) => {
     try {
-      await downloadResumeDocx(resume, exportBasename || "CoverClick_Resume", ctx?.renderOptions);
+      await downloadResumeDocx(resume, resumeExportBasename || "CoverClick_Resume", ctx?.renderOptions);
       setStatus("Resume DOCX saved");
       window.setTimeout(() => setStatus(null), 900);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Resume DOCX failed");
     }
-  }, [resume, exportBasename]);
+  }, [resume, resumeExportBasename]);
 
   const onResumePdf = useCallback(async () => {
     try {
-      await downloadResumePdf(resume, exportBasename || "CoverClick_Resume");
+      await downloadResumePdf(resume, resumeExportBasename || "CoverClick_Resume");
       setStatus("Resume PDF saved");
       window.setTimeout(() => setStatus(null), 900);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Resume PDF failed");
     }
-  }, [resume, exportBasename]);
+  }, [resume, resumeExportBasename]);
 
   const handleJobChange = useCallback((next: JobContext) => {
     setJob(next);
@@ -758,6 +772,8 @@ function withStableResumeIds(resume: StructuredResume): StructuredResume {
         ) : workspaceTab === "resume" ? (
           <ResumeStudioPane
             resume={resume}
+            exportFileBaseName={resumeExportBasename}
+            onExportFileBaseNameChange={onResumeExportBasenameChange}
             targetRole={resumeTargetRole}
             summaryBusy={resumeSummaryBusy}
             summaryError={resumeSummaryError}

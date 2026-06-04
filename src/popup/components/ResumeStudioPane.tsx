@@ -41,6 +41,8 @@ import { ResumePreview } from "./resume/ResumePreview";
 
 type Props = {
   resume: StructuredResume;
+  exportFileBaseName: string;
+  onExportFileBaseNameChange: (value: string) => void;
   targetRole: string;
   summaryBusy: boolean;
   summaryError: string | null;
@@ -115,6 +117,8 @@ const textCls = cn(
 
 export function ResumeStudioPane({
   resume,
+  exportFileBaseName,
+  onExportFileBaseNameChange,
   targetRole,
   summaryBusy,
   summaryError,
@@ -669,6 +673,21 @@ export function ResumeStudioPane({
             </select>
           </label>
         </div>
+        <label className="block text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+          Download file name
+          <div className="mt-1 flex items-center gap-1.5">
+            <input
+              type="text"
+              className={cn(inputCls, "min-w-0 flex-1 text-[11px]")}
+              value={exportFileBaseName}
+              onChange={(e) => onExportFileBaseNameChange(e.target.value)}
+              spellCheck={false}
+              autoComplete="off"
+              placeholder="Your_Name_Role_Resume"
+            />
+            <span className="shrink-0 text-[10px] font-medium text-slate-500">.pdf / .docx</span>
+          </div>
+        </label>
         {pagesUsed == null ? (
           <p className="text-[11px] text-slate-500">Measuring page length…</p>
         ) : pageFit ? (
@@ -821,6 +840,8 @@ export function ResumeStudioPane({
         renderOptions={renderOptions}
         pagesUsed={pagesUsed}
         targetLength={layoutSettings.targetLength}
+        exportFileBaseName={exportFileBaseName}
+        onExportFileBaseNameChange={onExportFileBaseNameChange}
         manualEditMode={downloadReviewManualEdit}
         onEnterManualEdit={() => {
           setFinalExportOverrides((prev) => seedFinalExportOverrides(resume, renderOptions, prev));
