@@ -1,8 +1,10 @@
 import type { ResumeEducationItem, ResumeSectionKey, StructuredResume } from "./types";
 import {
+  cloneRenderPlan,
   computeOnePageLayoutPlan,
   estimatePageUse,
   experienceEntryKey,
+  mergeRenderPlans,
   PAGE_TARGET,
   projectEntryKey,
   selectStrongestBullets,
@@ -16,6 +18,7 @@ import {
 export {
   cloneRenderPlan,
   cloneRenderPlanDeep,
+  computeOnePageLayoutPlan,
   mergeRenderPlans,
   tightenRenderPlanOneStep,
 } from "./resumeLayoutEngine";
@@ -45,8 +48,14 @@ export type ResumeTypographyTokens = {
   bulletPt: number;
 };
 
+import type { ResumeFitMode } from "./resumeFitSettings";
+
 export type ResumeRenderOptions = {
-  /** Full render plan override (e.g. after DOM tighten steps). */
+  fitMode?: ResumeFitMode;
+  targetPages?: number;
+  /** User-applied manual trims (render-only). */
+  manualTrimPlan?: ResumeRenderPlan;
+  /** Full render plan override (legacy / force DOM pass). */
   renderPlan?: ResumeRenderPlan;
 };
 
@@ -293,15 +302,24 @@ export function getResumeRenderModel(
 ): ResumeRenderModel {
   const sourceResume = normalizeResumeForRender(resume);
   const sectionKeys = getVisibleResumeSections(sourceResume).map((s) => s.key);
-  const computed = computeOnePageLayoutPlan(sourceResume, sectionKeys);
-  const renderPlan = options?.renderPlan ?? computed.renderPlan;
+  const fitMode = options?.fitMode ?? "preserve";
+  const targetPages = options?.targetPages ?? 1;
+  const computed = computeOnePageLayoutPlan(sourceResume, sectionKeys, fitMode, targetPages);
+  const manual = options?.manualTrimPlan ?? cloneRenderPlan();
+  const autoPlan = computed.renderPlan;
+  const renderPlan =
+    options?.renderPlan ?? mergeRenderPlans(autoPlan, manual);
   const spacing = spacingTokensForMode(renderPlan.layoutMode);
   const estimatedPageUse = estimatePageUse(sourceResume, renderPlan, spacing, sectionKeys);
   const layout: OnePageLayoutResult = {
     layoutMode: renderPlan.layoutMode,
     estimatedPageUse,
     overflowRisk:
-      estimatedPageUse <= PAGE_TARGET - 4 ? "low" : estimatedPageUse <= PAGE_TARGET + 6 ? "medium" : "high",
+      estimatedPageUse <= PAGE_TARGET * targetPages - 4
+        ? "low"
+        : estimatedPageUse <= PAGE_TARGET * targetPages + 6
+          ? "medium"
+          : "high",
     renderPlan,
   };
   const displayResume = applyRenderPlan(sourceResume, renderPlan);

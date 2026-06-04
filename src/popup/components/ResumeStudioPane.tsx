@@ -7,17 +7,19 @@ import type {
 } from "../../lib/types";
 import { cn } from "../../lib/classNames";
 import {
+  cloneRenderPlan,
   cloneRenderPlanDeep,
   getResumeRenderModel,
   getVisibleResumeSections,
   normalizeResumeForRender,
   tightenRenderPlanOneStep,
 } from "../../lib/resumeRender";
-import {
-  computeOnePageLayoutPlan,
-  MAX_DOM_TIGHTEN_STEPS,
-  type ResumeRenderPlan,
-} from "../../lib/resumeLayoutEngine";
+import { computeOnePageLayoutPlan, MAX_DOM_TIGHTEN_STEPS, type ResumeRenderPlan } from "../../lib/resumeLayoutEngine";
+import type { ResumeFitMode, ResumeStudioLayoutSettings } from "../../lib/resumeFitSettings";
+import type { ResumeTargetLength } from "../../lib/resumePageMetrics";
+import { formatPageFitDisplay } from "../../lib/resumePageMetrics";
+import { buildTrimSuggestions, applyTrimSuggestion } from "../../lib/resumeTrimSuggestions";
+import { loadResumeStudioLayoutSettings, saveResumeStudioLayoutSettings } from "../../lib/storage";
 import { ResumePreview } from "./resume/ResumePreview";
 
 type Props = {
@@ -115,8 +117,15 @@ export function ResumeStudioPane({
   const domTightenStepsRef = useRef(0);
   const [wide, setWide] = useState(true);
   const [view, setView] = useState<"edit" | "preview">("edit");
-  const [renderPlanOverride, setRenderPlanOverride] = useState<ResumeRenderPlan | null>(null);
-  const [fitStatus, setFitStatus] = useState<"measuring" | "fits" | "max">("measuring");
+  const [layoutSettings, setLayoutSettings] = useState<ResumeStudioLayoutSettings>({
+    fitMode: "preserve",
+    targetLength: 1,
+  });
+  const [manualTrimPlan, setManualTrimPlan] = useState<ResumeRenderPlan>(() => cloneRenderPlan());
+  const [trimUndoStack, setTrimUndoStack] = useState<ResumeRenderPlan[]>([]);
+  const [forcePlanOverride, setForcePlanOverride] = useState<ResumeRenderPlan | null>(null);
+  const [pagesUsed, setPagesUsed] = useState<number | null>(null);
+  const [forceOptimizerExhausted, setForceOptimizerExhausted] = useState(false);
 
   useEffect(() => {
     const el = containerRef.current;
@@ -136,15 +145,38 @@ export function ResumeStudioPane({
   );
 
   useEffect(() => {
-    setRenderPlanOverride(null);
+    void loadResumeStudioLayoutSettings().then(setLayoutSettings);
+  }, []);
+
+  useEffect(() => {
+    setManualTrimPlan(cloneRenderPlan());
+    setTrimUndoStack([]);
+    setForcePlanOverride(null);
     domTightenStepsRef.current = 0;
-    setFitStatus("measuring");
+    setPagesUsed(null);
+    setForceOptimizerExhausted(false);
   }, [resume]);
 
-  const renderOptions = useMemo(
-    () => (renderPlanOverride ? { renderPlan: renderPlanOverride } : undefined),
-    [renderPlanOverride],
-  );
+  const persistLayoutSettings = useCallback((next: ResumeStudioLayoutSettings) => {
+    setLayoutSettings(next);
+    void saveResumeStudioLayoutSettings(next);
+    if (next.fitMode !== "force") {
+      setForcePlanOverride(null);
+      domTightenStepsRef.current = 0;
+    }
+  }, []);
+
+  const renderOptions = useMemo(() => {
+    const opts = {
+      fitMode: layoutSettings.fitMode,
+      targetPages: layoutSettings.targetLength,
+      manualTrimPlan,
+    };
+    if (layoutSettings.fitMode === "force" && forcePlanOverride) {
+      return { ...opts, renderPlan: forcePlanOverride };
+    }
+    return opts;
+  }, [layoutSettings, manualTrimPlan, forcePlanOverride]);
 
   const model = useMemo(() => getResumeRenderModel(resume, renderOptions), [resume, renderOptions]);
   const omittedNotes = model.layout.renderPlan.omittedNotes;
@@ -153,33 +185,66 @@ export function ResumeStudioPane({
     [model.sourceResume],
   );
 
+  const pageFit = useMemo(() => {
+    if (pagesUsed == null) return null;
+    return formatPageFitDisplay(pagesUsed, layoutSettings.targetLength);
+  }, [pagesUsed, layoutSettings.targetLength]);
+
+  const trimSuggestions = useMemo(() => {
+    if (pagesUsed == null || pagesUsed <= layoutSettings.targetLength) return [];
+    const auto = computeOnePageLayoutPlan(
+      model.sourceResume,
+      sectionKeys,
+      layoutSettings.fitMode,
+      layoutSettings.targetLength,
+    ).renderPlan;
+    return buildTrimSuggestions(model.sourceResume, sectionKeys, auto, manualTrimPlan);
+  }, [pagesUsed, layoutSettings, model.sourceResume, sectionKeys, manualTrimPlan]);
+
   const handleExportPageMeasure = useCallback(
-    ({ overflows }: { contentHeight: number; overflows: boolean }) => {
-      if (!overflows) {
-        setFitStatus("fits");
-        return;
-      }
-      if (domTightenStepsRef.current >= MAX_DOM_TIGHTEN_STEPS) {
-        setFitStatus("max");
-        return;
-      }
+    ({ pagesUsed: used, overflows }: { contentHeight: number; pagesUsed: number; overflows: boolean }) => {
+      setPagesUsed(used);
+      if (layoutSettings.fitMode !== "force") return;
+      if (!overflows) return;
+      if (domTightenStepsRef.current >= MAX_DOM_TIGHTEN_STEPS) return;
       const sourceResume = normalizeResumeForRender(resume);
-      setRenderPlanOverride((prev) => {
-        const base = computeOnePageLayoutPlan(sourceResume, sectionKeys).renderPlan;
-        const current = prev ?? base;
-        const next = cloneRenderPlanDeep(current);
-        const { applied } = tightenRenderPlanOneStep(sourceResume, next, sectionKeys);
-        if (!applied) {
-          setFitStatus("max");
-          return prev;
-        }
-        domTightenStepsRef.current += 1;
-        setFitStatus("measuring");
-        return next;
-      });
+      const currentFull = model.layout.renderPlan;
+      const next = cloneRenderPlanDeep(currentFull);
+      const { applied } = tightenRenderPlanOneStep(sourceResume, next, sectionKeys);
+      if (!applied) {
+        setForceOptimizerExhausted(true);
+        return;
+      }
+      domTightenStepsRef.current += 1;
+      if (domTightenStepsRef.current >= MAX_DOM_TIGHTEN_STEPS) setForceOptimizerExhausted(true);
+      setForcePlanOverride(next);
     },
-    [resume, sectionKeys],
+    [resume, sectionKeys, layoutSettings.fitMode, model.layout.renderPlan],
   );
+
+  const applySuggestion = useCallback(
+    (id: string) => {
+      setTrimUndoStack((stack) => [...stack, cloneRenderPlanDeep(manualTrimPlan)]);
+      setManualTrimPlan((prev) => applyTrimSuggestion(normalizeResumeForRender(resume), prev, id));
+    },
+    [resume, manualTrimPlan],
+  );
+
+  const undoLastTrim = useCallback(() => {
+    setTrimUndoStack((stack) => {
+      if (!stack.length) return stack;
+      const prev = stack[stack.length - 1];
+      setManualTrimPlan(prev);
+      return stack.slice(0, -1);
+    });
+  }, []);
+
+  const resetLayoutTrims = useCallback(() => {
+    setManualTrimPlan(cloneRenderPlan());
+    setTrimUndoStack([]);
+    setForcePlanOverride(null);
+    domTightenStepsRef.current = 0;
+  }, []);
 
   const editor = (
     <div className="min-w-0 space-y-4">
@@ -394,18 +459,80 @@ export function ResumeStudioPane({
           onExportPageMeasure={handleExportPageMeasure}
         />
       </div>
-      <div className="shrink-0 border-b border-slate-200/70 bg-white/90 px-4 py-3">
-        <h2 className="text-[13px] font-semibold text-slate-900">Resume Studio</h2>
-        <p className="mt-0.5 text-[11px] text-slate-500">Live preview matches DOCX/PDF export; one-page layout is applied automatically.</p>
-        {fitStatus === "fits" ? (
-          <p className="mt-1.5 text-[11px] font-semibold text-emerald-700">✓ Fits one page</p>
+      <div className="shrink-0 space-y-3 border-b border-slate-200/70 bg-white/90 px-4 py-3">
+        <div>
+          <h2 className="text-[13px] font-semibold text-slate-900">Resume Studio</h2>
+          <p className="mt-0.5 text-[11px] text-slate-500">Preview matches export. Layout trims are render-only and never delete your resume text.</p>
+        </div>
+        <div className="grid gap-2 sm:grid-cols-2">
+          <label className="block text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+            Target length
+            <select
+              className={cn(inputCls, "mt-1 w-full text-[11px]")}
+              value={layoutSettings.targetLength}
+              onChange={(e) =>
+                persistLayoutSettings({
+                  ...layoutSettings,
+                  targetLength: Number(e.target.value) as ResumeTargetLength,
+                })
+              }
+            >
+              <option value={1}>1 Page</option>
+              <option value={1.5}>1.5 Pages</option>
+              <option value={2}>2 Pages</option>
+            </select>
+          </label>
+          <label className="block text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+            Fit mode
+            <select
+              className={cn(inputCls, "mt-1 w-full text-[11px]")}
+              value={layoutSettings.fitMode}
+              onChange={(e) =>
+                persistLayoutSettings({
+                  ...layoutSettings,
+                  fitMode: e.target.value as ResumeFitMode,
+                })
+              }
+            >
+              <option value="preserve">Preserve Content</option>
+              <option value="smart">Smart Fit</option>
+              <option value="force">Force One Page</option>
+            </select>
+          </label>
+        </div>
+        {pagesUsed == null ? (
+          <p className="text-[11px] text-slate-500">Measuring page length…</p>
+        ) : pageFit ? (
+          <p
+            className={cn(
+              "text-[11px] font-semibold",
+              pageFit.tone === "ok" ? "text-emerald-700" : pageFit.tone === "slight" ? "text-amber-800" : "text-red-700",
+            )}
+          >
+            {pageFit.headline}
+            {pageFit.detail ? <span className="mt-0.5 block font-normal text-slate-600">{pageFit.detail}</span> : null}
+          </p>
         ) : null}
-        {fitStatus === "max" ? (
-          <p className="mt-1.5 text-[11px] font-semibold text-amber-800">⚠ Optimizer still cannot fit one page</p>
+        {layoutSettings.fitMode === "force" && forceOptimizerExhausted && pagesUsed != null && pagesUsed > layoutSettings.targetLength ? (
+          <p className="text-[11px] font-semibold text-amber-800">⚠ Optimizer still cannot fit your target</p>
         ) : null}
-        {fitStatus === "measuring" ? (
-          <p className="mt-1.5 text-[11px] text-slate-500">Checking one-page fit…</p>
-        ) : null}
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[10px] font-semibold text-slate-700"
+            onClick={resetLayoutTrims}
+          >
+            Reset layout trims
+          </button>
+          <button
+            type="button"
+            disabled={trimUndoStack.length === 0}
+            className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[10px] font-semibold text-slate-700 disabled:opacity-40"
+            onClick={undoLastTrim}
+          >
+            Undo last trim
+          </button>
+        </div>
       </div>
 
       {!wide ? (
@@ -425,9 +552,31 @@ export function ResumeStudioPane({
         {(wide || view === "preview") ? (
           <div className="min-h-0 overflow-y-auto">
             <div className={cn(wide ? "sticky top-2" : "")}>
+              {trimSuggestions.length > 0 ? (
+                <section className="mb-3 rounded-lg border border-sky-200/90 bg-sky-50/70 p-3">
+                  <h3 className="text-[11px] font-semibold text-sky-950">Suggestions to fit your target</h3>
+                  <ul className="mt-2 space-y-1.5">
+                    {trimSuggestions.map((s) => (
+                      <li key={s.id} className="flex items-center justify-between gap-2 text-[10px] text-sky-950">
+                        <span>
+                          {s.label}
+                          <span className="text-sky-700"> (−{s.savingsPages.toFixed(2)} pages)</span>
+                        </span>
+                        <button
+                          type="button"
+                          className="shrink-0 rounded border border-sky-300 bg-white px-2 py-0.5 text-[10px] font-semibold"
+                          onClick={() => applySuggestion(s.id)}
+                        >
+                          Apply
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              ) : null}
               {omittedNotes.length > 0 ? (
                 <section className="mb-3 rounded-lg border border-amber-200/90 bg-amber-50/80 p-3">
-                  <h3 className="text-[11px] font-semibold text-amber-950">Omitted from one-page export</h3>
+                  <h3 className="text-[11px] font-semibold text-amber-950">Applied layout trims (export only)</h3>
                   <ul className="mt-1.5 list-disc space-y-0.5 pl-4 text-[10px] text-amber-900/90">
                     {omittedNotes.map((note) => (
                       <li key={note}>{note}</li>
@@ -435,7 +584,13 @@ export function ResumeStudioPane({
                   </ul>
                 </section>
               ) : null}
-              <ResumePreview resume={resume} template="ats-classic" variant="preview" renderOptions={renderOptions} />
+              <ResumePreview
+                resume={resume}
+                template="ats-classic"
+                variant="preview"
+                renderOptions={renderOptions}
+                showPageBoundary
+              />
               <div className="mt-2 grid grid-cols-2 gap-2">
                 <button type="button" onClick={onExportDocx} className="rounded-lg border border-indigo-200 bg-indigo-50 py-2 text-[12px] font-semibold text-indigo-950">Export DOCX</button>
                 <button type="button" onClick={onExportPdf} className="rounded-lg border border-slate-300 bg-white py-2 text-[12px] font-semibold text-slate-800">Export PDF</button>

@@ -5,6 +5,7 @@ export const STORAGE_KEYS = {
   generationPrefs: "coverclick_generation_prefs",
   letterCache: "coverclick_last_letter",
   resumeStudio: "coverclick_resume_studio",
+  resumeStudioLayout: "coverclick_resume_studio_layout",
 } as const;
 
 export type StorageKey = (typeof STORAGE_KEYS)[keyof typeof STORAGE_KEYS];

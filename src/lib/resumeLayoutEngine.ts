@@ -1,3 +1,4 @@
+import type { ResumeFitMode } from "./resumeFitSettings";
 import type {
   ResumeEducationItem,
   ResumeEntryPriority,
@@ -375,11 +376,11 @@ function sortedByCompressionFirst<T>(entries: RankedEntry<T>[]): RankedEntry<T>[
   );
 }
 
-function experienceLabel(item: ResumeExperienceItem): string {
+export function experienceLabel(item: ResumeExperienceItem): string {
   return item.company?.trim() || item.title?.trim() || "Experience entry";
 }
 
-function projectLabel(item: ResumeProjectItem): string {
+export function projectLabel(item: ResumeProjectItem): string {
   return item.name?.trim() || item.subtitle?.trim() || "Project";
 }
 
@@ -503,6 +504,41 @@ export type TightenStepResult = {
  * Applies exactly one progressive compression step (Parts 3–6 order).
  * Mutates `plan` in place.
  */
+/** Smart Fit only: spacing, summary shorten, skills/education compress — no bullets or hides. */
+export function tightenSmartFitStep(
+  resume: StructuredResume,
+  plan: ResumeRenderPlan,
+  visibleSectionKeys: ResumeSectionKey[],
+): TightenStepResult {
+  if (plan.layoutMode !== "compact") {
+    plan.layoutMode = "compact";
+    return { applied: true, layoutMode: "compact" };
+  }
+  if (!isSummaryHidden(plan) && visibleSectionKeys.includes("summary")) {
+    const raw = resume.summary.trim();
+    if (raw && !plan.shortenedSummary) {
+      const short = shortenSummaryText(raw);
+      if (short !== raw) {
+        plan.shortenedSummary = true;
+        plan.summaryText = short;
+        pushNote(plan, "Summary shortened to fit target length");
+        return { applied: true, layoutMode: plan.layoutMode };
+      }
+    }
+  }
+  if (!plan.compactSkills && visibleSectionKeys.includes("skills")) {
+    plan.compactSkills = true;
+    pushNote(plan, "Skills compressed into fewer lines");
+    return { applied: true, layoutMode: plan.layoutMode };
+  }
+  if (!plan.compactEducation && visibleSectionKeys.includes("education")) {
+    plan.compactEducation = true;
+    pushNote(plan, "Education details omitted from export");
+    return { applied: true, layoutMode: plan.layoutMode };
+  }
+  return { applied: false, layoutMode: plan.layoutMode };
+}
+
 export function tightenRenderPlanOneStep(
   resume: StructuredResume,
   plan: ResumeRenderPlan,
@@ -565,12 +601,19 @@ export function tightenRenderPlanOneStep(
   return { applied: false, layoutMode: plan.layoutMode };
 }
 
+function targetToUnits(targetPages: number): number {
+  return PAGE_TARGET * targetPages;
+}
+
 export function computeOnePageLayoutPlan(
   resume: StructuredResume,
   visibleSectionKeys: ResumeSectionKey[],
+  fitMode: ResumeFitMode = "preserve",
+  targetPages = 1,
 ): OnePageLayoutResult {
   const plan = cloneRenderPlan();
   plan.layoutMode = chooseInitialLayoutMode(resume, visibleSectionKeys);
+  const targetUnits = targetToUnits(targetPages);
 
   const measure = () => {
     const spacing = spacingTokensForMode(plan.layoutMode);
@@ -578,9 +621,36 @@ export function computeOnePageLayoutPlan(
   };
 
   let estimatedPageUse = measure();
-  let steps = 0;
 
-  while (estimatedPageUse > PAGE_TARGET && steps < MAX_COMPUTE_TIGHTEN_STEPS) {
+  if (fitMode === "preserve") {
+    return {
+      layoutMode: plan.layoutMode,
+      estimatedPageUse,
+      overflowRisk: overflowRiskFromEstimate(estimatedPageUse / targetPages),
+      renderPlan: plan,
+    };
+  }
+
+  if (fitMode === "smart") {
+    let steps = 0;
+    while (estimatedPageUse > targetUnits && steps < 8) {
+      const result = tightenSmartFitStep(resume, plan, visibleSectionKeys);
+      if (!result.applied) break;
+      plan.layoutMode = result.layoutMode;
+      estimatedPageUse = measure();
+      steps += 1;
+    }
+    return {
+      layoutMode: plan.layoutMode,
+      estimatedPageUse,
+      overflowRisk: overflowRiskFromEstimate(estimatedPageUse / targetPages),
+      renderPlan: plan,
+    };
+  }
+
+  // Force One Page
+  let steps = 0;
+  while (estimatedPageUse > targetUnits && steps < MAX_COMPUTE_TIGHTEN_STEPS) {
     const before = JSON.stringify(plan);
     const result = tightenRenderPlanOneStep(resume, plan, visibleSectionKeys);
     if (!result.applied) break;
@@ -589,9 +659,7 @@ export function computeOnePageLayoutPlan(
     steps += 1;
     if (JSON.stringify(plan) === before) break;
   }
-
-  // Final conservative pass: keep tightening until target or stuck
-  while (estimatedPageUse > PAGE_TARGET && steps < MAX_COMPUTE_TIGHTEN_STEPS) {
+  while (estimatedPageUse > targetUnits && steps < MAX_COMPUTE_TIGHTEN_STEPS) {
     const result = tightenRenderPlanOneStep(resume, plan, visibleSectionKeys);
     if (!result.applied) break;
     estimatedPageUse = measure();
@@ -601,7 +669,7 @@ export function computeOnePageLayoutPlan(
   return {
     layoutMode: plan.layoutMode,
     estimatedPageUse,
-    overflowRisk: overflowRiskFromEstimate(estimatedPageUse),
+    overflowRisk: overflowRiskFromEstimate(estimatedPageUse / targetPages),
     renderPlan: plan,
   };
 }

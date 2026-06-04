@@ -12,6 +12,12 @@ import { DEFAULT_GENERATION_PREFS, DEFAULT_SETTINGS, EMPTY_PROFILE, EMPTY_STRUCT
 import { parseStructuredLetter } from "./generationNormalize";
 import { STORAGE_KEYS } from "./storageKeys";
 import { hasBuiltInApiOrigin, resolveApiBaseUrl, VITE_COVERCLICK_API_ORIGIN } from "./apiOrigin";
+import type { ResumeStudioLayoutSettings } from "./resumeFitSettings";
+import {
+  DEFAULT_RESUME_LAYOUT_SETTINGS,
+  normalizeFitMode,
+  normalizeTargetLength,
+} from "./resumeFitSettings";
 
 export { STORAGE_KEYS };
 
@@ -442,4 +448,21 @@ export async function loadResumeStudio(): Promise<StructuredResume> {
 
 export async function saveResumeStudio(resume: StructuredResume): Promise<void> {
   await chrome.storage.local.set({ [RESUME_STUDIO_KEY]: resume });
+}
+
+const RESUME_LAYOUT_KEY = STORAGE_KEYS.resumeStudioLayout;
+
+export async function loadResumeStudioLayoutSettings(): Promise<ResumeStudioLayoutSettings> {
+  const data = await chrome.storage.local.get(RESUME_LAYOUT_KEY);
+  const raw = data[RESUME_LAYOUT_KEY];
+  if (!raw || typeof raw !== "object") return { ...DEFAULT_RESUME_LAYOUT_SETTINGS };
+  const o = raw as Record<string, unknown>;
+  return {
+    fitMode: normalizeFitMode(o.fitMode),
+    targetLength: normalizeTargetLength(o.targetLength),
+  };
+}
+
+export async function saveResumeStudioLayoutSettings(settings: ResumeStudioLayoutSettings): Promise<void> {
+  await chrome.storage.local.set({ [RESUME_LAYOUT_KEY]: settings });
 }
