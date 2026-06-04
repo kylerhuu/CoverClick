@@ -38,10 +38,10 @@ export type PageFitDisplay = {
 };
 
 /** Target fill band for force-fit (stop tightening once within range). */
-export function healthyPageBand(targetPages: number): { min: number; max: number } {
-  if (targetPages <= 1) return { min: 0.92, max: 1.0 };
-  if (targetPages <= 1.5) return { min: 1.38, max: 1.5 };
-  return { min: 1.84, max: 2.0 };
+export function healthyPageBand(targetPages: number): { min: number; max: number; idealMin: number; idealMax: number } {
+  if (targetPages <= 1) return { min: 0.9, max: 1.0, idealMin: 0.92, idealMax: 0.98 };
+  if (targetPages <= 1.5) return { min: 1.35, max: 1.5, idealMin: 1.38, idealMax: 1.48 };
+  return { min: 1.8, max: 2.0, idealMin: 1.84, idealMax: 1.98 };
 }
 
 export function pagesWithinHealthyBand(pagesUsed: number, targetPages: number): boolean {

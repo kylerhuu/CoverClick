@@ -1,6 +1,8 @@
-import { useLayoutEffect, useRef, useState } from "react";
+import { useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import type { StructuredResume } from "../../../lib/types";
+import { experienceEntryKey, projectEntryKey } from "../../../lib/resumeLayoutEngine";
 import {
+  exportDisplayText,
   formatContactLine,
   formatEducationBlock,
   formatExperiencePrimary,
@@ -10,6 +12,7 @@ import {
   formatSkillRenderLines,
   getResumeRenderModel,
   RESUME_EXPORT_CONTAINER_ID,
+  type FinalExportOverrides,
   type ResumeRenderOptions,
 } from "../../../lib/resumeRender";
 import {
@@ -27,6 +30,9 @@ type Props = {
   renderOptions?: ResumeRenderOptions;
   showPageBoundary?: boolean;
   onExportPageMeasure?: (result: { contentHeight: number; pagesUsed: number; overflows: boolean }) => void;
+  /** Final-review inline edits (print-preview step). */
+  editable?: boolean;
+  onFinalOverrideChange?: (key: string, value: string) => void;
 };
 
 const shellClass = "rounded-xl border border-slate-300/80 bg-slate-200/50 p-3";
@@ -34,6 +40,49 @@ const exportPageClass = "w-[8.5in] bg-white px-[52px] py-[44px]";
 
 function headerRule() {
   return <div className="mt-[2px] h-px w-full bg-slate-400/70" aria-hidden />;
+}
+
+function ResumeTextBlock({
+  blockKey,
+  fallback,
+  overrides,
+  editable,
+  onOverrideChange,
+  className,
+  style,
+  as = "p",
+}: {
+  blockKey: string;
+  fallback: string;
+  overrides?: FinalExportOverrides;
+  editable?: boolean;
+  onOverrideChange?: (key: string, value: string) => void;
+  className?: string;
+  style?: CSSProperties;
+  as?: "p" | "li";
+}) {
+  const text = exportDisplayText(overrides, blockKey, fallback);
+  if (!text && !editable) return null;
+  const editCls = editable ? "rounded-sm outline-none focus:ring-2 focus:ring-indigo-300/80" : "";
+  const Tag = as;
+  if (!editable) {
+    return (
+      <Tag className={className} style={style}>
+        {text}
+      </Tag>
+    );
+  }
+  return (
+    <Tag
+      className={cn(className, editCls)}
+      style={style}
+      contentEditable
+      suppressContentEditableWarning
+      onBlur={(e) => onOverrideChange?.(blockKey, e.currentTarget.textContent ?? "")}
+    >
+      {text || "\u00a0"}
+    </Tag>
+  );
 }
 
 export function ResumePreview({
@@ -44,13 +93,17 @@ export function ResumePreview({
   renderOptions,
   showPageBoundary = false,
   onExportPageMeasure,
+  editable = false,
+  onFinalOverrideChange,
 }: Props) {
   const pageRef = useRef<HTMLDivElement>(null);
   const [scrollHeight, setScrollHeight] = useState(0);
   const model = getResumeRenderModel(resume, renderOptions);
   const r = model.resume;
   const sections = model.sections;
-  const contact = formatContactLine(r);
+  const overrides = renderOptions?.finalExportOverrides;
+  const contact = exportDisplayText(overrides, "contact:line", formatContactLine(r));
+  const plan = model.layout.renderPlan;
   const spacing = model.spacing;
   const typography = model.typography;
   const skillLines = formatSkillRenderLines(r, model.layout.renderPlan);
@@ -85,7 +138,17 @@ export function ResumePreview({
         <h2 className="text-center font-extrabold tracking-[-0.01em] text-slate-900" style={{ fontSize: `${typography.namePt * (96 / 72)}px` }}>
           {r.contact.fullName || "Candidate Name"}
         </h2>
-        {contact ? <p className="mt-1 text-center font-medium text-slate-700" style={{ fontSize: `${typography.contactPt * (96 / 72)}px` }}>{contact}</p> : null}
+        {contact || editable ? (
+          <ResumeTextBlock
+            blockKey="contact:line"
+            fallback={formatContactLine(r)}
+            overrides={overrides}
+            editable={editable}
+            onOverrideChange={onFinalOverrideChange}
+            className="mt-1 text-center font-medium text-slate-700"
+            style={{ fontSize: `${typography.contactPt * (96 / 72)}px` }}
+          />
+        ) : null}
       </header>
 
       {sections.map((section) => (
@@ -94,24 +157,65 @@ export function ResumePreview({
           {headerRule()}
 
           {section.key === "summary" ? (
-            <p className="text-slate-800" style={{ marginTop: `${spacing.sectionHeaderAfter}px`, lineHeight: spacing.bulletLineHeight, fontSize: `${typography.primaryLinePt * (96 / 72)}px` }}>
-              {r.summary}
-            </p>
+            <ResumeTextBlock
+              blockKey="summary"
+              fallback={r.summary}
+              overrides={overrides}
+              editable={editable}
+              onOverrideChange={onFinalOverrideChange}
+              className="text-slate-800"
+              style={{
+                marginTop: `${spacing.sectionHeaderAfter}px`,
+                lineHeight: spacing.bulletLineHeight,
+                fontSize: `${typography.primaryLinePt * (96 / 72)}px`,
+              }}
+            />
           ) : null}
 
           {section.key === "experience" ? (
             <div style={{ marginTop: `${spacing.sectionHeaderAfter}px` }}>
               {r.experience.map((e, i) => {
                 if (!e.company && !e.title && !e.bullets.length) return null;
+                const ek = experienceEntryKey(e, i);
                 const primary = formatExperiencePrimary(e.company, e.companySubtitle);
                 const secondary = formatExperienceSecondary(e.title, e.location, e.dates);
                 return (
                   <article key={e.id ?? `exp-${i}`} style={{ marginBottom: `${spacing.entryGap}px` }}>
-                    {primary ? <p className="font-semibold text-slate-900" style={{ fontSize: `${typography.primaryLinePt * (96 / 72)}px` }}>{primary}</p> : null}
-                    {secondary ? <p className="font-medium text-slate-700" style={{ marginTop: `${spacing.subLineGap}px`, fontSize: `${typography.secondaryLinePt * (96 / 72)}px` }}>{secondary}</p> : null}
+                    {primary || editable ? (
+                      <ResumeTextBlock
+                        blockKey={`${ek}:primary`}
+                        fallback={primary}
+                        overrides={overrides}
+                        editable={editable}
+                        onOverrideChange={onFinalOverrideChange}
+                        className="font-semibold text-slate-900"
+                        style={{ fontSize: `${typography.primaryLinePt * (96 / 72)}px` }}
+                      />
+                    ) : null}
+                    {secondary || editable ? (
+                      <ResumeTextBlock
+                        blockKey={`${ek}:secondary`}
+                        fallback={secondary}
+                        overrides={overrides}
+                        editable={editable}
+                        onOverrideChange={onFinalOverrideChange}
+                        className="font-medium text-slate-700"
+                        style={{ marginTop: `${spacing.subLineGap}px`, fontSize: `${typography.secondaryLinePt * (96 / 72)}px` }}
+                      />
+                    ) : null}
                     <ul className="list-disc pl-[18px] text-slate-800" style={{ marginTop: `${spacing.subLineGap + 1}px`, lineHeight: spacing.bulletLineHeight, fontSize: `${typography.bulletPt * (96 / 72)}px` }}>
                       {e.bullets.map((b, bi) => (
-                        <li key={`exp-b-${bi}`} style={{ marginBottom: `${spacing.bulletGap}px` }}>{b}</li>
+                        <ResumeTextBlock
+                          key={`exp-b-${bi}`}
+                          blockKey={`${ek}:bullet:${bi}`}
+                          fallback={b}
+                          overrides={overrides}
+                          editable={editable}
+                          onOverrideChange={onFinalOverrideChange}
+                          className="text-slate-800"
+                          style={{ marginBottom: `${spacing.bulletGap}px` }}
+                          as="li"
+                        />
                       ))}
                     </ul>
                   </article>
@@ -124,15 +228,47 @@ export function ResumePreview({
             <div style={{ marginTop: `${spacing.sectionHeaderAfter}px` }}>
               {r.projects.map((p, i) => {
                 if (!p.name && !p.subtitle && !p.techStack.length && !p.bullets.length) return null;
+                const pk = projectEntryKey(p, i);
+                if (plan.hiddenSections.includes(pk)) return null;
                 const primary = formatProjectPrimary(p.name, p.subtitle);
                 const secondary = formatProjectSecondary(p.techStack);
                 return (
                   <article key={p.id ?? `proj-${i}`} style={{ marginBottom: `${spacing.entryGap}px` }}>
-                    {primary ? <p className="font-semibold text-slate-900" style={{ fontSize: `${typography.primaryLinePt * (96 / 72)}px` }}>{primary}</p> : null}
-                    {secondary ? <p className="font-medium text-slate-600" style={{ marginTop: `${Math.max(1, spacing.subLineGap - 1)}px`, fontSize: `${typography.secondaryLinePt * (96 / 72)}px` }}>{secondary}</p> : null}
+                    {primary || editable ? (
+                      <ResumeTextBlock
+                        blockKey={`${pk}:primary`}
+                        fallback={primary}
+                        overrides={overrides}
+                        editable={editable}
+                        onOverrideChange={onFinalOverrideChange}
+                        className="font-semibold text-slate-900"
+                        style={{ fontSize: `${typography.primaryLinePt * (96 / 72)}px` }}
+                      />
+                    ) : null}
+                    {secondary || editable ? (
+                      <ResumeTextBlock
+                        blockKey={`${pk}:secondary`}
+                        fallback={secondary}
+                        overrides={overrides}
+                        editable={editable}
+                        onOverrideChange={onFinalOverrideChange}
+                        className="font-medium text-slate-600"
+                        style={{ marginTop: `${Math.max(1, spacing.subLineGap - 1)}px`, fontSize: `${typography.secondaryLinePt * (96 / 72)}px` }}
+                      />
+                    ) : null}
                     <ul className="list-disc pl-[18px] text-slate-800" style={{ marginTop: `${spacing.subLineGap + 1}px`, lineHeight: spacing.bulletLineHeight, fontSize: `${typography.bulletPt * (96 / 72)}px` }}>
                       {p.bullets.map((b, bi) => (
-                        <li key={`proj-b-${bi}`} style={{ marginBottom: `${spacing.bulletGap}px` }}>{b}</li>
+                        <ResumeTextBlock
+                          key={`proj-b-${bi}`}
+                          blockKey={`${pk}:bullet:${bi}`}
+                          fallback={b}
+                          overrides={overrides}
+                          editable={editable}
+                          onOverrideChange={onFinalOverrideChange}
+                          className="text-slate-800"
+                          style={{ marginBottom: `${spacing.bulletGap}px` }}
+                          as="li"
+                        />
                       ))}
                     </ul>
                   </article>
@@ -145,17 +281,69 @@ export function ResumePreview({
             <div style={{ marginTop: `${spacing.sectionHeaderAfter}px` }}>
               {r.education.map((e, i) => {
                 const lines = formatEducationBlock(e);
+                const id = e.id ?? `edu-${i}`;
+                const prefix = `education:${id}`;
                 if (!lines.schoolLine && !lines.degreeLine && !lines.majorLine && !lines.gpaLine && !e.details.length) return null;
                 return (
                   <article key={e.id ?? `edu-${i}`} style={{ marginBottom: `${spacing.entryGap}px` }}>
-                    {lines.schoolLine ? <p className="font-semibold text-slate-900" style={{ fontSize: `${typography.primaryLinePt * (96 / 72)}px` }}>{lines.schoolLine}</p> : null}
-                    {lines.degreeLine ? <p className="text-slate-800" style={{ marginTop: `${spacing.subLineGap}px`, fontSize: `${typography.secondaryLinePt * (96 / 72)}px` }}>{lines.degreeLine}</p> : null}
-                    {lines.majorLine ? <p className="text-slate-800" style={{ marginTop: `${Math.max(1, spacing.subLineGap - 1)}px`, fontSize: `${typography.secondaryLinePt * (96 / 72)}px` }}>{lines.majorLine}</p> : null}
-                    {lines.gpaLine ? <p className="text-slate-800" style={{ marginTop: `${Math.max(1, spacing.subLineGap - 1)}px`, fontSize: `${typography.secondaryLinePt * (96 / 72)}px` }}>{lines.gpaLine}</p> : null}
+                    {lines.schoolLine || editable ? (
+                      <ResumeTextBlock
+                        blockKey={`${prefix}:school`}
+                        fallback={lines.schoolLine}
+                        overrides={overrides}
+                        editable={editable}
+                        onOverrideChange={onFinalOverrideChange}
+                        className="font-semibold text-slate-900"
+                        style={{ fontSize: `${typography.primaryLinePt * (96 / 72)}px` }}
+                      />
+                    ) : null}
+                    {lines.degreeLine || editable ? (
+                      <ResumeTextBlock
+                        blockKey={`${prefix}:degree`}
+                        fallback={lines.degreeLine}
+                        overrides={overrides}
+                        editable={editable}
+                        onOverrideChange={onFinalOverrideChange}
+                        className="text-slate-800"
+                        style={{ marginTop: `${spacing.subLineGap}px`, fontSize: `${typography.secondaryLinePt * (96 / 72)}px` }}
+                      />
+                    ) : null}
+                    {lines.majorLine || editable ? (
+                      <ResumeTextBlock
+                        blockKey={`${prefix}:major`}
+                        fallback={lines.majorLine}
+                        overrides={overrides}
+                        editable={editable}
+                        onOverrideChange={onFinalOverrideChange}
+                        className="text-slate-800"
+                        style={{ marginTop: `${Math.max(1, spacing.subLineGap - 1)}px`, fontSize: `${typography.secondaryLinePt * (96 / 72)}px` }}
+                      />
+                    ) : null}
+                    {lines.gpaLine || editable ? (
+                      <ResumeTextBlock
+                        blockKey={`${prefix}:gpa`}
+                        fallback={lines.gpaLine}
+                        overrides={overrides}
+                        editable={editable}
+                        onOverrideChange={onFinalOverrideChange}
+                        className="text-slate-800"
+                        style={{ marginTop: `${Math.max(1, spacing.subLineGap - 1)}px`, fontSize: `${typography.secondaryLinePt * (96 / 72)}px` }}
+                      />
+                    ) : null}
                     {e.details.length ? (
                       <ul className="list-disc pl-[18px] text-slate-800" style={{ marginTop: `${spacing.subLineGap + 1}px`, lineHeight: spacing.bulletLineHeight, fontSize: `${typography.bulletPt * (96 / 72)}px` }}>
                         {e.details.map((d, di) => (
-                          <li key={`edu-d-${di}`} style={{ marginBottom: `${spacing.bulletGap}px` }}>{d}</li>
+                          <ResumeTextBlock
+                            key={`edu-d-${di}`}
+                            blockKey={`${prefix}:detail:${di}`}
+                            fallback={d}
+                            overrides={overrides}
+                            editable={editable}
+                            onOverrideChange={onFinalOverrideChange}
+                            className="text-slate-800"
+                            style={{ marginBottom: `${spacing.bulletGap}px` }}
+                            as="li"
+                          />
                         ))}
                       </ul>
                     ) : null}
@@ -168,17 +356,20 @@ export function ResumePreview({
           {section.key === "skills" ? (
             <div style={{ marginTop: `${spacing.sectionHeaderAfter}px` }}>
               {skillLines.map((line) => (
-                <p
+                <ResumeTextBlock
                   key={line.key}
+                  blockKey={`skills:${line.key}`}
+                  fallback={line.text}
+                  overrides={overrides}
+                  editable={editable}
+                  onOverrideChange={onFinalOverrideChange}
                   className="text-slate-800"
                   style={{
                     lineHeight: spacing.bulletLineHeight,
                     marginBottom: `${spacing.bulletGap + 1}px`,
                     fontSize: `${typography.bulletPt * (96 / 72)}px`,
                   }}
-                >
-                  {line.text}
-                </p>
+                />
               ))}
             </div>
           ) : null}

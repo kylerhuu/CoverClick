@@ -1,9 +1,18 @@
 import { useMemo } from "react";
 import type { StructuredResume } from "../../../lib/types";
 import { cn } from "../../../lib/classNames";
-import { getResumeRenderModel, type ResumeRenderOptions } from "../../../lib/resumeRender";
+import {
+  buildDefaultFinalExportOverrides,
+  getResumeRenderModel,
+  type FinalExportOverrides,
+  type ResumeRenderOptions,
+} from "../../../lib/resumeRender";
 import { formatPageFitDisplay, healthyPageBand } from "../../../lib/resumePageMetrics";
 import { ResumePreview } from "./ResumePreview";
+
+export type ResumeExportContext = {
+  renderOptions: ResumeRenderOptions;
+};
 
 type Props = {
   open: boolean;
@@ -13,8 +22,11 @@ type Props = {
   renderOptions: ResumeRenderOptions;
   pagesUsed: number | null;
   targetLength: number;
-  onExportDocx: () => void;
-  onExportPdf: () => void;
+  manualEditMode: boolean;
+  onEnterManualEdit: () => void;
+  onFinalOverrideChange: (key: string, value: string) => void;
+  onExportDocx: (ctx: ResumeExportContext) => void;
+  onExportPdf: (ctx: ResumeExportContext) => void;
 };
 
 export function ResumeDownloadReview({
@@ -25,6 +37,9 @@ export function ResumeDownloadReview({
   renderOptions,
   pagesUsed,
   targetLength,
+  manualEditMode,
+  onEnterManualEdit,
+  onFinalOverrideChange,
   onExportDocx,
   onExportPdf,
 }: Props) {
@@ -32,6 +47,7 @@ export function ResumeDownloadReview({
   const omittedNotes = model.layout.renderPlan.omittedNotes;
   const pageFit = pagesUsed != null ? formatPageFitDisplay(pagesUsed, targetLength) : null;
   const band = healthyPageBand(targetLength);
+  const exportCtx: ResumeExportContext = { renderOptions };
 
   if (!open) return null;
 
@@ -47,10 +63,12 @@ export function ResumeDownloadReview({
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <h2 id="resume-download-review-title" className="text-[14px] font-semibold text-slate-900">
-                Review before download
+                {manualEditMode ? "Edit final resume" : "Review before download"}
               </h2>
               <p className="mt-0.5 text-[11px] text-slate-500">
-                Final export preview — same layout as your PDF and DOCX files.
+                {manualEditMode
+                  ? "Click any text to edit. Changes apply to your PDF and DOCX download only."
+                  : "Final export preview — same layout as your PDF and DOCX files."}
               </p>
             </div>
             <button
@@ -74,8 +92,8 @@ export function ResumeDownloadReview({
                 {pageFit.headline}
               </p>
               <p className="text-[10px] text-slate-600">
-                Target fill for {targetLength} page{targetLength === 1 ? "" : "s"}: {band.min.toFixed(2)}–
-                {band.max.toFixed(2)} pages
+                Target fill: {band.min.toFixed(2)}–{band.max.toFixed(2)} pages (ideal{" "}
+                {band.idealMin.toFixed(2)}–{band.idealMax.toFixed(2)})
               </p>
               {pageFit.detail ? <p className="text-[10px] text-slate-500">{pageFit.detail}</p> : null}
             </div>
@@ -83,6 +101,11 @@ export function ResumeDownloadReview({
         </header>
 
         <div className="min-h-0 flex-1 overflow-y-auto bg-slate-50/80 px-4 py-4 sm:px-5">
+          {manualEditMode ? (
+            <p className="mb-3 rounded-lg border border-indigo-200 bg-indigo-50/90 px-3 py-2 text-[10px] text-indigo-950">
+              Tip: clear a bullet line to remove it from the export. Your structured resume in the editor is unchanged.
+            </p>
+          ) : null}
           {omittedNotes.length > 0 ? (
             <section className="mb-3 rounded-lg border border-amber-200/90 bg-amber-50/80 p-3">
               <h3 className="text-[11px] font-semibold text-amber-950">Applied layout trims (export only)</h3>
@@ -100,6 +123,8 @@ export function ResumeDownloadReview({
             renderOptions={renderOptions}
             showPageBoundary
             className="mx-auto"
+            editable={manualEditMode}
+            onFinalOverrideChange={onFinalOverrideChange}
           />
         </div>
 
@@ -107,24 +132,30 @@ export function ResumeDownloadReview({
           <div className="flex flex-wrap gap-2">
             <button
               type="button"
-              onClick={() => {
-                onEditResume();
-                onClose();
-              }}
+              onClick={onEditResume}
               className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-[12px] font-semibold text-slate-800"
             >
               Edit Resume
             </button>
+            {!manualEditMode ? (
+              <button
+                type="button"
+                onClick={onEnterManualEdit}
+                className="rounded-lg border border-indigo-300 bg-indigo-50 px-4 py-2 text-[12px] font-semibold text-indigo-950"
+              >
+                Manually Edit Final Resume
+              </button>
+            ) : null}
             <button
               type="button"
-              onClick={onExportDocx}
+              onClick={() => onExportDocx(exportCtx)}
               className="rounded-lg border border-indigo-200 bg-indigo-50 px-4 py-2 text-[12px] font-semibold text-indigo-950"
             >
               Download DOCX
             </button>
             <button
               type="button"
-              onClick={onExportPdf}
+              onClick={() => onExportPdf(exportCtx)}
               className="rounded-lg border border-slate-800 bg-slate-900 px-4 py-2 text-[12px] font-semibold text-white"
             >
               Download PDF
@@ -134,4 +165,14 @@ export function ResumeDownloadReview({
       </div>
     </div>
   );
+}
+
+export function seedFinalExportOverrides(
+  resume: StructuredResume,
+  renderOptions: ResumeRenderOptions,
+  current: FinalExportOverrides,
+): FinalExportOverrides {
+  if (Object.keys(current).length > 0) return current;
+  const model = getResumeRenderModel(resume, renderOptions);
+  return buildDefaultFinalExportOverrides(model.resume, model.layout.renderPlan);
 }

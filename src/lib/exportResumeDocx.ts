@@ -1,6 +1,8 @@
 import { AlignmentType, BorderStyle, Document, Packer, Paragraph, TextRun } from "docx";
 import type { StructuredResume } from "./types";
+import { experienceEntryKey, projectEntryKey } from "./resumeLayoutEngine";
 import {
+  exportDisplayText,
   formatContactLine,
   formatEducationBlock,
   formatExperiencePrimary,
@@ -9,6 +11,7 @@ import {
   formatProjectSecondary,
   formatSkillRenderLines,
   getResumeRenderModel,
+  type ResumeRenderOptions,
 } from "./resumeRender";
 import { sanitizeExportBasename } from "./utils";
 
@@ -67,10 +70,15 @@ function bullet(text: string, after: number, size: number): Paragraph {
   });
 }
 
-export async function downloadResumeDocx(resume: StructuredResume, fileBaseName: string): Promise<void> {
+export async function downloadResumeDocx(
+  resume: StructuredResume,
+  fileBaseName: string,
+  renderOptions?: ResumeRenderOptions,
+): Promise<void> {
   const base = sanitizeExportBasename(fileBaseName || "CoverClick_Resume", "CoverClick_Resume");
-  const model = getResumeRenderModel(resume);
+  const model = getResumeRenderModel(resume, renderOptions);
   const r = model.resume;
+  const overrides = renderOptions?.finalExportOverrides;
   const spacing = model.spacing;
   const typography = model.typography;
   const sections = model.sections;
@@ -88,7 +96,7 @@ export async function downloadResumeDocx(resume: StructuredResume, fileBaseName:
     }),
   );
 
-  const contact = formatContactLine(r);
+  const contact = exportDisplayText(overrides, "contact:line", formatContactLine(r));
   if (contact) {
     children.push(
       new Paragraph({
@@ -104,19 +112,24 @@ export async function downloadResumeDocx(resume: StructuredResume, fileBaseName:
     const headerAfter = spacing.sectionHeaderAfter * 8;
 
     if (section.key === "summary") {
-      children.push(heading(section.label, headerBefore, headerAfter), line(r.summary, spacing.entryGap * 6, toHalfPt(typography.primaryLinePt)));
+      const summaryText = exportDisplayText(overrides, "summary", r.summary);
+      children.push(heading(section.label, headerBefore, headerAfter), line(summaryText, spacing.entryGap * 6, toHalfPt(typography.primaryLinePt)));
       continue;
     }
 
     if (section.key === "experience") {
       children.push(heading(section.label, headerBefore, headerAfter));
-      for (const e of r.experience) {
+      for (const [i, e] of r.experience.entries()) {
         if (!e.company && !e.title && !e.bullets.length) continue;
-        const primary = formatExperiencePrimary(e.company, e.companySubtitle);
+        const ek = experienceEntryKey(e, i);
+        const primary = exportDisplayText(overrides, `${ek}:primary`, formatExperiencePrimary(e.company, e.companySubtitle));
         if (primary) children.push(line(primary, Math.max(10, spacing.subLineGap * 5), toHalfPt(typography.primaryLinePt), true));
-        const secondary = formatExperienceSecondary(e.title, e.location, e.dates);
+        const secondary = exportDisplayText(overrides, `${ek}:secondary`, formatExperienceSecondary(e.title, e.location, e.dates));
         if (secondary) children.push(line(secondary, Math.max(8, spacing.subLineGap * 4), toHalfPt(typography.secondaryLinePt), false, true));
-        for (const b of e.bullets) children.push(bullet(b, Math.max(10, spacing.bulletGap * 4), toHalfPt(typography.bulletPt)));
+        for (const [bi, b] of e.bullets.entries()) {
+          const bulletText = exportDisplayText(overrides, `${ek}:bullet:${bi}`, b);
+          if (bulletText.trim()) children.push(bullet(bulletText, Math.max(10, spacing.bulletGap * 4), toHalfPt(typography.bulletPt)));
+        }
         children.push(new Paragraph({ spacing: { after: Math.max(14, spacing.entryGap * 6) }, children: [run(" ")] }));
       }
       continue;
@@ -124,13 +137,17 @@ export async function downloadResumeDocx(resume: StructuredResume, fileBaseName:
 
     if (section.key === "projects") {
       children.push(heading(section.label, headerBefore, headerAfter));
-      for (const p of r.projects) {
+      for (const [i, p] of r.projects.entries()) {
         if (!p.name && !p.subtitle && !p.techStack.length && !p.bullets.length) continue;
-        const primary = formatProjectPrimary(p.name, p.subtitle);
+        const pk = projectEntryKey(p, i);
+        const primary = exportDisplayText(overrides, `${pk}:primary`, formatProjectPrimary(p.name, p.subtitle));
         if (primary) children.push(line(primary, Math.max(10, spacing.subLineGap * 5), toHalfPt(typography.primaryLinePt), true));
-        const secondary = formatProjectSecondary(p.techStack);
+        const secondary = exportDisplayText(overrides, `${pk}:secondary`, formatProjectSecondary(p.techStack));
         if (secondary) children.push(line(secondary, Math.max(8, spacing.subLineGap * 4), toHalfPt(typography.secondaryLinePt), false, true));
-        for (const b of p.bullets) children.push(bullet(b, Math.max(10, spacing.bulletGap * 4), toHalfPt(typography.bulletPt)));
+        for (const [bi, b] of p.bullets.entries()) {
+          const bulletText = exportDisplayText(overrides, `${pk}:bullet:${bi}`, b);
+          if (bulletText.trim()) children.push(bullet(bulletText, Math.max(10, spacing.bulletGap * 4), toHalfPt(typography.bulletPt)));
+        }
         children.push(new Paragraph({ spacing: { after: Math.max(14, spacing.entryGap * 6) }, children: [run(" ")] }));
       }
       continue;
@@ -138,13 +155,22 @@ export async function downloadResumeDocx(resume: StructuredResume, fileBaseName:
 
     if (section.key === "education") {
       children.push(heading(section.label, headerBefore, headerAfter));
-      for (const e of r.education) {
+      for (const [i, e] of r.education.entries()) {
         const f = formatEducationBlock(e);
-        if (f.schoolLine) children.push(line(f.schoolLine, Math.max(10, spacing.subLineGap * 5), toHalfPt(typography.primaryLinePt), true));
-        if (f.degreeLine) children.push(line(f.degreeLine, Math.max(8, spacing.subLineGap * 4), toHalfPt(typography.secondaryLinePt)));
-        if (f.majorLine) children.push(line(f.majorLine, Math.max(8, spacing.subLineGap * 4), toHalfPt(typography.secondaryLinePt)));
-        if (f.gpaLine) children.push(line(f.gpaLine, Math.max(8, spacing.subLineGap * 4), toHalfPt(typography.secondaryLinePt)));
-        for (const d of e.details) children.push(bullet(d, Math.max(10, spacing.bulletGap * 4), toHalfPt(typography.bulletPt)));
+        const id = e.id ?? `edu-${i}`;
+        const prefix = `education:${id}`;
+        const school = exportDisplayText(overrides, `${prefix}:school`, f.schoolLine);
+        const degree = exportDisplayText(overrides, `${prefix}:degree`, f.degreeLine);
+        const major = exportDisplayText(overrides, `${prefix}:major`, f.majorLine);
+        const gpa = exportDisplayText(overrides, `${prefix}:gpa`, f.gpaLine);
+        if (school) children.push(line(school, Math.max(10, spacing.subLineGap * 5), toHalfPt(typography.primaryLinePt), true));
+        if (degree) children.push(line(degree, Math.max(8, spacing.subLineGap * 4), toHalfPt(typography.secondaryLinePt)));
+        if (major) children.push(line(major, Math.max(8, spacing.subLineGap * 4), toHalfPt(typography.secondaryLinePt)));
+        if (gpa) children.push(line(gpa, Math.max(8, spacing.subLineGap * 4), toHalfPt(typography.secondaryLinePt)));
+        for (const [di, d] of e.details.entries()) {
+          const detailText = exportDisplayText(overrides, `${prefix}:detail:${di}`, d);
+          if (detailText.trim()) children.push(bullet(detailText, Math.max(10, spacing.bulletGap * 4), toHalfPt(typography.bulletPt)));
+        }
         children.push(new Paragraph({ spacing: { after: Math.max(14, spacing.entryGap * 6) }, children: [run(" ")] }));
       }
       continue;
@@ -152,7 +178,8 @@ export async function downloadResumeDocx(resume: StructuredResume, fileBaseName:
 
     children.push(heading(section.label, headerBefore, headerAfter));
     for (const skillLine of formatSkillRenderLines(r, model.layout.renderPlan)) {
-      children.push(line(skillLine.text, Math.max(8, spacing.bulletGap * 4), toHalfPt(typography.bulletPt)));
+      const skillText = exportDisplayText(overrides, `skills:${skillLine.key}`, skillLine.text);
+      if (skillText.trim()) children.push(line(skillText, Math.max(8, spacing.bulletGap * 4), toHalfPt(typography.bulletPt)));
     }
   }
 

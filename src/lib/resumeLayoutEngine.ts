@@ -479,10 +479,12 @@ function effectiveBulletCap(key: string, bulletCount: number, plan: ResumeRender
   return plan.bulletLimits[key] ?? bulletCount;
 }
 
+/** One step down per entry (3→2→1); never skip multiple caps in a single step. */
 function nextBulletCapForForce(effective: number, stillOverflowing: boolean): number | null {
+  if (!stillOverflowing) return null;
   if (effective > 3) return 3;
-  if (effective === 3) return 2;
-  if (effective === 2 && stillOverflowing) return 1;
+  if (effective > 2) return effective - 1;
+  if (effective === 2) return 1;
   return null;
 }
 
@@ -491,8 +493,21 @@ function estimatedPagesFromUnits(units: number): number {
 }
 
 /** Continue force tightening only while content still exceeds the page target. */
-export function shouldContinueForceTightening(units: number, targetPages: number): boolean {
-  return estimatedPagesFromUnits(units) > targetPages;
+export function shouldContinueForceTightening(
+  units: number,
+  targetPages: number,
+  baselineUnits?: number,
+): boolean {
+  const pages = estimatedPagesFromUnits(units);
+  const band = healthyPageBand(targetPages);
+  if (pages < band.min) {
+    const baselinePages =
+      baselineUnits != null ? estimatedPagesFromUnits(baselineUnits) : null;
+    if (baselinePages != null && baselinePages < band.min) return false;
+    return false;
+  }
+  if (pages <= targetPages && pages >= band.min) return false;
+  return pages > targetPages;
 }
 
 function reduceOneExperienceBullet(
@@ -652,7 +667,7 @@ export function tightenRenderPlanOneStep(
     return { applied: true, layoutMode: plan.layoutMode };
   }
 
-  // 6. Bullet reduction (projects compress before experience within same step)
+  // 6. One project entry: reduce bullets on lowest-priority unlocked project only
   const stillOverflowing = shouldContinueForceTightening(
     estimatePageUse(resume, plan, spacingTokensForMode(plan.layoutMode), visibleSectionKeys),
     targetPages,
@@ -660,11 +675,13 @@ export function tightenRenderPlanOneStep(
   if (stillOverflowing && reduceOneProjectBullet(resume, plan, true)) {
     return { applied: true, layoutMode: plan.layoutMode };
   }
+
+  // 7. One experience entry: reduce bullets (never hide experience)
   if (stillOverflowing && reduceOneExperienceBullet(resume, plan, true)) {
     return { applied: true, layoutMode: plan.layoutMode };
   }
 
-  // 7. Project hiding (only after bullets at 1)
+  // 8. Project hiding (only after that project's bullets are at 1)
   if (hideNextProject(resume, plan)) {
     return { applied: true, layoutMode: plan.layoutMode };
   }
@@ -719,9 +736,17 @@ export function computeOnePageLayoutPlan(
     };
   }
 
-  // Force fit: stop once estimated pages are at or under target (avoid over-compression).
+  // Force fit: stop at target without compressing below healthy fill band.
+  const baselinePageUse = estimatedPageUse;
   let steps = 0;
-  while (shouldContinueForceTightening(estimatedPageUse, targetPages) && steps < MAX_COMPUTE_TIGHTEN_STEPS) {
+  while (
+    shouldContinueForceTightening(estimatedPageUse, targetPages, baselinePageUse) &&
+    steps < MAX_COMPUTE_TIGHTEN_STEPS
+  ) {
+    const pagesBefore = estimatedPagesFromUnits(estimatedPageUse);
+    const band = healthyPageBand(targetPages);
+    if (pagesBefore < band.min) break;
+
     const before = JSON.stringify(plan);
     const result = tightenRenderPlanOneStep(resume, plan, visibleSectionKeys, targetPages);
     if (!result.applied) break;
@@ -729,9 +754,10 @@ export function computeOnePageLayoutPlan(
     estimatedPageUse = measure();
     steps += 1;
     if (JSON.stringify(plan) === before) break;
-    const pages = estimatedPagesFromUnits(estimatedPageUse);
-    const band = healthyPageBand(targetPages);
-    if (pages <= targetPages && pages >= band.min) break;
+
+    const pagesAfter = estimatedPagesFromUnits(estimatedPageUse);
+    if (pagesAfter <= targetPages && pagesAfter >= band.min) break;
+    if (pagesAfter < band.min && estimatedPagesFromUnits(baselinePageUse) >= band.min) break;
   }
 
   return {

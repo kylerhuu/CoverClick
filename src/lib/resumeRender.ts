@@ -49,6 +49,7 @@ export type ResumeTypographyTokens = {
 };
 
 import type { ResumeFitMode } from "./resumeFitSettings";
+import { applyExportOverridesToResume, type FinalExportOverrides } from "./finalExportOverrides";
 
 export type ResumeRenderOptions = {
   fitMode?: ResumeFitMode;
@@ -59,7 +60,12 @@ export type ResumeRenderOptions = {
   renderPlan?: ResumeRenderPlan;
   /** Show full resume content (no auto/manual trims) after Restore All Content. */
   fullContentPreview?: boolean;
+  /** Last-mile text edits for export (review modal). */
+  finalExportOverrides?: FinalExportOverrides;
 };
+
+export type { FinalExportOverrides } from "./finalExportOverrides";
+export { buildDefaultFinalExportOverrides, exportDisplayText, emptyFinalExportOverrides } from "./finalExportOverrides";
 
 export type ResumeRenderModel = {
   templateVersion: "resume-template-v2";
@@ -330,7 +336,8 @@ export function getResumeRenderModel(
           : "high",
     renderPlan,
   };
-  const displayResume = applyRenderPlan(sourceResume, renderPlan);
+  let displayResume = applyRenderPlan(sourceResume, renderPlan);
+  displayResume = applyExportOverridesToResume(displayResume, options?.finalExportOverrides);
   return {
     templateVersion: RESUME_TEMPLATE_VERSION,
     sourceResume,

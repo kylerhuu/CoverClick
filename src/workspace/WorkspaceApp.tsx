@@ -652,9 +652,9 @@ function withStableResumeIds(resume: StructuredResume): StructuredResume {
     setSuggestionDecisions((prev) => ({ ...prev, [id]: "rejected" }));
   }, []);
 
-  const onResumeDocx = useCallback(async () => {
+  const onResumeDocx = useCallback(async (ctx?: { renderOptions?: import("../lib/resumeRender").ResumeRenderOptions }) => {
     try {
-      await downloadResumeDocx(resume, exportBasename || "CoverClick_Resume");
+      await downloadResumeDocx(resume, exportBasename || "CoverClick_Resume", ctx?.renderOptions);
       setStatus("Resume DOCX saved");
       window.setTimeout(() => setStatus(null), 900);
     } catch (e) {
@@ -772,7 +772,7 @@ function withStableResumeIds(resume: StructuredResume): StructuredResume {
             onOptimizeForJob={() => void runResumeOptimizeForJob()}
             onAcceptSuggestion={onAcceptOptimizeSuggestion}
             onRejectSuggestion={onRejectOptimizeSuggestion}
-            onExportDocx={() => void onResumeDocx()}
+            onExportDocx={(ctx) => void onResumeDocx(ctx)}
             onExportPdf={() => void onResumePdf()}
             onImportFromProfile={onImportResumeFromProfile}
           />
