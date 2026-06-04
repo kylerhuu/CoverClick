@@ -1,4 +1,16 @@
 import type { ResumeEducationItem, ResumeSectionKey, StructuredResume } from "./types";
+import {
+  computeOnePageLayoutPlan,
+  experienceEntryKey,
+  projectEntryKey,
+  spacingTokensForMode,
+  type OnePageLayoutResult,
+  type ResumeLayoutMode,
+  type ResumeRenderPlan,
+  type ResumeSpacingTokens,
+} from "./resumeLayoutEngine";
+
+export type { ResumeRenderPlan, OnePageLayoutResult, ResumeLayoutMode, ResumeSpacingTokens };
 
 export type ResumeSectionRender = {
   key: ResumeSectionKey;
@@ -12,19 +24,7 @@ export type ResumeEducationBlock = {
   gpaLine: string;
 };
 
-export type ResumeSpacingProfile = "comfortable" | "balanced" | "compact";
-
-export type ResumeSpacingTokens = {
-  profile: ResumeSpacingProfile;
-  sectionGap: number;
-  sectionHeaderAfter: number;
-  entryGap: number;
-  subLineGap: number;
-  bulletGap: number;
-  bulletLineHeight: number;
-  contactGap: number;
-};
-
+export type ResumeSpacingProfile = ResumeLayoutMode;
 
 export type ResumeTypographyTokens = {
   namePt: number;
@@ -37,10 +37,14 @@ export type ResumeTypographyTokens = {
 
 export type ResumeRenderModel = {
   templateVersion: "resume-template-v2";
+  /** Normalized source resume (full editor content). */
+  sourceResume: StructuredResume;
+  /** Render/export view after one-page layout plan. */
   resume: StructuredResume;
   sections: ResumeSectionRender[];
   spacing: ResumeSpacingTokens;
   typography: ResumeTypographyTokens;
+  layout: OnePageLayoutResult;
 };
 
 export const RESUME_TEMPLATE_VERSION = "resume-template-v2" as const;
@@ -203,55 +207,57 @@ export function getVisibleResumeSections(resume: StructuredResume): ResumeSectio
     .map((k) => ({ key: k, label: SECTION_LABELS[k] }));
 }
 
-export function chooseResumeSpacingProfile(resume: StructuredResume): ResumeSpacingTokens {
-  const r = normalizeResumeForRender(resume);
-  const sections = getVisibleResumeSections(r);
-  const entries = r.experience.length + r.projects.length + r.education.length + r.skills.length;
-  const bullets = r.experience.reduce((n, e) => n + e.bullets.length, 0) +
-    r.projects.reduce((n, p) => n + p.bullets.length, 0) +
-    r.education.reduce((n, e) => n + e.details.length, 0);
-  const summaryWords = r.summary ? r.summary.split(/\s+/).filter(Boolean).length : 0;
-
-  const load = sections.length * 1.4 + entries * 0.9 + bullets * 0.45 + summaryWords / 55;
-
-  if (load <= 11) {
-    return {
-      profile: "comfortable",
-      sectionGap: 18,
-      sectionHeaderAfter: 7,
-      entryGap: 11,
-      subLineGap: 5,
-      bulletGap: 3,
-      bulletLineHeight: 1.38,
-      contactGap: 16,
-    };
-  }
-
-  if (load >= 20) {
-    return {
-      profile: "compact",
-      sectionGap: 11,
-      sectionHeaderAfter: 4,
-      entryGap: 6,
-      subLineGap: 2,
-      bulletGap: 1,
-      bulletLineHeight: 1.26,
-      contactGap: 9,
-    };
-  }
+/** Applies render-only one-page plan; does not mutate stored resume. */
+export function applyRenderPlan(normalized: StructuredResume, plan: ResumeRenderPlan): StructuredResume {
+  const summaryHidden = plan.hiddenSections.includes("summary");
+  const summaryText = summaryHidden
+    ? ""
+    : plan.summaryText != null
+      ? plan.summaryText
+      : normalized.summary;
 
   return {
-    profile: "balanced",
-    sectionGap: 14,
-    sectionHeaderAfter: 6,
-    entryGap: 8,
-    subLineGap: 3,
-    bulletGap: 2,
-    bulletLineHeight: 1.31,
-    contactGap: 12,
+    ...normalized,
+    summary: summaryText,
+    experience: normalized.experience.map((e, index) => {
+      const key = experienceEntryKey(e, index);
+      const limit = plan.bulletLimits[key];
+      return limit != null ? { ...e, bullets: e.bullets.slice(0, limit) } : e;
+    }),
+    projects: normalized.projects.flatMap((p, index) => {
+      const key = projectEntryKey(p, index);
+      if (plan.hiddenSections.includes(key)) return [];
+      const limit = plan.bulletLimits[key];
+      return [limit != null ? { ...p, bullets: p.bullets.slice(0, limit) } : p];
+    }),
+    education: normalized.education.map((e) => ({
+      ...e,
+      concentrationOrMinor: plan.compactEducation ? "" : e.concentrationOrMinor,
+      details: plan.compactEducation ? [] : e.details,
+    })),
   };
 }
 
+export function formatSkillRenderLines(
+  resume: StructuredResume,
+  plan: ResumeRenderPlan,
+): { key: string; text: string }[] {
+  const groups = resume.skills.filter((s) => s.category || s.items.length);
+  if (!groups.length) return [];
+
+  if (!plan.compactSkills) {
+    return groups.map((s, i) => ({
+      key: s.id ?? `skills-${i}`,
+      text: `${s.category || "Skills"}: ${s.items.join(", ")}`,
+    }));
+  }
+
+  const merged = groups
+    .map((g) => (g.category ? `${g.category}: ${g.items.join(", ")}` : g.items.join(", ")))
+    .filter(Boolean)
+    .join("  |  ");
+  return [{ key: "skills-compact", text: merged }];
+}
 
 export function getResumeTypographyTokens(): ResumeTypographyTokens {
   return {
@@ -265,12 +271,17 @@ export function getResumeTypographyTokens(): ResumeTypographyTokens {
 }
 
 export function getResumeRenderModel(resume: StructuredResume): ResumeRenderModel {
-  const normalized = normalizeResumeForRender(resume);
+  const sourceResume = normalizeResumeForRender(resume);
+  const sectionKeys = getVisibleResumeSections(sourceResume).map((s) => s.key);
+  const layout = computeOnePageLayoutPlan(sourceResume, sectionKeys);
+  const displayResume = applyRenderPlan(sourceResume, layout.renderPlan);
   return {
     templateVersion: RESUME_TEMPLATE_VERSION,
-    resume: normalized,
-    sections: getVisibleResumeSections(normalized),
-    spacing: chooseResumeSpacingProfile(normalized),
+    sourceResume,
+    resume: displayResume,
+    sections: getVisibleResumeSections(displayResume),
+    spacing: spacingTokensForMode(layout.layoutMode),
     typography: getResumeTypographyTokens(),
+    layout,
   };
 }

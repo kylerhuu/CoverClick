@@ -397,6 +397,8 @@ function normalizeStructuredResume(raw: unknown): StructuredResume {
             dates: typeof x.dates === "string" ? x.dates : "",
             location: typeof x.location === "string" ? x.location : "",
             bullets: arr(x.bullets),
+            priority:
+              x.priority === "medium" || x.priority === "low" || x.priority === "high" ? x.priority : undefined,
           }))
       : [],
     projects: Array.isArray(r.projects)
@@ -413,6 +415,8 @@ function normalizeStructuredResume(raw: unknown): StructuredResume {
                   : "",
             techStack: arr(x.techStack),
             bullets: arr(x.bullets),
+            priority:
+              x.priority === "medium" || x.priority === "low" || x.priority === "high" ? x.priority : undefined,
           }))
       : [],
     skills: Array.isArray(r.skills)

@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { ResumeSectionKey, ResumeOptimizeForJobResponse, StructuredResume } from "../../lib/types";
 import { cn } from "../../lib/classNames";
+import { getResumeRenderModel } from "../../lib/resumeRender";
 import { ResumePreview } from "./resume/ResumePreview";
 
 type Props = {
@@ -107,6 +108,11 @@ export function ResumeStudioPane({
 
   const orderedSections = [...sectionMeta].sort(
     (a, b) => (resume.sectionSettings[a.key]?.order ?? 0) - (resume.sectionSettings[b.key]?.order ?? 0),
+  );
+
+  const omittedNotes = useMemo(
+    () => getResumeRenderModel(resume).layout.renderPlan.omittedNotes,
+    [resume],
   );
 
   const editor = (
@@ -295,7 +301,17 @@ export function ResumeStudioPane({
 
         {(wide || view === "preview") ? (
           <div className="min-h-0 overflow-y-auto">
-            <div className={cn(wide ? "sticky top-2" : "")}> 
+            <div className={cn(wide ? "sticky top-2" : "")}>
+              {omittedNotes.length > 0 ? (
+                <section className="mb-3 rounded-lg border border-amber-200/90 bg-amber-50/80 p-3">
+                  <h3 className="text-[11px] font-semibold text-amber-950">Omitted from one-page export</h3>
+                  <ul className="mt-1.5 list-disc space-y-0.5 pl-4 text-[10px] text-amber-900/90">
+                    {omittedNotes.map((note) => (
+                      <li key={note}>{note}</li>
+                    ))}
+                  </ul>
+                </section>
+              ) : null}
               <ResumePreview resume={resume} template="ats-classic" variant="preview" />
               <div className="mt-2 grid grid-cols-2 gap-2">
                 <button type="button" onClick={onExportDocx} className="rounded-lg border border-indigo-200 bg-indigo-50 py-2 text-[12px] font-semibold text-indigo-950">Export DOCX</button>

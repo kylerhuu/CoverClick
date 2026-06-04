@@ -129,8 +129,12 @@ export interface ResumeEducationItem {
   details: string[];
 }
 
+export type ResumeEntryPriority = "high" | "medium" | "low";
+
 export interface ResumeExperienceItem {
   id?: string;
+  /** Used by one-page layout to compress lower-priority entries first. Defaults to high. */
+  priority?: ResumeEntryPriority;
   company: string;
   companySubtitle?: string;
   title: string;
@@ -141,6 +145,7 @@ export interface ResumeExperienceItem {
 
 export interface ResumeProjectItem {
   id?: string;
+  priority?: ResumeEntryPriority;
   name: string;
   subtitle: string;
   techStack: string[];
