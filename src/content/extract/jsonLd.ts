@@ -54,6 +54,7 @@ function extractFromJobPosting(node: UnknownRecord, hostname: string): JobExtrac
   return asPartial({
     jobTitle: title,
     companyName: company,
+    companyNameRaw: rawCompany,
     descriptionText: description,
   });
 }
@@ -82,6 +83,7 @@ export function extractJsonLdJob(doc: Document, hostname: string): JobExtraction
       const part = extractFromJobPosting(node, hostname);
       if (part.jobTitle && !merged.jobTitle) merged.jobTitle = part.jobTitle;
       if (part.companyName && !merged.companyName) merged.companyName = part.companyName;
+      if (part.companyNameRaw && !merged.companyNameRaw) merged.companyNameRaw = part.companyNameRaw;
       if (part.descriptionText) {
         if (!merged.descriptionText || part.descriptionText.length > (merged.descriptionText?.length ?? 0)) {
           merged.descriptionText = part.descriptionText;

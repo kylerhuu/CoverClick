@@ -1,57 +1,62 @@
-import type { CompanyCandidateSource } from "./types";
+import type { CompanyExtractionDebugReport } from "../../lib/companyExtractionDebugTypes";
+import { readCompanyExtractionDebugEnabled } from "../../lib/companyExtractionDebugClient";
 
-export type CompanyCandidateDebugEntry = {
-  source: CompanyCandidateSource;
-  raw: string;
-  status: "accepted" | "rejected" | "skipped";
-  reason?: string;
-  normalized?: string;
-};
+export type { CompanyExtractionDebugReport } from "../../lib/companyExtractionDebugTypes";
+export type { CompanyCandidateDebugEntry } from "../../lib/companyExtractionDebugTypes";
 
-export type CompanyExtractionDebugReport = {
-  board: string;
-  hostname: string;
-  winner: CompanyCandidateSource | "none";
-  value: string;
-  candidates: CompanyCandidateDebugEntry[];
-};
+declare global {
+  interface Window {
+    __COVERCLICK_LAST_COMPANY_DEBUG__?: CompanyExtractionDebugReport;
+    __COVERCLICK_LAST_SCRAPED_JOB__?: unknown;
+  }
+}
 
-const DEV =
-  typeof import.meta !== "undefined" &&
-  Boolean((import.meta as ImportMeta & { env?: { DEV?: boolean } }).env?.DEV);
-
-function debugEnabled(): boolean {
-  if (DEV) return true;
+/** Always attach on the job tab (independent of debug flag). */
+export function publishCompanyExtractionDebugToPage(
+  report: CompanyExtractionDebugReport,
+  job?: unknown,
+): void {
   try {
-    return localStorage.getItem("coverclick:debugCompanyExtraction") === "1";
+    window.__COVERCLICK_LAST_COMPANY_DEBUG__ = report;
+    if (job !== undefined) window.__COVERCLICK_LAST_SCRAPED_JOB__ = job;
   } catch {
-    return false;
+    /* ignore — cross-origin or restricted */
   }
 }
 
 export function logCompanyExtractionDebug(report: CompanyExtractionDebugReport): void {
-  if (!debugEnabled()) return;
+  publishCompanyExtractionDebugToPage(report);
 
-  const lines = [
-    "Company Extraction Debug",
-    `Winner: ${report.winner}`,
-    `Value: ${report.value || "(empty — UI may show Unknown)"}`,
-    "Candidates:",
-    ...report.candidates.map((c) => {
-      const norm = c.normalized ? ` → "${c.normalized}"` : "";
-      const why = c.reason ? ` (${c.reason})` : "";
-      return `- ${c.source}: ${c.raw || "(empty)"} [${c.status}]${why}${norm}`;
-    }),
-  ];
+  void readCompanyExtractionDebugEnabled().then((enabled) => {
+    if (!enabled) return;
 
-  console.groupCollapsed("[CoverClick] Company extraction");
-  for (const line of lines) console.log(line);
-  console.groupEnd();
+    const lines = [
+      "Company Extraction Debug (job tab)",
+      `URL: ${report.pageUrl}`,
+      `Board: ${report.board} · Host: ${report.hostname}`,
+      `Final: ${report.value || "(empty)"} · Winner: ${report.winner}`,
+      "",
+      "Raw candidates (found):",
+      ...(report.rawFound.length
+        ? report.rawFound.map((r) => `- "${r.raw}" from ${r.source} (${r.origin})`)
+        : ["- (none)"]),
+      "",
+      "Accepted:",
+      ...(report.accepted.length
+        ? report.accepted.map(
+            (a) => `- "${a.value}" from ${a.source} (${a.origin}) confidence=${a.confidence}`,
+          )
+        : ["- (none)"]),
+      "",
+      "Rejected:",
+      ...(report.rejected.length
+        ? report.rejected.map((r) => `- "${r.raw}" from ${r.source} (${r.origin}) → ${r.reason}`)
+        : ["- (none)"]),
+    ];
 
-  try {
-    (window as Window & { __COVERCLICK_LAST_COMPANY_DEBUG__?: CompanyExtractionDebugReport }).__COVERCLICK_LAST_COMPANY_DEBUG__ =
-      report;
-  } catch {
-    /* ignore */
-  }
+    console.groupCollapsed("[CoverClick] Company extraction (job tab)");
+    for (const line of lines) console.log(line);
+    console.log("(Side panel: re-scan with debug flag to see JobContext + panel block.)");
+    console.groupEnd();
+  });
 }

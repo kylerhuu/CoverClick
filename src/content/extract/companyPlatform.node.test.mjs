@@ -38,4 +38,13 @@ describe("companyPlatform", () => {
     assert.equal(r.ok, false);
     if (!r.ok) assert.equal(r.reason, "generic_junk");
   });
+
+  it("accepts real company even when scraped from an employers profile path", () => {
+    const r = normalizeCompanyCandidate("Goldman Sachs", {
+      hostname: "joinhandshake.com",
+      board: "handshake",
+    });
+    assert.equal(r.ok, true);
+    if (r.ok) assert.equal(r.value, "Goldman Sachs");
+  });
 });

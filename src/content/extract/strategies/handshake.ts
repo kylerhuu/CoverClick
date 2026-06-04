@@ -1,9 +1,10 @@
-import type { JobExtractionPartial } from "../types";
+import type { CompanyRawEntry, JobExtractionPartial } from "../types";
 import { normalizeCompanyCandidate } from "../companyPlatform";
 import { asPartial, firstMatchText, orderedMatchTexts, pickText } from "../dom";
 import { longestDescriptionFromRoots, readDescriptionFromRoot } from "../descriptionDom";
+import { collectHandshakeAboutEmployer, pushHandshakeRaw } from "./handshakeAboutEmployer";
 
-/** High-confidence employer fields only — avoid nav links like /employers/. */
+/** High-confidence employer fields (Phase 3 may expand using debug origins). */
 const EMPLOYER_DOM_SELECTORS = [
   '[data-hook="employer-name"]',
   '[class*="EmployerName"]',
@@ -13,27 +14,41 @@ const EMPLOYER_DOM_SELECTORS = [
   '[data-testid="employer-name"]',
 ];
 
-function employerCandidatesFromHandshakeDom(doc: Document, hostname: string): string[] {
-  const raw = orderedMatchTexts(doc, EMPLOYER_DOM_SELECTORS);
+function pushRaw(entries: CompanyRawEntry[], raw: string, origin: string): void {
+  const t = raw.trim();
+  if (!t) return;
+  if (entries.some((e) => e.raw.toLowerCase() === t.toLowerCase() && e.origin === origin)) return;
+  entries.push({ raw: t, origin });
+}
+
+function employerRawEntriesFromHandshakeDom(doc: Document, descriptionText?: string): CompanyRawEntry[] {
+  const entries: CompanyRawEntry[] = [];
+
+  for (const e of collectHandshakeAboutEmployer(doc, descriptionText)) {
+    pushHandshakeRaw(entries, e.raw, e.origin);
+  }
+  // About-the-employer entries are prepended first (highest merge priority).
+
+  for (const sel of EMPLOYER_DOM_SELECTORS) {
+    for (const t of orderedMatchTexts(doc, [sel])) {
+      pushRaw(entries, t, `selector:${sel}`);
+    }
+  }
+
   const h1 = doc.querySelector("main h1, h1");
   if (h1?.parentElement) {
     for (const a of h1.parentElement.querySelectorAll("a")) {
       const t = pickText(a);
       const href = a.getAttribute("href") ?? "";
       if (!t || (!href.includes("employer") && !href.includes("/e/"))) continue;
-      if (normalizeCompanyCandidate(t, { hostname, board: "handshake" }).ok) raw.push(t);
+      pushRaw(entries, t, "handshake:h1-sibling-link");
     }
   }
-  const seen = new Set<string>();
-  return raw.filter((t) => {
-    const k = t.toLowerCase();
-    if (seen.has(k)) return false;
-    seen.add(k);
-    return true;
-  });
+
+  return entries;
 }
 
-function employerFromJsonLdOnPage(doc: Document, hostname: string): string | undefined {
+function employerJsonLdRaw(doc: Document): string | undefined {
   const scripts = doc.querySelectorAll('script[type="application/ld+json"]');
   for (const script of scripts) {
     let parsed: unknown;
@@ -64,13 +79,11 @@ function employerFromJsonLdOnPage(doc: Document, hostname: string): string | und
       if (!types.has("JobPosting")) continue;
 
       const ho = node.hiringOrganization;
-      let name = "";
-      if (typeof ho === "string") name = ho;
-      else if (ho && typeof ho === "object" && typeof (ho as Record<string, unknown>).name === "string") {
-        name = (ho as Record<string, unknown>).name as string;
+      if (typeof ho === "string" && ho.trim()) return ho.trim();
+      if (ho && typeof ho === "object" && typeof (ho as Record<string, unknown>).name === "string") {
+        const name = (ho as Record<string, unknown>).name as string;
+        if (name.trim()) return name.trim();
       }
-      const result = normalizeCompanyCandidate(name, { hostname, board: "handshake" });
-      if (result.ok) return result.value;
     }
   }
   return undefined;
@@ -85,19 +98,6 @@ export function extractHandshake(doc: Document, hostname: string): JobExtraction
       "main h1",
       "h1",
     ]) || firstMatchText(doc, ['[class*="job-title"]']);
-
-  const companyCandidates = employerCandidatesFromHandshakeDom(doc, hostname);
-  const fromLd = employerFromJsonLdOnPage(doc, hostname);
-  if (fromLd) companyCandidates.push(fromLd);
-
-  let company = "";
-  for (const raw of companyCandidates) {
-    const normalized = normalizeCompanyCandidate(raw, { hostname, board: "handshake" });
-    if (normalized.ok) {
-      company = normalized.value;
-      break;
-    }
-  }
 
   const description =
     longestDescriptionFromRoots(
@@ -114,10 +114,25 @@ export function extractHandshake(doc: Document, hostname: string): JobExtraction
       120,
     ) || readDescriptionFromRoot(doc.querySelector("main"));
 
+  const companyRawEntries = employerRawEntriesFromHandshakeDom(doc, description);
+  const jsonLdRaw = employerJsonLdRaw(doc);
+  if (jsonLdRaw) pushRaw(companyRawEntries, jsonLdRaw, "handshake:jsonLd");
+
+  let company = "";
+  for (const { raw } of companyRawEntries) {
+    const normalized = normalizeCompanyCandidate(raw, { hostname, board: "handshake" });
+    if (normalized.ok) {
+      company = normalized.value;
+      break;
+    }
+  }
+
   return asPartial({
     jobTitle: title,
     companyName: company || undefined,
-    companyCandidates: companyCandidates.length ? companyCandidates : undefined,
+    companyNameRaw: jsonLdRaw,
+    companyRawEntries: companyRawEntries.length ? companyRawEntries : undefined,
+    companyCandidates: companyRawEntries.map((e) => e.raw),
     descriptionText: description,
   });
 }

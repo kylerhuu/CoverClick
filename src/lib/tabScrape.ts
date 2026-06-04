@@ -1,4 +1,6 @@
 import { SCRAPE_MESSAGE_TYPE } from "./messages";
+import { normalizeScrapedJob } from "./normalizeScrapedJob";
+import { serializeScrapedJobForMessage } from "./serializeScrapedJobForMessage";
 import type { JobContext } from "./types";
 
 type ScrapeResponse =
@@ -46,7 +48,10 @@ export async function requestJobContextFromActiveTab(): Promise<JobContext> {
     const res = (await chrome.tabs.sendMessage(tabId, {
       type: SCRAPE_MESSAGE_TYPE,
     })) as ScrapeResponse;
-    if (res?.ok && res.job) return res.job;
+    if (res?.ok && res.job) {
+      const job = serializeScrapedJobForMessage(normalizeScrapedJob(res.job));
+      return job;
+    }
     throw new Error(res && "error" in res ? String(res.error) : "Could not read this page.");
   }
 
