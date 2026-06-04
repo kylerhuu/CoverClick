@@ -1,12 +1,9 @@
-import type { CompanyPickOption, JobContext } from "../../lib/types";
-import type { CompanyCandidateSource, JobBoardId, JobExtractionPartial } from "./types";
-import { normalizeCompanyCandidate, type CompanyNormalizeContext } from "./companyPlatform";
-import {
-  logCompanyExtractionDebug,
-  type CompanyCandidateDebugEntry,
-  type CompanyExtractionDebugReport,
-} from "./companyExtractionDebug";
+import type { JobContext } from "../../lib/types";
+import type { JobBoardId, JobExtractionPartial } from "./types";
+import type { CompanyNormalizeContext } from "./companyPlatform";
+import { logCompanyExtractionDebug } from "./companyExtractionDebug";
 import { bodyInnerTextFallback } from "./dom";
+import { pickCompanyFromRawEntries, type RawCompanyEntry } from "./pickCompanyFromRawEntries";
 
 const MAX_DESCRIPTION = 24_000;
 
@@ -14,27 +11,17 @@ export type MergeSources = {
   jsonLd: JobExtractionPartial;
   board: JobExtractionPartial;
   genericDomCompany?: string;
+  genericDomCompanyRaw?: string;
+  genericDomOrigin?: string;
   genericMetaCompany?: string;
+  genericMetaCompanyRaw?: string;
   generic: JobExtractionPartial;
 };
 
 export type MergeContext = {
   board: JobBoardId;
   hostname: string;
-};
-
-const SOURCE_BASE_SCORE: Record<CompanyCandidateSource, number> = {
-  boardExtractor: 100,
-  jsonLd: 80,
-  genericDom: 60,
-  metaFallback: 40,
-};
-
-const SOURCE_LABEL: Record<CompanyCandidateSource, string> = {
-  boardExtractor: "Job page",
-  jsonLd: "Structured data",
-  genericDom: "Page content",
-  metaFallback: "Page meta",
+  pageUrl: string;
 };
 
 function uniquePreservingOrder(values: string[]): string[] {
@@ -65,112 +52,69 @@ function scoreTitleLike(s: string): number {
   return Math.abs(len - ideal) + (s.includes("\n") ? 40 : 0);
 }
 
-type RawCompanyEntry = {
-  raw: string;
-  source: CompanyCandidateSource;
-  /** Lower = earlier / more specific within the same source. */
-  orderInSource: number;
-};
+function dedupeRawEntries(entries: RawCompanyEntry[]): RawCompanyEntry[] {
+  const seen = new Set<string>();
+  const out: RawCompanyEntry[] = [];
+  for (const e of entries) {
+    const key = `${e.source}\0${e.origin}\0${e.raw.trim().toLowerCase()}`;
+    if (!e.raw.trim() || seen.has(key)) continue;
+    seen.add(key);
+    out.push({ raw: e.raw.trim(), source: e.source, origin: e.origin });
+  }
+  return out;
+}
 
-function boardRawCompanies(board: JobExtractionPartial): string[] {
-  if (board.companyCandidates?.length) return board.companyCandidates;
-  if (board.companyName?.trim()) return [board.companyName];
-  return [];
+function boardRawEntries(board: JobExtractionPartial): RawCompanyEntry[] {
+  if (board.companyRawEntries?.length) {
+    return board.companyRawEntries.map((e) => ({
+      raw: e.raw,
+      source: "boardExtractor" as const,
+      origin: e.origin,
+    }));
+  }
+  const legacy = board.companyCandidates?.length
+    ? board.companyCandidates
+    : board.companyName?.trim()
+      ? [board.companyName]
+      : [];
+  return legacy.map((raw, i) => ({
+    raw,
+    source: "boardExtractor" as const,
+    origin: `board:legacy:${i}`,
+  }));
 }
 
 function collectRawCompanyEntries(sources: MergeSources): RawCompanyEntry[] {
-  const entries: RawCompanyEntry[] = [];
+  const entries: RawCompanyEntry[] = [...boardRawEntries(sources.board)];
 
-  for (const [orderInSource, raw] of boardRawCompanies(sources.board).entries()) {
-    if (raw.trim()) entries.push({ raw, source: "boardExtractor", orderInSource });
-  }
-  if (sources.jsonLd.companyName?.trim()) {
-    entries.push({ raw: sources.jsonLd.companyName, source: "jsonLd", orderInSource: 0 });
-  }
-  if (sources.genericDomCompany?.trim()) {
-    entries.push({ raw: sources.genericDomCompany, source: "genericDom", orderInSource: 0 });
-  }
-  if (sources.genericMetaCompany?.trim()) {
-    entries.push({ raw: sources.genericMetaCompany, source: "metaFallback", orderInSource: 0 });
-  }
-
-  return entries;
-}
-
-function pickCompanyWithDebug(
-  entries: RawCompanyEntry[],
-  normCtx: CompanyNormalizeContext,
-  mergeCtx: MergeContext,
-): {
-  companyName: string;
-  companyCandidates: CompanyPickOption[];
-  debug: CompanyExtractionDebugReport;
-} {
-  const candidates: CompanyCandidateDebugEntry[] = [];
-  const scoredByValue = new Map<string, CompanyPickOption>();
-
-  for (const { raw, source, orderInSource } of entries) {
-    if (!raw?.trim()) {
-      candidates.push({ source, raw: "", status: "skipped", reason: "empty" });
-      continue;
-    }
-    const result = normalizeCompanyCandidate(raw, normCtx);
-    if (!result.ok) {
-      candidates.push({
-        source,
-        raw,
-        status: "rejected",
-        reason: result.reason,
-      });
-      continue;
-    }
-    candidates.push({
-      source,
-      raw,
-      status: "accepted",
-      normalized: result.value,
+  const jsonRaw = sources.jsonLd.companyNameRaw?.trim() || sources.jsonLd.companyName?.trim();
+  if (jsonRaw) {
+    entries.push({
+      raw: jsonRaw,
+      source: "jsonLd",
+      origin: "jsonLd:hiringOrganization",
     });
-
-    const confidence = SOURCE_BASE_SCORE[source] - orderInSource;
-    const existing = scoredByValue.get(result.value);
-    if (!existing || confidence > existing.confidence) {
-      scoredByValue.set(result.value, {
-        value: result.value,
-        source: SOURCE_LABEL[source],
-        confidence,
-      });
-    }
   }
 
-  const companyCandidates = [...scoredByValue.values()].sort((a, b) => b.confidence - a.confidence);
-  const companyName = companyCandidates[0]?.value ?? "";
-
-  let winner: CompanyCandidateSource | "none" = "none";
-  if (companyName) {
-    for (const e of entries) {
-      const result = normalizeCompanyCandidate(e.raw, normCtx);
-      if (result.ok && result.value === companyName) {
-        winner = e.source;
-        break;
-      }
-    }
+  const domRaw = sources.genericDomCompanyRaw?.trim() || sources.genericDomCompany?.trim();
+  if (domRaw) {
+    entries.push({
+      raw: domRaw,
+      source: "genericDom",
+      origin: sources.genericDomOrigin ?? "genericDom:selector",
+    });
   }
 
-  const report: CompanyExtractionDebugReport = {
-    board: mergeCtx.board,
-    hostname: mergeCtx.hostname,
-    winner,
-    value: companyName,
-    candidates,
-  };
+  const metaRaw = sources.genericMetaCompanyRaw?.trim() || sources.genericMetaCompany?.trim();
+  if (metaRaw) {
+    entries.push({
+      raw: metaRaw,
+      source: "metaFallback",
+      origin: "meta:og-or-app",
+    });
+  }
 
-  logCompanyExtractionDebug(report);
-
-  return {
-    companyName,
-    companyCandidates,
-    debug: report,
-  };
+  return dedupeRawEntries(entries);
 }
 
 function pickDescription(candidates: string[], doc: Document): string {
@@ -193,11 +137,9 @@ export function mergeJobExtractions(
     board: mergeCtx.board,
   };
 
-  const { companyName, companyCandidates } = pickCompanyWithDebug(
-    collectRawCompanyEntries(sources),
-    normCtx,
-    mergeCtx,
-  );
+  const rawEntries = collectRawCompanyEntries(sources);
+  const { companyName, companyCandidates, debug } = pickCompanyFromRawEntries(rawEntries, normCtx, mergeCtx);
+  logCompanyExtractionDebug(debug);
 
   const titles: string[] = [];
   const descriptions: string[] = [];
@@ -213,10 +155,14 @@ export function mergeJobExtractions(
     if (body.length > descriptionText.length) descriptionText = body;
   }
 
+  const hasAccepted = companyCandidates.length > 0;
+
   return {
     jobTitle: pickTitle(titles),
     companyName,
-    companyCandidates: companyCandidates.length > 1 ? companyCandidates : undefined,
+    companyCandidates,
+    companyResolution: hasAccepted ? "auto" : "not_found",
+    companyExtractionDebug: debug,
     descriptionText,
   };
 }

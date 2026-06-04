@@ -33,6 +33,7 @@ import {
   saveResumeStudio,
 } from "../lib/storage";
 import type { AppSettings } from "../lib/types";
+import { applyScrapedCompanyDefaults } from "../lib/jobCompanyScrape";
 import { requestJobContextFromActiveTab } from "../lib/tabScrape";
 import { requestCleanJobDescription } from "../lib/jobDescriptionCleanApi";
 import { shouldUseAiDescriptionClean } from "../lib/jobDescriptionQuality";
@@ -153,7 +154,7 @@ function withStableResumeIds(resume: StructuredResume): StructuredResume {
     setScrapeBusy(true);
     setScrapeError(null);
     try {
-      const next = await requestJobContextFromActiveTab();
+      const next = applyScrapedCompanyDefaults(await requestJobContextFromActiveTab());
       setJob(next);
     } catch (e) {
       setScrapeError(e instanceof Error ? e.message : "Scrape failed");

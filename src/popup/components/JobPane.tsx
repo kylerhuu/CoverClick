@@ -1,9 +1,12 @@
 import { useEffect, useState } from "react";
 import type { JobContext, ResumeTailoringResponse, UserProfile } from "../../lib/types";
+import { isCompanyExtractionDebugEnabled } from "../../lib/companyExtractionDebugClient";
+import { UNKNOWN_COMPANY_VALUE, companySelectOptions } from "../../lib/jobCompanyScrape";
 import { profileCompleteness } from "../../lib/profileCompleteness";
 import { truncate } from "../../lib/utils";
 import { cn } from "../../lib/classNames";
 import { CognitiveLoader } from "./CognitiveLoader";
+import { CompanyExtractionDebugPanel } from "./CompanyExtractionDebugPanel";
 
 const SCRAPE_LINES = [
   "Reading the open tab and job signals…",
@@ -60,9 +63,13 @@ export function JobPane({
   const circumference = 2 * Math.PI * r;
   const pct = Math.min(100, Math.max(0, score)) / 100;
   const editable = Boolean(job && onJobChange);
-  const companyPicks = job?.companyCandidates ?? [];
-  const showCompanySelect = editable && companyPicks.length > 1;
+  const acceptedPicks = job?.companyCandidates ?? [];
+  const companyNotFound = job?.companyResolution === "not_found" || (!job?.companyName?.trim() && !acceptedPicks.length);
+  const selectOptions = companySelectOptions(acceptedPicks);
+  const showCompanySelect = editable && (acceptedPicks.length > 0 || companyNotFound);
+  const showCompanyDebug = Boolean(job?.companyExtractionDebug && isCompanyExtractionDebugEnabled());
   const [companyManual, setCompanyManual] = useState(false);
+  const [debugOpen, setDebugOpen] = useState(true);
 
   useEffect(() => {
     setCompanyManual(false);
@@ -70,7 +77,11 @@ export function JobPane({
 
   const patchJob = (partial: Partial<JobContext>) => {
     if (!job || !onJobChange) return;
-    onJobChange({ ...job, ...partial });
+    const next = { ...job, ...partial };
+    if (partial.companyName !== undefined) {
+      next.companyResolution = partial.companyName.trim() ? "manual" : "not_found";
+    }
+    onJobChange(next);
   };
 
   if (collapsed) {
@@ -207,58 +218,79 @@ export function JobPane({
             <span className="min-w-0 font-semibold leading-snug text-slate-900">{job?.jobTitle?.trim() || "—"}</span>
           )}
           <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Company</span>
-          {editable && showCompanySelect && !companyManual ? (
-            <div className="min-w-0 space-y-1">
-              <select
-                className={inputCls}
-                value={
-                  companyPicks.some((p) => p.value === (job?.companyName ?? ""))
-                    ? (job?.companyName ?? "")
-                    : "__other__"
-                }
-                onChange={(e) => {
-                  if (e.target.value === "__other__") {
-                    setCompanyManual(true);
-                    return;
+          <div className="min-w-0 space-y-1.5">
+            {editable && companyNotFound ? (
+              <p className="text-[10px] font-medium text-amber-800">Company not found — type the employer below.</p>
+            ) : null}
+            {editable && showCompanySelect && !companyManual ? (
+              <>
+                <select
+                  className={inputCls}
+                  value={
+                    selectOptions.some((o) => o.value === (job?.companyName ?? ""))
+                      ? (job?.companyName ?? "")
+                      : companyNotFound
+                        ? UNKNOWN_COMPANY_VALUE
+                        : "__other__"
                   }
-                  patchJob({ companyName: e.target.value });
-                }}
+                  onChange={(e) => {
+                    if (e.target.value === "__other__") {
+                      setCompanyManual(true);
+                      return;
+                    }
+                    patchJob({ companyName: e.target.value });
+                  }}
+                  aria-label="Company name"
+                >
+                  {companyNotFound && !acceptedPicks.length ? (
+                    <option value={UNKNOWN_COMPANY_VALUE}>{UNKNOWN_COMPANY_VALUE}</option>
+                  ) : null}
+                  {selectOptions.map((o) => (
+                    <option key={o.value} value={o.value}>
+                      {o.label}
+                    </option>
+                  ))}
+                  <option value="__other__">Type company name…</option>
+                </select>
+                <button
+                  type="button"
+                  className="text-[10px] font-medium text-indigo-700 hover:text-indigo-900"
+                  onClick={() => setCompanyManual(true)}
+                >
+                  Type company name
+                </button>
+              </>
+            ) : editable ? (
+              <input
+                className={inputCls}
+                value={job?.companyName ?? ""}
+                onChange={(e) => patchJob({ companyName: e.target.value })}
+                placeholder={companyNotFound ? "Type company name" : "Company name"}
                 aria-label="Company name"
-              >
-                {companyPicks.map((p) => (
-                  <option key={`${p.value}-${p.source}`} value={p.value}>
-                    {p.value}
-                    {p.source ? ` (${p.source})` : ""}
-                  </option>
-                ))}
-                <option value="__other__">Other…</option>
-              </select>
-              <button
-                type="button"
-                className="text-[10px] font-medium text-indigo-700 hover:text-indigo-900"
-                onClick={() => setCompanyManual(true)}
-              >
-                Type a different name
-              </button>
-            </div>
-          ) : editable ? (
-            <input
-              className={inputCls}
-              value={job?.companyName ?? ""}
-              onChange={(e) => patchJob({ companyName: e.target.value })}
-              placeholder="Company name"
-              aria-label="Company name"
-            />
-          ) : (
-            <span className="min-w-0 font-semibold leading-snug text-slate-900">
-              {job?.companyName?.trim() || "Unknown"}
-            </span>
-          )}
+              />
+            ) : (
+              <span className="min-w-0 font-semibold leading-snug text-slate-900">
+                {job?.companyName?.trim() || "Unknown"}
+              </span>
+            )}
+          </div>
           <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Link</span>
           <span className="min-w-0 break-all text-[11px] leading-snug text-slate-500">
             {job?.pageUrl ? truncate(job.pageUrl, 80) : "—"}
           </span>
         </div>
+        {showCompanyDebug && job?.companyExtractionDebug ? (
+          <div className="space-y-1">
+            <button
+              type="button"
+              className="text-[10px] font-semibold text-amber-900 underline decoration-amber-300/80"
+              onClick={() => setDebugOpen((o) => !o)}
+            >
+              {debugOpen ? "Hide" : "Show"} company extraction debug
+            </button>
+            {debugOpen ? <CompanyExtractionDebugPanel report={job.companyExtractionDebug} /> : null}
+          </div>
+        ) : null}
         {onRegenerateLetter ? (
           <button
             type="button"

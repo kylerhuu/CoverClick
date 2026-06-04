@@ -1,46 +1,44 @@
-import type { CompanyCandidateSource } from "./types";
+import type { CompanyExtractionDebugReport } from "../../lib/companyExtractionDebugTypes";
+import { isCompanyExtractionDebugEnabled } from "../../lib/companyExtractionDebugClient";
 
-export type CompanyCandidateDebugEntry = {
-  source: CompanyCandidateSource;
-  raw: string;
-  status: "accepted" | "rejected" | "skipped";
-  reason?: string;
-  normalized?: string;
-};
-
-export type CompanyExtractionDebugReport = {
-  board: string;
-  hostname: string;
-  winner: CompanyCandidateSource | "none";
-  value: string;
-  candidates: CompanyCandidateDebugEntry[];
-};
-
-const DEV =
-  typeof import.meta !== "undefined" &&
-  Boolean((import.meta as ImportMeta & { env?: { DEV?: boolean } }).env?.DEV);
-
-function debugEnabled(): boolean {
-  if (DEV) return true;
-  try {
-    return localStorage.getItem("coverclick:debugCompanyExtraction") === "1";
-  } catch {
-    return false;
-  }
-}
+export type { CompanyExtractionDebugReport } from "../../lib/companyExtractionDebugTypes";
+export type { CompanyCandidateDebugEntry } from "../../lib/companyExtractionDebugTypes";
 
 export function logCompanyExtractionDebug(report: CompanyExtractionDebugReport): void {
-  if (!debugEnabled()) return;
+  if (!isCompanyExtractionDebugEnabled()) return;
 
   const lines = [
     "Company Extraction Debug",
-    `Winner: ${report.winner}`,
-    `Value: ${report.value || "(empty — UI may show Unknown)"}`,
-    "Candidates:",
+    `URL: ${report.pageUrl}`,
+    `Board: ${report.board} · Host: ${report.hostname}`,
+    `Final: ${report.value || "(empty)"} · Winner: ${report.winner}`,
+    "",
+    "Raw candidates (found in DOM / structured data):",
+    ...(report.rawFound.length
+      ? report.rawFound.map(
+          (r) => `- "${r.raw}" from ${r.source} (${r.origin})`,
+        )
+      : ["- (none)"]),
+    "",
+    "Accepted:",
+    ...(report.accepted.length
+      ? report.accepted.map(
+          (a) => `- "${a.value}" from ${a.source} (${a.origin}) confidence=${a.confidence}`,
+        )
+      : ["- (none)"]),
+    "",
+    "Rejected:",
+    ...(report.rejected.length
+      ? report.rejected.map(
+          (r) => `- "${r.raw}" from ${r.source} (${r.origin}) → ${r.reason}`,
+        )
+      : ["- (none)"]),
+    "",
+    "Per-entry:",
     ...report.candidates.map((c) => {
       const norm = c.normalized ? ` → "${c.normalized}"` : "";
       const why = c.reason ? ` (${c.reason})` : "";
-      return `- ${c.source}: ${c.raw || "(empty)"} [${c.status}]${why}${norm}`;
+      return `- ${c.source} [${c.origin}]: "${c.raw || "(empty)"}" [${c.status}]${why}${norm}`;
     }),
   ];
 

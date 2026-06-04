@@ -3,7 +3,13 @@ import { detectJobBoard } from "./board";
 import { extractJsonLdJob } from "./jsonLd";
 import { finalizeDescriptionForJob } from "./finalizeDescription";
 import { mergeJobExtractions } from "./merge";
-import { extractGenericCareersPage, extractGenericCompanyDom, extractGenericCompanyMeta } from "./strategies/generic";
+import {
+  extractGenericCareersPage,
+  extractGenericCompanyDom,
+  extractGenericCompanyDomRaw,
+  extractGenericCompanyMeta,
+  extractGenericCompanyMetaRaw,
+} from "./strategies/generic";
 import { extractHandshake } from "./strategies/handshake";
 import { extractGreenhouse } from "./strategies/greenhouse";
 import { extractLever } from "./strategies/lever";
@@ -31,7 +37,9 @@ export function extractJobContext(): JobContext {
   const jsonLd = extractJsonLdJob(doc, hostname);
   const boardPartial = extractBoardPartial(board, doc, url, hostname);
   const generic = extractGenericCareersPage(doc);
+  const genericDomFound = extractGenericCompanyDomRaw(doc, board);
   const genericDomCompany = extractGenericCompanyDom(doc, board, hostname);
+  const genericMetaCompanyRaw = extractGenericCompanyMetaRaw(doc, board);
   const genericMetaCompany = extractGenericCompanyMeta(doc, board, hostname);
 
   const merged = mergeJobExtractions(
@@ -40,10 +48,13 @@ export function extractJobContext(): JobContext {
       board: boardPartial,
       generic,
       genericDomCompany,
+      genericDomCompanyRaw: genericDomFound?.raw,
+      genericDomOrigin: genericDomFound?.origin,
       genericMetaCompany,
+      genericMetaCompanyRaw: genericMetaCompanyRaw,
     },
     doc,
-    { board, hostname },
+    { board, hostname, pageUrl: location.href },
   );
 
   return {

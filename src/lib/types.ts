@@ -91,6 +91,8 @@ export interface UserProfile {
   structuredEntries?: ProfileStructuredEntries;
 }
 
+import type { CompanyExtractionDebugReport } from "./companyExtractionDebugTypes";
+
 /** Scraped company option shown when multiple plausible employers were found. */
 export type CompanyPickOption = {
   value: string;
@@ -100,11 +102,16 @@ export type CompanyPickOption = {
   confidence: number;
 };
 
+export type CompanyResolution = "auto" | "not_found" | "manual";
+
 export interface JobContext {
   jobTitle: string;
   companyName: string;
-  /** When length > 1, UI can offer a picker defaulting to highest confidence. */
+  /** Accepted normalized picks from merge (may be empty). */
   companyCandidates?: CompanyPickOption[];
+  companyResolution?: CompanyResolution;
+  /** Raw vs accepted breakdown for debug UI (always set on scrape). */
+  companyExtractionDebug?: CompanyExtractionDebugReport;
   pageUrl: string;
   descriptionText: string;
   scrapedAt: number;

@@ -41,18 +41,33 @@ const COMPANY_DOM_SELECTORS_KNOWN_BOARD = COMPANY_DOM_SELECTORS.filter(
   (s) => !s.includes("CompanyName") && !s.includes("company-name"),
 );
 
+export function extractGenericCompanyDomRaw(
+  doc: Document,
+  board: JobBoardId,
+): { raw: string; origin: string } | undefined {
+  const selectors = isKnownJobBoard(board) ? COMPANY_DOM_SELECTORS_KNOWN_BOARD : [...COMPANY_DOM_SELECTORS];
+  for (const sel of selectors) {
+    const raw = firstMatchText(doc, [sel]);
+    if (raw.trim()) return { raw, origin: `genericDom:selector:${sel}` };
+  }
+  return undefined;
+}
+
 export function extractGenericCompanyDom(
   doc: Document,
   board: JobBoardId,
   hostname: string,
 ): string | undefined {
-  const selectors = isKnownJobBoard(board) ? COMPANY_DOM_SELECTORS_KNOWN_BOARD : [...COMPANY_DOM_SELECTORS];
-  const raw = firstMatchText(doc, selectors);
-  const result = normalizeCompanyCandidate(raw, { hostname, board });
+  const found = extractGenericCompanyDomRaw(doc, board);
+  if (!found) return undefined;
+  const result = normalizeCompanyCandidate(found.raw, { hostname, board });
   return result.ok ? result.value : undefined;
 }
 
-export function extractGenericCompanyMeta(doc: Document, board: JobBoardId, hostname: string): string | undefined {
+export function extractGenericCompanyMetaRaw(
+  doc: Document,
+  board: JobBoardId,
+): string | undefined {
   if (isKnownJobBoard(board)) return undefined;
 
   const ogSite = doc.querySelector('meta[property="og:site_name"]')?.getAttribute("content")?.trim();
@@ -67,6 +82,12 @@ export function extractGenericCompanyMeta(doc: Document, board: JobBoardId, host
     if (maybe && maybe.length < 120) candidate = maybe;
   }
 
+  return candidate?.trim() || undefined;
+}
+
+export function extractGenericCompanyMeta(doc: Document, board: JobBoardId, hostname: string): string | undefined {
+  const candidate = extractGenericCompanyMetaRaw(doc, board);
+  if (!candidate) return undefined;
   const result = normalizeCompanyCandidate(candidate, { hostname, board });
   return result.ok ? result.value : undefined;
 }
