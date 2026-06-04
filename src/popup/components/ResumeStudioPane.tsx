@@ -1,7 +1,23 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import type { ResumeSectionKey, ResumeOptimizeForJobResponse, StructuredResume } from "../../lib/types";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type {
+  ResumeEntryPriority,
+  ResumeSectionKey,
+  ResumeOptimizeForJobResponse,
+  StructuredResume,
+} from "../../lib/types";
 import { cn } from "../../lib/classNames";
-import { getResumeRenderModel } from "../../lib/resumeRender";
+import {
+  cloneRenderPlanDeep,
+  getResumeRenderModel,
+  getVisibleResumeSections,
+  normalizeResumeForRender,
+  tightenRenderPlanOneStep,
+} from "../../lib/resumeRender";
+import {
+  computeOnePageLayoutPlan,
+  MAX_DOM_TIGHTEN_STEPS,
+  type ResumeRenderPlan,
+} from "../../lib/resumeLayoutEngine";
 import { ResumePreview } from "./resume/ResumePreview";
 
 type Props = {
@@ -60,6 +76,12 @@ function moveSection(resume: StructuredResume, key: ResumeSectionKey, dir: -1 | 
   };
 }
 
+const priorityOptions: { value: ResumeEntryPriority; label: string }[] = [
+  { value: "high", label: "High" },
+  { value: "medium", label: "Medium" },
+  { value: "low", label: "Low" },
+];
+
 const inputCls = cn(
   "min-w-0 rounded-lg border border-slate-200/90 bg-white px-2.5 py-1.5 text-[12px] font-medium text-slate-900 shadow-sm",
   "outline-none transition focus:border-indigo-300 focus:ring-2 focus:ring-indigo-500/15",
@@ -90,8 +112,11 @@ export function ResumeStudioPane({
   onExportPdf,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const domTightenStepsRef = useRef(0);
   const [wide, setWide] = useState(true);
   const [view, setView] = useState<"edit" | "preview">("edit");
+  const [renderPlanOverride, setRenderPlanOverride] = useState<ResumeRenderPlan | null>(null);
+  const [fitStatus, setFitStatus] = useState<"measuring" | "fits" | "max">("measuring");
 
   useEffect(() => {
     const el = containerRef.current;
@@ -110,9 +135,50 @@ export function ResumeStudioPane({
     (a, b) => (resume.sectionSettings[a.key]?.order ?? 0) - (resume.sectionSettings[b.key]?.order ?? 0),
   );
 
-  const omittedNotes = useMemo(
-    () => getResumeRenderModel(resume).layout.renderPlan.omittedNotes,
-    [resume],
+  useEffect(() => {
+    setRenderPlanOverride(null);
+    domTightenStepsRef.current = 0;
+    setFitStatus("measuring");
+  }, [resume]);
+
+  const renderOptions = useMemo(
+    () => (renderPlanOverride ? { renderPlan: renderPlanOverride } : undefined),
+    [renderPlanOverride],
+  );
+
+  const model = useMemo(() => getResumeRenderModel(resume, renderOptions), [resume, renderOptions]);
+  const omittedNotes = model.layout.renderPlan.omittedNotes;
+  const sectionKeys = useMemo(
+    () => getVisibleResumeSections(model.sourceResume).map((s) => s.key),
+    [model.sourceResume],
+  );
+
+  const handleExportPageMeasure = useCallback(
+    ({ overflows }: { contentHeight: number; overflows: boolean }) => {
+      if (!overflows) {
+        setFitStatus("fits");
+        return;
+      }
+      if (domTightenStepsRef.current >= MAX_DOM_TIGHTEN_STEPS) {
+        setFitStatus("max");
+        return;
+      }
+      const sourceResume = normalizeResumeForRender(resume);
+      setRenderPlanOverride((prev) => {
+        const base = computeOnePageLayoutPlan(sourceResume, sectionKeys).renderPlan;
+        const current = prev ?? base;
+        const next = cloneRenderPlanDeep(current);
+        const { applied } = tightenRenderPlanOneStep(sourceResume, next, sectionKeys);
+        if (!applied) {
+          setFitStatus("max");
+          return prev;
+        }
+        domTightenStepsRef.current += 1;
+        setFitStatus("measuring");
+        return next;
+      });
+    },
+    [resume, sectionKeys],
   );
 
   const editor = (
@@ -175,10 +241,31 @@ export function ResumeStudioPane({
       <section className="space-y-2 rounded-lg border border-slate-200 bg-white p-3">
         <div className="flex items-center justify-between border-b border-slate-200 pb-1">
           <h3 className="text-[11px] font-bold uppercase tracking-wide text-slate-600">Experience</h3>
-          <button type="button" className="rounded border px-2 py-0.5 text-[10px]" onClick={() => onResumeChange({ ...resume, experience: [...resume.experience, { id: `exp-${resume.experience.length + 1}`, company: "", companySubtitle: "", title: "", dates: "", location: "", bullets: [] }] })}>Add Experience</button>
+          <button type="button" className="rounded border px-2 py-0.5 text-[10px]" onClick={() => onResumeChange({ ...resume, experience: [...resume.experience, { id: `exp-${resume.experience.length + 1}`, priority: "high", company: "", companySubtitle: "", title: "", dates: "", location: "", bullets: [] }] })}>Add Experience</button>
         </div>
         {resume.experience.map((exp, idx) => (
           <div key={exp.id ?? `exp-${idx}`} className="space-y-2 rounded border border-slate-200 bg-slate-50/60 p-2">
+            <label className="flex items-center gap-2 text-[10px] font-medium text-slate-600">
+              Priority
+              <select
+                className={cn(inputCls, "max-w-[120px] py-1 text-[11px]")}
+                value={exp.priority ?? "high"}
+                onChange={(e) =>
+                  onResumeChange({
+                    ...resume,
+                    experience: resume.experience.map((x, i) =>
+                      i === idx ? { ...x, priority: e.target.value as ResumeEntryPriority } : x,
+                    ),
+                  })
+                }
+              >
+                {priorityOptions.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+            </label>
             <div className="grid grid-cols-2 gap-2">
               <input className={inputCls} placeholder="Company" value={exp.company} onChange={(e) => onResumeChange({ ...resume, experience: resume.experience.map((x, i) => i === idx ? { ...x, company: e.target.value } : x) })} />
               <input className={inputCls} placeholder="Company subtitle (optional)" value={exp.companySubtitle ?? ""} onChange={(e) => onResumeChange({ ...resume, experience: resume.experience.map((x, i) => i === idx ? { ...x, companySubtitle: e.target.value } : x) })} />
@@ -195,10 +282,31 @@ export function ResumeStudioPane({
       <section className="space-y-2 rounded-lg border border-slate-200 bg-white p-3">
         <div className="flex items-center justify-between border-b border-slate-200 pb-1">
           <h3 className="text-[11px] font-bold uppercase tracking-wide text-slate-600">Projects</h3>
-          <button type="button" className="rounded border px-2 py-0.5 text-[10px]" onClick={() => onResumeChange({ ...resume, projects: [...resume.projects, { id: `proj-${resume.projects.length + 1}`, name: "", subtitle: "", techStack: [], bullets: [] }] })}>Add Project</button>
+          <button type="button" className="rounded border px-2 py-0.5 text-[10px]" onClick={() => onResumeChange({ ...resume, projects: [...resume.projects, { id: `proj-${resume.projects.length + 1}`, priority: "high", name: "", subtitle: "", techStack: [], bullets: [] }] })}>Add Project</button>
         </div>
         {resume.projects.map((proj, idx) => (
           <div key={proj.id ?? `proj-${idx}`} className="space-y-2 rounded border border-slate-200 bg-slate-50/60 p-2">
+            <label className="flex items-center gap-2 text-[10px] font-medium text-slate-600">
+              Priority
+              <select
+                className={cn(inputCls, "max-w-[120px] py-1 text-[11px]")}
+                value={proj.priority ?? "high"}
+                onChange={(e) =>
+                  onResumeChange({
+                    ...resume,
+                    projects: resume.projects.map((x, i) =>
+                      i === idx ? { ...x, priority: e.target.value as ResumeEntryPriority } : x,
+                    ),
+                  })
+                }
+              >
+                {priorityOptions.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+            </label>
             <input className={inputCls} placeholder="Project name" value={proj.name} onChange={(e) => onResumeChange({ ...resume, projects: resume.projects.map((x, i) => i === idx ? { ...x, name: e.target.value } : x) })} />
             <input className={inputCls} placeholder="Subtitle / description" value={proj.subtitle} onChange={(e) => onResumeChange({ ...resume, projects: resume.projects.map((x, i) => i === idx ? { ...x, subtitle: e.target.value } : x) })} />
             <input className={inputCls} placeholder="Tech stack (comma-separated)" value={proj.techStack.join(", ")} onChange={(e) => onResumeChange({ ...resume, projects: resume.projects.map((x, i) => i === idx ? { ...x, techStack: e.target.value.split(",").map((s) => s.trim()).filter(Boolean) } : x) })} />
@@ -278,11 +386,26 @@ export function ResumeStudioPane({
   return (
     <div ref={containerRef} className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-gradient-to-b from-white via-slate-50/40 to-slate-50/90">
       <div className="pointer-events-none fixed left-[-14000px] top-0 z-0 overflow-visible" aria-hidden>
-        <ResumePreview resume={resume} template="ats-classic" variant="export" />
+        <ResumePreview
+          resume={resume}
+          template="ats-classic"
+          variant="export"
+          renderOptions={renderOptions}
+          onExportPageMeasure={handleExportPageMeasure}
+        />
       </div>
       <div className="shrink-0 border-b border-slate-200/70 bg-white/90 px-4 py-3">
         <h2 className="text-[13px] font-semibold text-slate-900">Resume Studio</h2>
-        <p className="mt-0.5 text-[11px] text-slate-500">Live preview is the visual source of truth for DOCX/PDF export.</p>
+        <p className="mt-0.5 text-[11px] text-slate-500">Live preview matches DOCX/PDF export; one-page layout is applied automatically.</p>
+        {fitStatus === "fits" ? (
+          <p className="mt-1.5 text-[11px] font-semibold text-emerald-700">✓ Fits one page</p>
+        ) : null}
+        {fitStatus === "max" ? (
+          <p className="mt-1.5 text-[11px] font-semibold text-amber-800">⚠ Optimizer still cannot fit one page</p>
+        ) : null}
+        {fitStatus === "measuring" ? (
+          <p className="mt-1.5 text-[11px] text-slate-500">Checking one-page fit…</p>
+        ) : null}
       </div>
 
       {!wide ? (
@@ -312,7 +435,7 @@ export function ResumeStudioPane({
                   </ul>
                 </section>
               ) : null}
-              <ResumePreview resume={resume} template="ats-classic" variant="preview" />
+              <ResumePreview resume={resume} template="ats-classic" variant="preview" renderOptions={renderOptions} />
               <div className="mt-2 grid grid-cols-2 gap-2">
                 <button type="button" onClick={onExportDocx} className="rounded-lg border border-indigo-200 bg-indigo-50 py-2 text-[12px] font-semibold text-indigo-950">Export DOCX</button>
                 <button type="button" onClick={onExportPdf} className="rounded-lg border border-slate-300 bg-white py-2 text-[12px] font-semibold text-slate-800">Export PDF</button>

@@ -1,13 +1,23 @@
 import type { ResumeEducationItem, ResumeSectionKey, StructuredResume } from "./types";
 import {
   computeOnePageLayoutPlan,
+  estimatePageUse,
   experienceEntryKey,
+  PAGE_TARGET,
   projectEntryKey,
+  selectStrongestBullets,
   spacingTokensForMode,
   type OnePageLayoutResult,
   type ResumeLayoutMode,
   type ResumeRenderPlan,
   type ResumeSpacingTokens,
+} from "./resumeLayoutEngine";
+
+export {
+  cloneRenderPlan,
+  cloneRenderPlanDeep,
+  mergeRenderPlans,
+  tightenRenderPlanOneStep,
 } from "./resumeLayoutEngine";
 
 export type { ResumeRenderPlan, OnePageLayoutResult, ResumeLayoutMode, ResumeSpacingTokens };
@@ -33,6 +43,11 @@ export type ResumeTypographyTokens = {
   primaryLinePt: number;
   secondaryLinePt: number;
   bulletPt: number;
+};
+
+export type ResumeRenderOptions = {
+  /** Full render plan override (e.g. after DOM tighten steps). */
+  renderPlan?: ResumeRenderPlan;
 };
 
 export type ResumeRenderModel = {
@@ -222,13 +237,15 @@ export function applyRenderPlan(normalized: StructuredResume, plan: ResumeRender
     experience: normalized.experience.map((e, index) => {
       const key = experienceEntryKey(e, index);
       const limit = plan.bulletLimits[key];
-      return limit != null ? { ...e, bullets: e.bullets.slice(0, limit) } : e;
+      const bullets = limit != null ? selectStrongestBullets(e.bullets, limit) : e.bullets;
+      return { ...e, bullets };
     }),
     projects: normalized.projects.flatMap((p, index) => {
       const key = projectEntryKey(p, index);
       if (plan.hiddenSections.includes(key)) return [];
       const limit = plan.bulletLimits[key];
-      return [limit != null ? { ...p, bullets: p.bullets.slice(0, limit) } : p];
+      const bullets = limit != null ? selectStrongestBullets(p.bullets, limit) : p.bullets;
+      return [{ ...p, bullets }];
     }),
     education: normalized.education.map((e) => ({
       ...e,
@@ -270,18 +287,32 @@ export function getResumeTypographyTokens(): ResumeTypographyTokens {
   };
 }
 
-export function getResumeRenderModel(resume: StructuredResume): ResumeRenderModel {
+export function getResumeRenderModel(
+  resume: StructuredResume,
+  options?: ResumeRenderOptions,
+): ResumeRenderModel {
   const sourceResume = normalizeResumeForRender(resume);
   const sectionKeys = getVisibleResumeSections(sourceResume).map((s) => s.key);
-  const layout = computeOnePageLayoutPlan(sourceResume, sectionKeys);
-  const displayResume = applyRenderPlan(sourceResume, layout.renderPlan);
+  const computed = computeOnePageLayoutPlan(sourceResume, sectionKeys);
+  const renderPlan = options?.renderPlan ?? computed.renderPlan;
+  const spacing = spacingTokensForMode(renderPlan.layoutMode);
+  const estimatedPageUse = estimatePageUse(sourceResume, renderPlan, spacing, sectionKeys);
+  const layout: OnePageLayoutResult = {
+    layoutMode: renderPlan.layoutMode,
+    estimatedPageUse,
+    overflowRisk:
+      estimatedPageUse <= PAGE_TARGET - 4 ? "low" : estimatedPageUse <= PAGE_TARGET + 6 ? "medium" : "high",
+    renderPlan,
+  };
+  const displayResume = applyRenderPlan(sourceResume, renderPlan);
   return {
     templateVersion: RESUME_TEMPLATE_VERSION,
     sourceResume,
     resume: displayResume,
     sections: getVisibleResumeSections(displayResume),
-    spacing: spacingTokensForMode(layout.layoutMode),
+    spacing,
     typography: getResumeTypographyTokens(),
     layout,
   };
 }
+

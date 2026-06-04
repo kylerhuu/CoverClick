@@ -1,3 +1,4 @@
+import { useLayoutEffect, useRef } from "react";
 import type { StructuredResume } from "../../../lib/types";
 import {
   formatContactLine,
@@ -9,7 +10,9 @@ import {
   formatSkillRenderLines,
   getResumeRenderModel,
   RESUME_EXPORT_CONTAINER_ID,
+  type ResumeRenderOptions,
 } from "../../../lib/resumeRender";
+import { resumeContentOverflows } from "../../../lib/resumePageMetrics";
 import { cn } from "../../../lib/classNames";
 
 type Props = {
@@ -17,8 +20,10 @@ type Props = {
   template?: "ats-classic";
   variant?: "preview" | "export";
   className?: string;
+  renderOptions?: ResumeRenderOptions;
+  /** Measures export-layout page height (source of truth for one-page fit). */
+  onExportPageMeasure?: (result: { contentHeight: number; overflows: boolean }) => void;
 };
-
 
 const shellClass = "rounded-xl border border-slate-300/80 bg-slate-200/50 p-3";
 const pageClass =
@@ -29,18 +34,45 @@ function headerRule() {
   return <div className="mt-[2px] h-px w-full bg-slate-400/70" aria-hidden />;
 }
 
-export function ResumePreview({ resume, template = "ats-classic", variant = "preview", className }: Props) {
-  const model = getResumeRenderModel(resume);
+export function ResumePreview({
+  resume,
+  template = "ats-classic",
+  variant = "preview",
+  className,
+  renderOptions,
+  onExportPageMeasure,
+}: Props) {
+  const pageRef = useRef<HTMLDivElement>(null);
+  const model = getResumeRenderModel(resume, renderOptions);
   const r = model.resume;
   const sections = model.sections;
   const contact = formatContactLine(r);
   const spacing = model.spacing;
   const typography = model.typography;
   const skillLines = formatSkillRenderLines(r, model.layout.renderPlan);
-  const onePageFit = model.layout.renderPlan.omittedNotes.length > 0;
+
+  useLayoutEffect(() => {
+    if (variant !== "export" || !onExportPageMeasure) return;
+    const el = pageRef.current;
+    if (!el) return;
+
+    const report = () => {
+      const contentHeight = el.scrollHeight;
+      onExportPageMeasure({
+        contentHeight,
+        overflows: resumeContentOverflows(contentHeight),
+      });
+    };
+
+    report();
+    const ro = new ResizeObserver(() => report());
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [variant, onExportPageMeasure, resume, renderOptions, model.layout.renderPlan]);
 
   const page = (
     <div
+      ref={pageRef}
       id={variant === "export" ? RESUME_EXPORT_CONTAINER_ID : undefined}
       className={cn(
         variant === "export" ? exportPageClass : pageClass,
@@ -154,12 +186,5 @@ export function ResumePreview({ resume, template = "ats-classic", variant = "pre
   );
 
   if (variant === "export") return page;
-  return (
-    <div className={cn(shellClass, className)}>
-      {onePageFit ? (
-        <p className="mb-2 text-center text-[10px] font-medium text-slate-500">One-page layout applied to preview and export</p>
-      ) : null}
-      {page}
-    </div>
-  );
+  return <div className={cn(shellClass, className)}>{page}</div>;
 }

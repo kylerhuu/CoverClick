@@ -6,7 +6,13 @@ import type {
   ResumeSectionKey,
   StructuredResume,
 } from "./types";
+
+/** Conservative planning target (estimate units). */
+export const PAGE_TARGET = 88;
 export const PAGE_BUDGET = 100;
+const ESTIMATE_SAFETY = 1.12;
+const MAX_COMPUTE_TIGHTEN_STEPS = 48;
+export const MAX_DOM_TIGHTEN_STEPS = 24;
 
 export type ResumeLayoutMode = "comfortable" | "balanced" | "compact";
 
@@ -27,9 +33,9 @@ export type ResumeRenderPlan = {
   compactSkills: boolean;
   compactEducation: boolean;
   shortenedSummary: boolean;
-  /** Render-only summary text when shortened. */
   summaryText?: string;
   omittedNotes: string[];
+  layoutMode: ResumeLayoutMode;
 };
 
 export type OnePageLayoutResult = {
@@ -57,14 +63,38 @@ export function projectEntryKey(item: ResumeProjectItem, index: number): string 
   return `project:${item.id?.trim() || `proj-${index}`}`;
 }
 
-/** Lower sort value = more important (preserve bullets longer). */
 export function entryImportanceSortKey(priority: ResumeEntryPriority, index: number): number {
   return PRIORITY_RANK[priority] * 1000 + index;
 }
 
-/** Higher sort value = hide / compress first. */
 export function entryCompressionSortKey(priority: ResumeEntryPriority, index: number): number {
   return PRIORITY_RANK[priority] * 1000 + index;
+}
+
+/** Rank bullets for render-time selection (higher = keep). */
+export function scoreBulletStrength(text: string): number {
+  const t = text.trim();
+  if (!t) return -100;
+  let score = 0;
+  if (/\d|%|\$|\bk\b|\bm\b|\bx\b/i.test(t)) score += 40;
+  if (/\b(increased|reduced|grew|saved|revenue|users|customers|conversion|impact|roi|paying|profit|sales)\b/i.test(t)) {
+    score += 28;
+  }
+  if (/\b(built|implemented|architected|scaled|deployed|kubernetes|aws|api|system|ml|ai|pipeline|platform)\b/i.test(t)) {
+    score += 16;
+  }
+  if (/\b(responsible for|helped|assisted|supported|worked on|participated)\b/i.test(t)) score -= 12;
+  return score + Math.min(t.length / 24, 4);
+}
+
+export function selectStrongestBullets(bullets: string[], max: number): string[] {
+  if (max < 1 || bullets.length <= max) return bullets;
+  return [...bullets]
+    .map((b, index) => ({ b, index, score: scoreBulletStrength(b) }))
+    .sort((a, b) => b.score - a.score || a.index - b.index)
+    .slice(0, max)
+    .sort((a, b) => a.index - b.index)
+    .map((x) => x.b);
 }
 
 export function spacingTokensForMode(mode: ResumeLayoutMode): ResumeSpacingTokens {
@@ -108,11 +138,11 @@ function wordCount(text: string): number {
   return text.split(/\s+/).filter(Boolean).length;
 }
 
-function lineCountFromWords(words: number, wordsPerLine = 18): number {
+function lineCountFromWords(words: number, wordsPerLine = 16): number {
   return Math.max(1, Math.ceil(words / wordsPerLine));
 }
 
-export function shortenSummaryText(summary: string, maxWords = 38): string {
+export function shortenSummaryText(summary: string, maxWords = 32): string {
   const trimmed = summary.trim();
   if (!trimmed) return "";
   const words = trimmed.split(/\s+/).filter(Boolean);
@@ -131,7 +161,12 @@ export function shortenSummaryText(summary: string, maxWords = 38): string {
 }
 
 function bulletCost(spacing: ResumeSpacingTokens): number {
-  return 1.05 * spacing.bulletLineHeight;
+  return 1.08 * spacing.bulletLineHeight;
+}
+
+function bulletUnits(text: string, spacing: ResumeSpacingTokens): number {
+  const lines = Math.max(1, Math.ceil(text.length / 72));
+  return lines * bulletCost(spacing);
 }
 
 function isSummaryHidden(plan: ResumeRenderPlan): boolean {
@@ -142,19 +177,16 @@ function isProjectHidden(plan: ResumeRenderPlan, key: string): boolean {
   return plan.hiddenSections.includes(key);
 }
 
-function bulletLimitFor(plan: ResumeRenderPlan, key: string, fallback: number): number {
-  return plan.bulletLimits[key] ?? fallback;
-}
-
 function visibleSummaryText(resume: StructuredResume, plan: ResumeRenderPlan): string {
   if (isSummaryHidden(plan)) return "";
   if (plan.summaryText != null) return plan.summaryText;
   return resume.summary.trim();
 }
 
-function displayBullets(bullets: string[], key: string, plan: ResumeRenderPlan, fallbackMax: number): string[] {
-  const max = bulletLimitFor(plan, key, fallbackMax);
-  return bullets.slice(0, max);
+function displayBullets(bullets: string[], key: string, plan: ResumeRenderPlan): string[] {
+  const max = plan.bulletLimits[key];
+  if (max == null) return bullets;
+  return selectStrongestBullets(bullets, max);
 }
 
 function estimateContactUnits(resume: StructuredResume): number {
@@ -167,7 +199,7 @@ function estimateContactUnits(resume: StructuredResume): number {
   ]
     .filter(Boolean)
     .join("  |  ");
-  return 8 + Math.max(0, Math.ceil(contact.length / 85) - 1) * 1.2;
+  return 9 + Math.max(0, Math.ceil(contact.length / 72) - 1) * 1.4;
 }
 
 function estimateEducationEntry(
@@ -175,14 +207,14 @@ function estimateEducationEntry(
   plan: ResumeRenderPlan,
   spacing: ResumeSpacingTokens,
 ): number {
-  let units = 1.9;
-  if (e.school) units += 0.35;
-  if (e.degree) units += 0.3;
-  if (e.major && !plan.compactEducation) units += 0.3;
-  if (e.concentrationOrMinor && !plan.compactEducation) units += 0.25;
-  if (e.gpa) units += 0.25;
+  let units = 2;
+  if (e.school) units += 0.4;
+  if (e.degree) units += 0.35;
+  if (e.major && !plan.compactEducation) units += 0.35;
+  if (e.concentrationOrMinor && !plan.compactEducation) units += 0.28;
+  if (e.gpa) units += 0.28;
   const details = plan.compactEducation ? [] : e.details;
-  units += details.length * bulletCost(spacing);
+  for (const d of details) units += bulletUnits(d, spacing);
   return units;
 }
 
@@ -190,14 +222,18 @@ function estimateSkillsUnits(resume: StructuredResume, plan: ResumeRenderPlan, s
   const groups = resume.skills.filter((s) => s.category || s.items.length);
   if (!groups.length) return 0;
 
+  const merged = groups
+    .map((g) => (g.category ? `${g.category}: ${g.items.join(", ")}` : g.items.join(", ")))
+    .filter(Boolean)
+    .join("  |  ");
+
   if (plan.compactSkills) {
-    const chars = groups.map((g) => `${g.category}: ${g.items.join(", ")}`).join(" | ").length;
-    return 2.2 + Math.ceil(chars / 110) * 1.1 * spacing.bulletLineHeight;
+    return 2.4 + lineCountFromWords(wordCount(merged), 12) * 1.15 * spacing.bulletLineHeight;
   }
 
   return groups.reduce((sum, g) => {
     const line = `${g.category || "Skills"}: ${g.items.join(", ")}`;
-    return sum + 1.2 + lineCountFromWords(wordCount(line), 14) * 1.05 * spacing.bulletLineHeight;
+    return sum + 1.3 + lineCountFromWords(wordCount(line), 12) * 1.12 * spacing.bulletLineHeight;
   }, 0);
 }
 
@@ -239,12 +275,11 @@ export function estimatePageUse(
   const keys = effectiveVisibleSections(resume, plan, visibleSectionKeys);
 
   for (const key of keys) {
-    units += 4 + spacing.sectionGap / 4;
+    units += 4.5 + spacing.sectionGap / 3.5;
 
     if (key === "summary") {
       const text = visibleSummaryText(resume, plan);
-      if (!text) continue;
-      units += 2.5 + lineCountFromWords(wordCount(text)) * 1.1 * spacing.bulletLineHeight;
+      units += 2.8 + lineCountFromWords(wordCount(text), 16) * 1.15 * spacing.bulletLineHeight;
       continue;
     }
 
@@ -252,12 +287,11 @@ export function estimatePageUse(
       resume.experience.forEach((e, i) => {
         if (!e.company && !e.title && !e.bullets.length) return;
         const ek = experienceEntryKey(e, i);
-        units += 2.2;
-        if (e.company || e.companySubtitle) units += 0.35;
-        if (e.title || e.dates || e.location) units += 0.35;
-        const shown = displayBullets(e.bullets, ek, plan, e.bullets.length);
-        units += shown.length * bulletCost(spacing);
-        units += spacing.entryGap / 14;
+        units += 2.4;
+        if (e.company || e.companySubtitle) units += 0.4;
+        if (e.title || e.dates || e.location) units += 0.4;
+        for (const b of displayBullets(e.bullets, ek, plan)) units += bulletUnits(b, spacing);
+        units += spacing.entryGap / 12;
       });
       continue;
     }
@@ -267,19 +301,18 @@ export function estimatePageUse(
         const pk = projectEntryKey(p, i);
         if (isProjectHidden(plan, pk)) return;
         if (!p.name && !p.subtitle && !p.techStack.length && !p.bullets.length) return;
-        units += 2;
-        if (p.name || p.subtitle) units += 0.35;
-        if (p.techStack.length) units += 0.35;
-        const shown = displayBullets(p.bullets, pk, plan, p.bullets.length);
-        units += shown.length * bulletCost(spacing);
-        units += spacing.entryGap / 14;
+        units += 2.2;
+        if (p.name || p.subtitle) units += 0.4;
+        if (p.techStack.length) units += 0.4;
+        for (const b of displayBullets(p.bullets, pk, plan)) units += bulletUnits(b, spacing);
+        units += spacing.entryGap / 12;
       });
       continue;
     }
 
     if (key === "education") {
       for (const e of resume.education) {
-        units += estimateEducationEntry(e, plan, spacing) + spacing.entryGap / 16;
+        units += estimateEducationEntry(e, plan, spacing) + spacing.entryGap / 14;
       }
       continue;
     }
@@ -289,12 +322,12 @@ export function estimatePageUse(
     }
   }
 
-  return Math.round(units * 10) / 10;
+  return Math.round(units * ESTIMATE_SAFETY * 10) / 10;
 }
 
 function overflowRiskFromEstimate(use: number): OnePageLayoutResult["overflowRisk"] {
-  if (use <= 92) return "low";
-  if (use <= 108) return "medium";
+  if (use <= PAGE_TARGET - 4) return "low";
+  if (use <= PAGE_TARGET + 6) return "medium";
   return "high";
 }
 
@@ -306,9 +339,9 @@ function chooseInitialLayoutMode(resume: StructuredResume, visibleSectionKeys: R
     resume.projects.reduce((n, p) => n + p.bullets.length, 0) +
     resume.education.reduce((n, e) => n + e.details.length, 0);
   const summaryWords = resume.summary ? wordCount(resume.summary) : 0;
-  const load = visibleSectionKeys.length * 1.4 + entries * 0.9 + bullets * 0.45 + summaryWords / 55;
-  if (load <= 11) return "comfortable";
-  if (load >= 20) return "compact";
+  const load = visibleSectionKeys.length * 1.5 + entries * 1 + bullets * 0.5 + summaryWords / 50;
+  if (load <= 10) return "comfortable";
+  if (load >= 18 || visibleSectionKeys.length >= 4) return "compact";
   return "balanced";
 }
 
@@ -336,76 +369,21 @@ function rankProjects(resume: StructuredResume): RankedEntry<ResumeProjectItem>[
     .filter(({ item }) => item.name || item.subtitle || item.techStack.length || item.bullets.length);
 }
 
-function sortedByImportance<T>(entries: RankedEntry<T>[]): RankedEntry<T>[] {
-  return [...entries].sort(
-    (a, b) => entryImportanceSortKey(a.priority, a.index) - entryImportanceSortKey(b.priority, b.index),
-  );
-}
-
 function sortedByCompressionFirst<T>(entries: RankedEntry<T>[]): RankedEntry<T>[] {
   return [...entries].sort(
     (a, b) => entryCompressionSortKey(b.priority, b.index) - entryCompressionSortKey(a.priority, a.index),
   );
 }
 
-type BulletTier = "normal" | "tight" | "minimal";
-
-function capForTier(tier: BulletTier, importanceIndex: number, priority: ResumeEntryPriority): number {
-  const isTop = importanceIndex < 2 && priority !== "low";
-  if (tier === "minimal") return 1;
-  if (tier === "tight") {
-    if (priority === "high" && isTop) return 2;
-    if (priority === "high") return 2;
-    if (priority === "medium") return isTop ? 2 : 1;
-    return 1;
-  }
-  // normal
-  if (priority === "low") return isTop ? 2 : 1;
-  if (priority === "medium") return isTop ? 3 : 2;
-  return isTop ? 3 : 2;
+function experienceLabel(item: ResumeExperienceItem): string {
+  return item.company?.trim() || item.title?.trim() || "Experience entry";
 }
 
-function applyExperienceBulletTier(resume: StructuredResume, plan: ResumeRenderPlan, tier: BulletTier): boolean {
-  const important = sortedByImportance(rankExperience(resume));
-  let changed = false;
-
-  for (let i = 0; i < important.length; i += 1) {
-    const { key, item, priority } = important[i];
-    const cap = capForTier(tier, i, priority);
-    const count = item.bullets.length;
-    const prev = plan.bulletLimits[key];
-    const next = prev == null ? cap : Math.min(prev, cap);
-    if (count <= next) continue;
-    plan.bulletLimits[key] = next;
-    const label = item.company || item.title || "Experience entry";
-    pushNote(plan, `${label} limited to ${next} bullet${next === 1 ? "" : "s"} (one-page fit)`);
-    changed = true;
-  }
-
-  return changed;
+function projectLabel(item: ResumeProjectItem): string {
+  return item.name?.trim() || item.subtitle?.trim() || "Project";
 }
 
-function applyProjectBulletTier(resume: StructuredResume, plan: ResumeRenderPlan, tier: BulletTier): boolean {
-  const important = sortedByImportance(rankProjects(resume));
-  let changed = false;
-
-  for (let i = 0; i < important.length; i += 1) {
-    const { key, item, priority } = important[i];
-    const cap = capForTier(tier, i, priority);
-    const count = item.bullets.length;
-    const prev = plan.bulletLimits[key];
-    const next = prev == null ? cap : Math.min(prev, cap);
-    if (count <= next) continue;
-    plan.bulletLimits[key] = next;
-    const label = item.name || item.subtitle || "Project entry";
-    pushNote(plan, `${label} limited to ${next} bullet${next === 1 ? "" : "s"} (one-page fit)`);
-    changed = true;
-  }
-
-  return changed;
-}
-
-function clonePlan(): ResumeRenderPlan {
+export function cloneRenderPlan(): ResumeRenderPlan {
   return {
     hiddenSections: [],
     bulletLimits: {},
@@ -413,6 +391,38 @@ function clonePlan(): ResumeRenderPlan {
     compactEducation: false,
     shortenedSummary: false,
     omittedNotes: [],
+    layoutMode: "balanced",
+  };
+}
+
+export function cloneRenderPlanDeep(plan: ResumeRenderPlan): ResumeRenderPlan {
+  return {
+    ...plan,
+    hiddenSections: [...plan.hiddenSections],
+    bulletLimits: { ...plan.bulletLimits },
+    omittedNotes: [...plan.omittedNotes],
+  };
+}
+
+const MODE_RANK: Record<ResumeLayoutMode, number> = { comfortable: 0, balanced: 1, compact: 2 };
+
+export function mergeRenderPlans(base: ResumeRenderPlan, extra: ResumeRenderPlan): ResumeRenderPlan {
+  const bulletLimits = { ...base.bulletLimits };
+  for (const [k, v] of Object.entries(extra.bulletLimits)) {
+    bulletLimits[k] = bulletLimits[k] == null ? v : Math.min(bulletLimits[k], v);
+  }
+  const hiddenSections = [...new Set([...base.hiddenSections, ...extra.hiddenSections])];
+  const layoutMode =
+    MODE_RANK[extra.layoutMode] > MODE_RANK[base.layoutMode] ? extra.layoutMode : base.layoutMode;
+  return {
+    hiddenSections,
+    bulletLimits,
+    compactSkills: base.compactSkills || extra.compactSkills,
+    compactEducation: base.compactEducation || extra.compactEducation,
+    shortenedSummary: base.shortenedSummary || extra.shortenedSummary,
+    summaryText: extra.summaryText ?? base.summaryText,
+    omittedNotes: [...new Set([...base.omittedNotes, ...extra.omittedNotes])],
+    layoutMode,
   };
 }
 
@@ -420,117 +430,176 @@ function pushNote(plan: ResumeRenderPlan, note: string): void {
   if (!plan.omittedNotes.includes(note)) plan.omittedNotes.push(note);
 }
 
+function effectiveBulletCap(key: string, bulletCount: number, plan: ResumeRenderPlan): number {
+  return plan.bulletLimits[key] ?? bulletCount;
+}
+
+function nextBulletCap(effective: number): number | null {
+  if (effective > 3) return 3;
+  if (effective === 3) return 2;
+  if (effective === 2) return 1;
+  return null;
+}
+
+function reduceOneExperienceBullet(resume: StructuredResume, plan: ResumeRenderPlan): boolean {
+  for (const row of sortedByCompressionFirst(rankExperience(resume))) {
+    const count = row.item.bullets.length;
+    if (count === 0) continue;
+    const effective = effectiveBulletCap(row.key, count, plan);
+    const next = nextBulletCap(effective);
+    if (next == null || next >= effective) continue;
+    plan.bulletLimits[row.key] = next;
+    pushNote(plan, `${experienceLabel(row.item)} limited to ${next} bullet${next === 1 ? "" : "s"}`);
+    return true;
+  }
+  return false;
+}
+
+function reduceOneProjectBullet(resume: StructuredResume, plan: ResumeRenderPlan): boolean {
+  for (const row of sortedByCompressionFirst(rankProjects(resume)).filter((r) => !isProjectHidden(plan, r.key))) {
+    const count = row.item.bullets.length;
+    if (count === 0) continue;
+    const effective = effectiveBulletCap(row.key, count, plan);
+    const next = nextBulletCap(effective);
+    if (next == null || next >= effective) continue;
+    plan.bulletLimits[row.key] = next;
+    pushNote(plan, `${projectLabel(row.item)} limited to ${next} bullet${next === 1 ? "" : "s"}`);
+    return true;
+  }
+  return false;
+}
+
+function allProjectsAtOneBullet(resume: StructuredResume, plan: ResumeRenderPlan): boolean {
+  const visible = rankProjects(resume).filter((r) => !isProjectHidden(plan, r.key));
+  if (!visible.length) return true;
+  return visible.every((r) => {
+    const cap = effectiveBulletCap(r.key, r.item.bullets.length, plan);
+    return cap <= 1 || r.item.bullets.length <= 1;
+  });
+}
+
+function hideNextProject(resume: StructuredResume, plan: ResumeRenderPlan): boolean {
+  if (!allProjectsAtOneBullet(resume, plan)) return false;
+  const candidate = sortedByCompressionFirst(rankProjects(resume)).find((r) => !isProjectHidden(plan, r.key));
+  if (!candidate) return false;
+  plan.hiddenSections.push(candidate.key);
+  const name = projectLabel(candidate.item);
+  if (candidate.priority === "low") {
+    pushNote(plan, `${name} omitted because priority is Low`);
+  } else if (candidate.priority === "medium") {
+    pushNote(plan, `${name} omitted because priority is Medium`);
+  } else {
+    pushNote(plan, `${name} omitted to fit one page`);
+  }
+  return true;
+}
+
+export type TightenStepResult = {
+  applied: boolean;
+  layoutMode: ResumeLayoutMode;
+};
+
+/**
+ * Applies exactly one progressive compression step (Parts 3–6 order).
+ * Mutates `plan` in place.
+ */
+export function tightenRenderPlanOneStep(
+  resume: StructuredResume,
+  plan: ResumeRenderPlan,
+  visibleSectionKeys: ResumeSectionKey[],
+): TightenStepResult {
+  // 1. Compact spacing
+  if (plan.layoutMode !== "compact") {
+    plan.layoutMode = "compact";
+    return { applied: true, layoutMode: "compact" };
+  }
+
+  // 2. Summary shortening
+  if (!isSummaryHidden(plan) && visibleSectionKeys.includes("summary")) {
+    const raw = resume.summary.trim();
+    if (raw && !plan.shortenedSummary) {
+      const short = shortenSummaryText(raw);
+      if (short !== raw) {
+        plan.shortenedSummary = true;
+        plan.summaryText = short;
+        pushNote(plan, "Summary shortened to fit one page");
+        return { applied: true, layoutMode: plan.layoutMode };
+      }
+    }
+  }
+
+  // 3. Summary hiding
+  if (!isSummaryHidden(plan) && visibleSectionKeys.includes("summary") && resume.summary.trim()) {
+    plan.hiddenSections.push("summary");
+    pushNote(plan, "Summary hidden to fit one page");
+    return { applied: true, layoutMode: plan.layoutMode };
+  }
+
+  // 4. Skills compression
+  if (!plan.compactSkills && visibleSectionKeys.includes("skills")) {
+    plan.compactSkills = true;
+    pushNote(plan, "Skills compressed into fewer lines");
+    return { applied: true, layoutMode: plan.layoutMode };
+  }
+
+  // 5. Education compression
+  if (!plan.compactEducation && visibleSectionKeys.includes("education")) {
+    plan.compactEducation = true;
+    pushNote(plan, "Education details omitted from export");
+    return { applied: true, layoutMode: plan.layoutMode };
+  }
+
+  // 6. Bullet reduction (projects compress before experience within same step)
+  if (reduceOneProjectBullet(resume, plan)) {
+    return { applied: true, layoutMode: plan.layoutMode };
+  }
+  if (reduceOneExperienceBullet(resume, plan)) {
+    return { applied: true, layoutMode: plan.layoutMode };
+  }
+
+  // 7. Project hiding (only after bullets at 1)
+  if (hideNextProject(resume, plan)) {
+    return { applied: true, layoutMode: plan.layoutMode };
+  }
+
+  return { applied: false, layoutMode: plan.layoutMode };
+}
+
 export function computeOnePageLayoutPlan(
   resume: StructuredResume,
   visibleSectionKeys: ResumeSectionKey[],
 ): OnePageLayoutResult {
-  const plan = clonePlan();
-  let layoutMode = chooseInitialLayoutMode(resume, visibleSectionKeys);
-  let spacing = spacingTokensForMode(layoutMode);
+  const plan = cloneRenderPlan();
+  plan.layoutMode = chooseInitialLayoutMode(resume, visibleSectionKeys);
 
-  const measure = () => estimatePageUse(resume, plan, spacing, visibleSectionKeys);
-
-  let estimatedPageUse = measure();
-
-  const ensureFit = (step: () => boolean): void => {
-    if (estimatedPageUse <= PAGE_BUDGET) return;
-    if (step()) {
-      estimatedPageUse = measure();
-    }
+  const measure = () => {
+    const spacing = spacingTokensForMode(plan.layoutMode);
+    return estimatePageUse(resume, plan, spacing, visibleSectionKeys);
   };
 
-  // 1) Adaptive spacing already chosen; force compact if still high risk
-  if (estimatedPageUse > PAGE_BUDGET && layoutMode !== "compact") {
-    layoutMode = "compact";
-    spacing = spacingTokensForMode(layoutMode);
+  let estimatedPageUse = measure();
+  let steps = 0;
+
+  while (estimatedPageUse > PAGE_TARGET && steps < MAX_COMPUTE_TIGHTEN_STEPS) {
+    const before = JSON.stringify(plan);
+    const result = tightenRenderPlanOneStep(resume, plan, visibleSectionKeys);
+    if (!result.applied) break;
+    plan.layoutMode = result.layoutMode;
     estimatedPageUse = measure();
+    steps += 1;
+    if (JSON.stringify(plan) === before) break;
   }
 
-  // 2) Summary shortening
-  ensureFit(() => {
-    if (isSummaryHidden(plan) || !visibleSectionKeys.includes("summary")) return false;
-    const raw = resume.summary.trim();
-    if (!raw || plan.shortenedSummary) return false;
-    const short = shortenSummaryText(raw);
-    if (short === raw) return false;
-    plan.shortenedSummary = true;
-    plan.summaryText = short;
-    pushNote(plan, "Summary shortened to fit one page");
-    return true;
-  });
-
-  // 3) Summary hiding
-  ensureFit(() => {
-    if (isSummaryHidden(plan) || !visibleSectionKeys.includes("summary") || !resume.summary.trim()) return false;
-    plan.hiddenSections.push("summary");
-    pushNote(plan, "Summary hidden to fit one page");
-    return true;
-  });
-
-  // 4) Skills compression
-  ensureFit(() => {
-    if (plan.compactSkills || !visibleSectionKeys.includes("skills")) return false;
-    plan.compactSkills = true;
-    pushNote(plan, "Skills compressed into fewer lines");
-    return true;
-  });
-
-  // 5) Education compression
-  ensureFit(() => {
-    if (plan.compactEducation || !visibleSectionKeys.includes("education")) return false;
-    plan.compactEducation = true;
-    pushNote(plan, "Education details omitted from export");
-    return true;
-  });
-
-  // 6) Bullet reduction passes (never hide experience)
-  const bulletTiers: BulletTier[] = ["normal", "tight", "minimal"];
-  for (const tier of bulletTiers) {
-    if (estimatedPageUse <= PAGE_BUDGET) break;
-    applyExperienceBulletTier(resume, plan, tier);
-    applyProjectBulletTier(resume, plan, tier);
+  // Final conservative pass: keep tightening until target or stuck
+  while (estimatedPageUse > PAGE_TARGET && steps < MAX_COMPUTE_TIGHTEN_STEPS) {
+    const result = tightenRenderPlanOneStep(resume, plan, visibleSectionKeys);
+    if (!result.applied) break;
     estimatedPageUse = measure();
-  }
-
-  while (estimatedPageUse > PAGE_BUDGET) {
-    const ranked = sortedByCompressionFirst(rankProjects(resume)).filter((r) => !isProjectHidden(plan, r.key));
-    let reduced = false;
-    for (const row of ranked) {
-      const current = plan.bulletLimits[row.key] ?? row.item.bullets.length;
-      if (row.item.bullets.length > 0 && current > 1) {
-        plan.bulletLimits[row.key] = current - 1;
-        reduced = true;
-        estimatedPageUse = measure();
-        break;
-      }
-    }
-    if (reduced) continue;
-
-    for (const tier of bulletTiers) {
-      if (estimatedPageUse <= PAGE_BUDGET) break;
-      if (applyExperienceBulletTier(resume, plan, tier)) estimatedPageUse = measure();
-      if (estimatedPageUse <= PAGE_BUDGET) break;
-      if (applyProjectBulletTier(resume, plan, tier)) estimatedPageUse = measure();
-    }
-    if (estimatedPageUse <= PAGE_BUDGET) break;
-
-    // 7) Hide lowest-priority projects only after bullet passes
-    const hideCandidate = sortedByCompressionFirst(rankProjects(resume)).find((r) => !isProjectHidden(plan, r.key));
-    if (!hideCandidate) break;
-    plan.hiddenSections.push(hideCandidate.key);
-    const name = hideCandidate.item.name || hideCandidate.item.subtitle || "Project";
-    pushNote(plan, `${name} hidden to fit one page`);
-    estimatedPageUse = measure();
-  }
-
-  if (estimatedPageUse > PAGE_BUDGET && layoutMode !== "compact") {
-    layoutMode = "compact";
-    spacing = spacingTokensForMode(layoutMode);
-    estimatedPageUse = measure();
+    steps += 1;
   }
 
   return {
-    layoutMode,
+    layoutMode: plan.layoutMode,
     estimatedPageUse,
     overflowRisk: overflowRiskFromEstimate(estimatedPageUse),
     renderPlan: plan,
