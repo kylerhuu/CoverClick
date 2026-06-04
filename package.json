@@ -11,7 +11,7 @@
     "build:content": "vite build --config vite.content.config.ts",
     "store:zip": "npm run build && rm -f coverclick-extension.zip && cd dist && zip -r ../coverclick-extension.zip .",
     "typecheck": "tsc --noEmit",
-    "test:company-platform": "node --experimental-strip-types --test src/content/extract/companyPlatform.node.test.mjs src/content/extract/strategies/handshakeAboutEmployerText.node.test.mjs src/content/extract/handshakeAboutEmployer.merge.node.test.mjs src/lib/jobCompanyScrape.node.test.mjs",
+    "test:company-platform": "tsx --test src/content/extract/companyPlatform.node.test.mjs src/content/extract/strategies/handshakeAboutEmployerText.node.test.mjs src/content/extract/handshakeAboutEmployer.merge.node.test.mjs src/content/extract/strategies/linkedinJobDetail.node.test.mjs src/content/extract/strategies/linkedinExtraction.node.test.mjs src/lib/jobCompanyScrape.node.test.mjs",
     "server:dev": "npm run dev --prefix server",
     "server:build": "npm run build --prefix server"
   },
@@ -28,10 +28,12 @@
     "@types/react-dom": "^18.3.1",
     "@vitejs/plugin-react": "^4.3.4",
     "autoprefixer": "^10.4.20",
+    "concurrently": "^9.1.2",
+    "linkedom": "^0.18.12",
     "postcss": "^8.4.49",
     "tailwindcss": "^3.4.15",
+    "tsx": "^4.22.4",
     "typescript": "^5.6.3",
-    "vite": "^5.4.11",
-    "concurrently": "^9.1.2"
+    "vite": "^5.4.11"
   }
 }

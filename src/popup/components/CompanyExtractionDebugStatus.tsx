@@ -1,6 +1,7 @@
 import type { JobContext } from "../../lib/types";
 import { SCRAPE_PIPELINE_VERSION } from "../../lib/scrapePipeline";
 import { CompanyExtractionDebugPanel } from "./CompanyExtractionDebugPanel";
+import { LinkedInExtractionDebugPanel } from "./LinkedInExtractionDebugPanel";
 
 type Props = {
   job: JobContext | null;
@@ -42,9 +43,13 @@ export function CompanyExtractionDebugStatus({ job, busy }: Props) {
 
       {hasReport && report ? (
         <div className="space-y-1 border-t border-amber-300/70 pt-2">
-          <p className="font-semibold text-[10px]">Raw / Accepted / Rejected</p>
+          <p className="font-semibold text-[10px]">Company: raw / accepted / rejected</p>
           <CompanyExtractionDebugPanel report={report} />
         </div>
+      ) : null}
+
+      {job?.linkedinExtractionDebug ? (
+        <LinkedInExtractionDebugPanel report={job.linkedinExtractionDebug} />
       ) : null}
     </div>
   );

@@ -1,6 +1,7 @@
 import type { JobContext } from "../../lib/types";
 import { SCRAPE_PIPELINE_VERSION } from "../../lib/scrapePipeline";
 import { publishCompanyExtractionDebugToPage } from "./companyExtractionDebug";
+import { logLinkedInExtractionDebug } from "./linkedinExtractionDebug";
 import { detectJobBoard } from "./board";
 import { extractJsonLdJob } from "./jsonLd";
 import { finalizeDescriptionForJob } from "./finalizeDescription";
@@ -15,7 +16,7 @@ import {
 import { extractHandshake } from "./strategies/handshake";
 import { extractGreenhouse } from "./strategies/greenhouse";
 import { extractLever } from "./strategies/lever";
-import { extractLinkedIn } from "./strategies/linkedin";
+import { extractLinkedInWithRetry } from "./strategies/linkedin";
 
 function extractBoardPartial(
   board: ReturnType<typeof detectJobBoard>,
@@ -23,7 +24,6 @@ function extractBoardPartial(
   url: URL,
   hostname: string,
 ) {
-  if (board === "linkedin") return extractLinkedIn(doc, hostname);
   if (board === "handshake") return extractHandshake(doc, hostname);
   if (board === "greenhouse") return extractGreenhouse(doc, url);
   if (board === "lever") return extractLever(doc, url);
@@ -36,8 +36,19 @@ export function extractJobContext(): JobContext {
   const hostname = url.hostname;
   const board = detectJobBoard(hostname);
 
+  let linkedinExtractionDebug: JobContext["linkedinExtractionDebug"];
+  let scrapeQuality: JobContext["scrapeQuality"];
+
+  let boardPartial = extractBoardPartial(board, doc, url, hostname);
+  if (board === "linkedin") {
+    const linkedIn = extractLinkedInWithRetry(doc, url, hostname, SCRAPE_PIPELINE_VERSION);
+    boardPartial = linkedIn.partial;
+    linkedinExtractionDebug = linkedIn.debug;
+    scrapeQuality = linkedIn.scrapeQuality;
+    logLinkedInExtractionDebug(linkedIn.debug);
+  }
+
   const jsonLd = extractJsonLdJob(doc, hostname);
-  const boardPartial = extractBoardPartial(board, doc, url, hostname);
   const generic = extractGenericCareersPage(doc);
   const genericDomFound = extractGenericCompanyDomRaw(doc, board);
   const genericDomCompany = extractGenericCompanyDom(doc, board, hostname);
@@ -65,6 +76,8 @@ export function extractJobContext(): JobContext {
     pageUrl: location.href,
     scrapedAt: Date.now(),
     scrapePipelineVersion: SCRAPE_PIPELINE_VERSION,
+    linkedinExtractionDebug,
+    scrapeQuality: board === "linkedin" ? scrapeQuality : undefined,
   };
 
   if (job.companyExtractionDebug) {

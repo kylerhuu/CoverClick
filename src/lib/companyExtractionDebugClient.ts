@@ -75,9 +75,15 @@ export function logScrapedJobContextForDebug(job: unknown, label = "Scraped JobC
     "companyCandidates count:",
     Array.isArray(j?.companyCandidates) ? j.companyCandidates.length : 0,
   );
+  if (j?.linkedinExtractionDebug) {
+    console.log("linkedinExtractionDebug", j.linkedinExtractionDebug);
+  }
+  if (j?.scrapeQuality) {
+    console.log("scrapeQuality:", j.scrapeQuality);
+  }
   if (j?.companyExtractionDebug) {
     console.log("companyExtractionDebug", j.companyExtractionDebug);
-  } else {
+  } else if (!j?.linkedinExtractionDebug) {
     console.warn(
       "[CoverClick] Debug enabled but companyExtractionDebug missing. Content script may be stale or scrape payload dropped the field.",
     );

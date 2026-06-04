@@ -18,11 +18,11 @@ export function firstMatchText(doc: Document, selectors: string[]): string {
 }
 
 /** Unique non-empty texts in selector order (first selector wins ties). */
-export function orderedMatchTexts(doc: Document, selectors: string[]): string[] {
+export function orderedMatchTexts(root: ParentNode, selectors: string[]): string[] {
   const seen = new Set<string>();
   const out: string[] = [];
   for (const sel of selectors) {
-    const nodes = doc.querySelectorAll(sel);
+    const nodes = root.querySelectorAll(sel);
     for (const el of nodes) {
       const t = pickText(el);
       const key = t.toLowerCase();

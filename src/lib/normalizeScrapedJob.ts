@@ -8,6 +8,8 @@ export function normalizeScrapedJob(job: JobContext): JobContext {
     companyCandidates: job.companyCandidates,
     companyResolution: job.companyResolution,
     companyExtractionDebug: job.companyExtractionDebug,
+    linkedinExtractionDebug: job.linkedinExtractionDebug,
+    scrapeQuality: job.scrapeQuality,
     scrapePipelineVersion: job.scrapePipelineVersion,
     pageUrl: job.pageUrl ?? "",
     descriptionText: job.descriptionText ?? "",

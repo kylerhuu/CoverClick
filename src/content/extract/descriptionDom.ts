@@ -44,10 +44,10 @@ export function readDescriptionFromRoot(root: Element | null): string {
     .trim();
 }
 
-export function longestDescriptionFromRoots(doc: Document, selectors: string[], minLength: number): string {
+export function longestDescriptionFromRoots(root: ParentNode, selectors: string[], minLength: number): string {
   let best = "";
   for (const sel of selectors) {
-    const el = doc.querySelector(sel);
+    const el = root.querySelector(sel);
     const t = readDescriptionFromRoot(el);
     if (t.length >= minLength && t.length > best.length) best = t;
   }

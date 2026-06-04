@@ -92,6 +92,9 @@ export interface UserProfile {
 }
 
 import type { CompanyExtractionDebugReport } from "./companyExtractionDebugTypes";
+import type { LinkedInExtractionDebugReport } from "./linkedinExtractionDebugTypes";
+
+export type ScrapeQuality = "ok" | "linkedin_not_ready" | "linkedin_no_detail_root";
 
 /** Scraped company option shown when multiple plausible employers were found. */
 export type CompanyPickOption = {
@@ -112,6 +115,9 @@ export interface JobContext {
   companyResolution?: CompanyResolution;
   /** Raw vs accepted breakdown for debug UI (always set on scrape). */
   companyExtractionDebug?: CompanyExtractionDebugReport;
+  /** LinkedIn Phase 1 scrape diagnostics (set on LinkedIn job pages). */
+  linkedinExtractionDebug?: LinkedInExtractionDebugReport;
+  scrapeQuality?: ScrapeQuality;
   /** Present when content script includes Phase 1+ debug pipeline (value 2). */
   scrapePipelineVersion?: number;
   pageUrl: string;

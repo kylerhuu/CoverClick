@@ -203,6 +203,13 @@ export function JobPane({
         </div>
       ) : null}
 
+      {job?.scrapeQuality === "linkedin_not_ready" || job?.scrapeQuality === "linkedin_no_detail_root" ? (
+        <div className="shrink-0 border-b border-sky-200/80 bg-sky-50/90 px-4 py-2.5 text-[11px] leading-snug text-sky-900">
+          Could not read this LinkedIn job yet. Try opening the full job page or click Re-scan after the page finishes
+          loading.
+        </div>
+      ) : null}
+
       {companyDebugEnabled ? (
         <div className="shrink-0 border-b border-amber-200/80 bg-amber-50/40 px-4 py-3">
           <CompanyExtractionDebugStatus job={job} busy={busy} />

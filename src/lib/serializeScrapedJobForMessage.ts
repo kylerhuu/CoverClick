@@ -13,6 +13,8 @@ export function serializeScrapedJobForMessage(job: JobContext): JobContext {
     companyCandidates: normalized.companyCandidates,
     companyResolution: normalized.companyResolution,
     companyExtractionDebug: normalized.companyExtractionDebug,
+    linkedinExtractionDebug: normalized.linkedinExtractionDebug,
+    scrapeQuality: normalized.scrapeQuality,
     scrapePipelineVersion: normalized.scrapePipelineVersion,
     pageUrl: normalized.pageUrl,
     descriptionText: normalized.descriptionText,

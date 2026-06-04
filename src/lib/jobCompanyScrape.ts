@@ -22,6 +22,8 @@ export function applyScrapedCompanyDefaults(job: JobContext): JobContext {
     companyName,
     companyResolution,
     companyExtractionDebug: job.companyExtractionDebug,
+    linkedinExtractionDebug: job.linkedinExtractionDebug,
+    scrapeQuality: job.scrapeQuality,
     scrapePipelineVersion: job.scrapePipelineVersion,
     companyCandidates: job.companyCandidates,
   };
