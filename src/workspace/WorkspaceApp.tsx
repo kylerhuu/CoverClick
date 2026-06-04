@@ -33,6 +33,10 @@ import {
   saveResumeStudio,
 } from "../lib/storage";
 import type { AppSettings } from "../lib/types";
+import {
+  logScrapedJobContextForDebug,
+  readCompanyExtractionDebugEnabled,
+} from "../lib/companyExtractionDebugClient";
 import { applyScrapedCompanyDefaults } from "../lib/jobCompanyScrape";
 import { requestJobContextFromActiveTab } from "../lib/tabScrape";
 import { requestCleanJobDescription } from "../lib/jobDescriptionCleanApi";
@@ -154,7 +158,11 @@ function withStableResumeIds(resume: StructuredResume): StructuredResume {
     setScrapeBusy(true);
     setScrapeError(null);
     try {
-      const next = applyScrapedCompanyDefaults(await requestJobContextFromActiveTab());
+      const scraped = await requestJobContextFromActiveTab();
+      const next = applyScrapedCompanyDefaults(scraped);
+      void readCompanyExtractionDebugEnabled().then((debugOn) => {
+        if (debugOn) logScrapedJobContextForDebug(next, "JobContext after scrape (side panel)");
+      });
       setJob(next);
     } catch (e) {
       setScrapeError(e instanceof Error ? e.message : "Scrape failed");

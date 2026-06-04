@@ -1,4 +1,9 @@
 import { SCRAPE_MESSAGE_TYPE } from "./messages";
+import {
+  logScrapedJobContextForDebug,
+  readCompanyExtractionDebugEnabled,
+} from "./companyExtractionDebugClient";
+import { normalizeScrapedJob } from "./normalizeScrapedJob";
 import type { JobContext } from "./types";
 
 type ScrapeResponse =
@@ -46,7 +51,21 @@ export async function requestJobContextFromActiveTab(): Promise<JobContext> {
     const res = (await chrome.tabs.sendMessage(tabId, {
       type: SCRAPE_MESSAGE_TYPE,
     })) as ScrapeResponse;
-    if (res?.ok && res.job) return res.job;
+    if (res?.ok && res.job) {
+      const job = normalizeScrapedJob(res.job);
+      void readCompanyExtractionDebugEnabled().then((debugOn) => {
+        if (!debugOn) return;
+        if (!job.companyExtractionDebug) {
+          console.warn(
+            "[CoverClick] Scrape returned no companyExtractionDebug. scrapePipelineVersion=",
+            job.scrapePipelineVersion ?? "missing",
+            "— reload the job tab and rebuild content.js (npm run build:content).",
+          );
+        }
+        logScrapedJobContextForDebug(job);
+      });
+      return job;
+    }
     throw new Error(res && "error" in res ? String(res.error) : "Could not read this page.");
   }
 

@@ -112,6 +112,8 @@ export interface JobContext {
   companyResolution?: CompanyResolution;
   /** Raw vs accepted breakdown for debug UI (always set on scrape). */
   companyExtractionDebug?: CompanyExtractionDebugReport;
+  /** Present when content script includes Phase 1+ debug pipeline (value 2). */
+  scrapePipelineVersion?: number;
   pageUrl: string;
   descriptionText: string;
   scrapedAt: number;

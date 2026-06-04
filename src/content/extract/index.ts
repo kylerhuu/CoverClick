@@ -1,4 +1,6 @@
 import type { JobContext } from "../../lib/types";
+import { SCRAPE_PIPELINE_VERSION } from "../../lib/scrapePipeline";
+import { publishCompanyExtractionDebugToPage } from "./companyExtractionDebug";
 import { detectJobBoard } from "./board";
 import { extractJsonLdJob } from "./jsonLd";
 import { finalizeDescriptionForJob } from "./finalizeDescription";
@@ -57,10 +59,17 @@ export function extractJobContext(): JobContext {
     { board, hostname, pageUrl: location.href },
   );
 
-  return {
+  const job: JobContext = {
     ...merged,
     descriptionText: finalizeDescriptionForJob(merged.descriptionText),
     pageUrl: location.href,
     scrapedAt: Date.now(),
+    scrapePipelineVersion: SCRAPE_PIPELINE_VERSION,
   };
+
+  if (job.companyExtractionDebug) {
+    publishCompanyExtractionDebugToPage(job.companyExtractionDebug, job);
+  }
+
+  return job;
 }

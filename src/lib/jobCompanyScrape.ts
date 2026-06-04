@@ -21,6 +21,9 @@ export function applyScrapedCompanyDefaults(job: JobContext): JobContext {
     ...job,
     companyName,
     companyResolution,
+    companyExtractionDebug: job.companyExtractionDebug,
+    scrapePipelineVersion: job.scrapePipelineVersion,
+    companyCandidates: job.companyCandidates,
   };
 }
 

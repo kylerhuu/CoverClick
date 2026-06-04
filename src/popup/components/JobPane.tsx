@@ -1,12 +1,12 @@
 import { useEffect, useState } from "react";
 import type { JobContext, ResumeTailoringResponse, UserProfile } from "../../lib/types";
-import { isCompanyExtractionDebugEnabled } from "../../lib/companyExtractionDebugClient";
+import { useCompanyExtractionDebugEnabled } from "../../lib/useCompanyExtractionDebugEnabled";
 import { UNKNOWN_COMPANY_VALUE, companySelectOptions } from "../../lib/jobCompanyScrape";
 import { profileCompleteness } from "../../lib/profileCompleteness";
 import { truncate } from "../../lib/utils";
 import { cn } from "../../lib/classNames";
 import { CognitiveLoader } from "./CognitiveLoader";
-import { CompanyExtractionDebugPanel } from "./CompanyExtractionDebugPanel";
+import { CompanyExtractionDebugStatus } from "./CompanyExtractionDebugStatus";
 
 const SCRAPE_LINES = [
   "Reading the open tab and job signals…",
@@ -67,9 +67,8 @@ export function JobPane({
   const companyNotFound = job?.companyResolution === "not_found" || (!job?.companyName?.trim() && !acceptedPicks.length);
   const selectOptions = companySelectOptions(acceptedPicks);
   const showCompanySelect = editable && (acceptedPicks.length > 0 || companyNotFound);
-  const showCompanyDebug = Boolean(job?.companyExtractionDebug && isCompanyExtractionDebugEnabled());
+  const companyDebugEnabled = useCompanyExtractionDebugEnabled();
   const [companyManual, setCompanyManual] = useState(false);
-  const [debugOpen, setDebugOpen] = useState(true);
 
   useEffect(() => {
     setCompanyManual(false);
@@ -279,17 +278,8 @@ export function JobPane({
             {job?.pageUrl ? truncate(job.pageUrl, 80) : "—"}
           </span>
         </div>
-        {showCompanyDebug && job?.companyExtractionDebug ? (
-          <div className="space-y-1">
-            <button
-              type="button"
-              className="text-[10px] font-semibold text-amber-900 underline decoration-amber-300/80"
-              onClick={() => setDebugOpen((o) => !o)}
-            >
-              {debugOpen ? "Hide" : "Show"} company extraction debug
-            </button>
-            {debugOpen ? <CompanyExtractionDebugPanel report={job.companyExtractionDebug} /> : null}
-          </div>
+        {job && companyDebugEnabled && !busy ? (
+          <CompanyExtractionDebugStatus job={job} debugEnabled />
         ) : null}
         {onRegenerateLetter ? (
           <button
