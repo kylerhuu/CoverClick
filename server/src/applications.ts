@@ -126,31 +126,86 @@ export type CreateApplicationInput = {
   jobDescription: string;
 };
 
+/** Canonicalize job URLs so duplicate saves match the same row. */
+export function normalizeJobUrl(raw: string): string {
+  const trimmed = raw.trim();
+  if (!trimmed) return "";
+  try {
+    const u = new URL(trimmed);
+    u.hash = "";
+    let out = u.toString();
+    if (out.endsWith("/") && u.pathname.length > 1) out = out.slice(0, -1);
+    return out;
+  } catch {
+    return trimmed;
+  }
+}
+
+function asTrimmedString(v: unknown, fallback = ""): string {
+  return typeof v === "string" ? v.trim() : fallback;
+}
+
+export type ParseCreateApplicationResult =
+  | { ok: true; input: CreateApplicationInput }
+  | { ok: false; error: string };
+
+export function parseCreateApplicationBody(body: unknown): ParseCreateApplicationResult {
+  if (!body || typeof body !== "object") {
+    return { ok: false, error: "Request body must be a JSON object." };
+  }
+  const b = body as Record<string, unknown>;
+  const jobUrl = normalizeJobUrl(asTrimmedString(b.jobUrl));
+  if (!jobUrl) {
+    return { ok: false, error: "Missing required field: jobUrl" };
+  }
+  return {
+    ok: true,
+    input: {
+      jobUrl,
+      company: asTrimmedString(b.company, "Unknown company"),
+      title: asTrimmedString(b.title, "Untitled role"),
+      location: asTrimmedString(b.location),
+      source: asTrimmedString(b.source, "Web"),
+      jobDescription: asTrimmedString(b.jobDescription),
+    },
+  };
+}
+
+export type CreateApplicationResult = {
+  application: JobApplicationDto;
+  alreadySaved: boolean;
+};
+
 export async function createJobApplication(
   prisma: PrismaClient,
   userId: string,
   input: CreateApplicationInput,
-): Promise<JobApplicationDto> {
+): Promise<CreateApplicationResult> {
+  const jobUrl = normalizeJobUrl(input.jobUrl);
+  const existing = await prisma.jobApplication.findUnique({
+    where: { userId_jobUrl: { userId, jobUrl } },
+  });
+
   const row = await prisma.jobApplication.upsert({
-    where: { userId_jobUrl: { userId, jobUrl: input.jobUrl } },
+    where: { userId_jobUrl: { userId, jobUrl } },
     create: {
       userId,
-      company: input.company.trim(),
-      title: input.title.trim(),
-      location: input.location?.trim() ?? "",
-      source: input.source.trim(),
-      jobUrl: input.jobUrl.trim(),
-      jobDescription: input.jobDescription.trim(),
+      company: asTrimmedString(input.company, "Unknown company"),
+      title: asTrimmedString(input.title, "Untitled role"),
+      location: asTrimmedString(input.location),
+      source: asTrimmedString(input.source, "Web"),
+      jobUrl,
+      jobDescription: asTrimmedString(input.jobDescription),
       status: "PREPARING",
       dateSaved: new Date(),
       preparationSteps: { ...DEFAULT_STEPS, jobSaved: true },
     },
     update: {
-      company: input.company.trim(),
-      title: input.title.trim(),
-      location: input.location?.trim() ?? "",
-      source: input.source.trim(),
-      jobDescription: input.jobDescription.trim(),
+      company: asTrimmedString(input.company, "Unknown company"),
+      title: asTrimmedString(input.title, "Untitled role"),
+      location: asTrimmedString(input.location),
+      source: asTrimmedString(input.source, "Web"),
+      jobDescription: asTrimmedString(input.jobDescription),
       status: "PREPARING",
       dateSaved: new Date(),
       preparationError: null,
@@ -160,7 +215,7 @@ export async function createJobApplication(
       preparationSteps: { ...DEFAULT_STEPS, jobSaved: true },
     },
   });
-  return serializeApplication(row);
+  return { application: serializeApplication(row), alreadySaved: Boolean(existing) };
 }
 
 const activePipelines = new Set<string>();

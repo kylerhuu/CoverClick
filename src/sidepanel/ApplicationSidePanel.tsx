@@ -2,10 +2,12 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { JobApplication, JobContext } from "../lib/types";
 import {
   createApplication,
+  formatApplicationApiError,
   getApplicationByUrl,
   pollApplicationUntilReady,
   updateApplication,
 } from "../lib/applicationsApi";
+import { normalizeJobUrl } from "../lib/jobSource";
 import { applyScrapedCompanyDefaults } from "../lib/jobCompanyScrape";
 import { jobSourceFromUrl } from "../lib/jobSource";
 import { requestJobContextFromActiveTab } from "../lib/tabScrape";
@@ -54,6 +56,7 @@ export function ApplicationSidePanel() {
   const [scrapeError, setScrapeError] = useState<string | null>(null);
   const [saveBusy, setSaveBusy] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [saveNotice, setSaveNotice] = useState<string | null>(null);
   const [markAppliedBusy, setMarkAppliedBusy] = useState(false);
   const [settings, setSettings] = useState({ useMock: true, authToken: "", apiBaseUrl: "" });
   const pollAbortRef = useRef<AbortController | null>(null);
@@ -129,21 +132,32 @@ export function ApplicationSidePanel() {
 
   const handleSave = useCallback(async () => {
     if (!job?.pageUrl) return;
+    if (!settings.useMock && (!settings.authToken?.trim() || !settings.apiBaseUrl.trim())) {
+      setSaveError("Sign in with an active subscription to save jobs to the cloud.");
+      return;
+    }
     setSaveBusy(true);
     setSaveError(null);
+    setSaveNotice(null);
     try {
-      const saved = await createApplication(settings.apiBaseUrl, settings.authToken, settings.useMock, {
-        company: job.companyName?.trim() || "Unknown company",
-        title: job.jobTitle?.trim() || "Untitled role",
-        location: "",
-        source: jobSourceFromUrl(job.pageUrl),
-        jobUrl: job.pageUrl,
-        jobDescription: job.descriptionText?.trim() || "",
-      });
+      const { application: saved, message } = await createApplication(
+        settings.apiBaseUrl,
+        settings.authToken,
+        settings.useMock,
+        {
+          company: job.companyName?.trim() || "Unknown company",
+          title: job.jobTitle?.trim() || "Untitled role",
+          location: "",
+          source: jobSourceFromUrl(job.pageUrl),
+          jobUrl: normalizeJobUrl(job.pageUrl),
+          jobDescription: job.descriptionText?.trim() || "",
+        },
+      );
       setApplication(saved);
+      if (message) setSaveNotice(message);
       if (saved.status === "PREPARING") startPolling(saved.id);
     } catch (e) {
-      setSaveError(e instanceof Error ? e.message : "Could not save job.");
+      setSaveError(formatApplicationApiError(e));
     } finally {
       setSaveBusy(false);
     }
@@ -197,6 +211,12 @@ export function ApplicationSidePanel() {
   return (
     <div className="flex h-screen min-h-[360px] w-full min-w-0 flex-col overflow-hidden bg-[#f0f2f6] text-slate-900 antialiased">
       <SidePanelBrand />
+
+      {saveNotice ? (
+        <div className="shrink-0 border-b border-indigo-200/80 bg-indigo-50 px-3 py-2 text-[11px] font-medium text-indigo-900">
+          {saveNotice}
+        </div>
+      ) : null}
 
       {saveError ? (
         <div className="shrink-0 border-b border-red-200/80 bg-red-50 px-3 py-2 text-[11px] font-medium text-red-900">

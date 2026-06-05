@@ -29,6 +29,20 @@ export function detectJobBoardFromUrl(url: string): JobBoardId {
   }
 }
 
+export function normalizeJobUrl(raw: string): string {
+  const trimmed = raw.trim();
+  if (!trimmed) return "";
+  try {
+    const u = new URL(trimmed);
+    u.hash = "";
+    let out = u.toString();
+    if (out.endsWith("/") && u.pathname.length > 1) out = out.slice(0, -1);
+    return out;
+  } catch {
+    return trimmed;
+  }
+}
+
 export function jobSourceFromUrl(url: string): string {
   const board = detectJobBoardFromUrl(url);
   if (board !== "generic") return BOARD_LABELS[board];

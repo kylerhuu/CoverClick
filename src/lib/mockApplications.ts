@@ -9,6 +9,7 @@ import type {
 } from "./types";
 import { STORAGE_KEYS } from "./storageKeys";
 import { loadProfile } from "./storage";
+import { normalizeJobUrl } from "./jobSource";
 
 async function readStore(): Promise<JobApplication[]> {
   const raw = await chrome.storage.local.get(STORAGE_KEYS.applications);
@@ -107,7 +108,8 @@ export async function mockListApplications(): Promise<{ applications: JobApplica
 
 export async function mockGetApplicationByUrl(jobUrl: string): Promise<JobApplication | null> {
   const apps = await readStore();
-  return apps.find((a) => a.jobUrl === jobUrl) ?? null;
+  const normalized = normalizeJobUrl(jobUrl);
+  return apps.find((a) => normalizeJobUrl(a.jobUrl) === normalized) ?? null;
 }
 
 export async function mockGetApplication(id: string): Promise<JobApplication | null> {
@@ -118,8 +120,9 @@ export async function mockGetApplication(id: string): Promise<JobApplication | n
 export async function mockCreateApplication(input: CreateApplicationRequest): Promise<JobApplication> {
   const profile = await loadProfile();
   const now = new Date().toISOString();
+  const jobUrl = normalizeJobUrl(input.jobUrl);
   const apps = await readStore();
-  const existingIdx = apps.findIndex((a) => a.jobUrl === input.jobUrl);
+  const existingIdx = apps.findIndex((a) => normalizeJobUrl(a.jobUrl) === jobUrl);
   const base: JobApplication = {
     id: existingIdx >= 0 ? apps[existingIdx].id : mockId(),
     userId: "mock-user",
@@ -127,7 +130,7 @@ export async function mockCreateApplication(input: CreateApplicationRequest): Pr
     title: input.title,
     location: input.location ?? "",
     source: input.source,
-    jobUrl: input.jobUrl,
+    jobUrl,
     jobDescription: input.jobDescription,
     dateSaved: now,
     dateApplied: null,
