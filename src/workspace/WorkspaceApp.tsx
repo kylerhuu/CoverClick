@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type {
   DefaultTone,
   Emphasis,
+  JobApplication,
   JobContext,
   LetterLength,
   ResumeOptimizationSuggestion,
@@ -11,6 +12,8 @@ import type {
   StructuredCoverLetter,
   UserProfile,
 } from "../lib/types";
+import { applicationToJobContext, tailoringToOptimizePreview } from "../hub/applicationContext";
+import { pollApplicationUntilReady } from "../lib/applicationsApi";
 import { EMPTY_PROFILE, EMPTY_STRUCTURED_RESUME } from "../lib/types";
 import { generateCoverLetter, resolveStructuredLetter } from "../lib/api";
 import { downloadStructuredCoverLetterDocx } from "../lib/exportDocx";
@@ -55,7 +58,10 @@ import { JobPane } from "../popup/components/JobPane";
 import { LetterPane } from "../popup/components/LetterPane";
 import { ResumeStudioPane } from "../popup/components/ResumeStudioPane";
 import { WorkspaceToolbar } from "./components/WorkspaceToolbar";
+import { PreparationProgress } from "../sidepanel/components/PreparationProgress";
 import { SPLIT_STACK_MAX_WIDTH, type WorkspaceTab, panelDensityFromWidth } from "./workspaceLayout";
+
+export type WorkspaceMode = "capture" | "application";
 
 function WorkspaceBrandMark({ className }: { className?: string }) {
   const [iconFailed, setIconFailed] = useState(false);
@@ -86,12 +92,18 @@ function WorkspaceBrandMark({ className }: { className?: string }) {
 }
 
 export function WorkspaceApp({
+  mode = "capture",
   initialApplication,
   onBackToCapture,
 }: {
-  initialApplication?: import("../lib/types").JobApplication | null;
+  mode?: WorkspaceMode;
+  initialApplication?: JobApplication | null;
   onBackToCapture?: () => void;
 } = {}) {
+  const isApplicationMode = mode === "application";
+  const [applicationRecord, setApplicationRecord] = useState<JobApplication | null>(
+    isApplicationMode && initialApplication ? initialApplication : null,
+  );
 
 function stableItemId(prefix: string, idx: number, explicit?: string): string {
   if (explicit && explicit.trim()) return explicit;
@@ -161,8 +173,24 @@ function withStableResumeIds(resume: StructuredResume): StructuredResume {
   const [resumeOptimizeResult, setResumeOptimizeResult] = useState<ResumeOptimizeForJobResponse | null>(null);
   const [suggestionDecisions, setSuggestionDecisions] = useState<Record<string, "pending" | "accepted" | "rejected">>({});
   const companyDebugEnabled = useCompanyExtractionDebugEnabled();
+  const applicationPollRef = useRef<AbortController | null>(null);
+
+  const applyApplicationRecord = useCallback((app: JobApplication) => {
+    setApplicationRecord(app);
+    const ctx = applicationToJobContext(app);
+    setJob(ctx);
+    if (app.coverLetterDraft) {
+      setLetter(app.coverLetterDraft);
+    } else {
+      setLetter(emptyStructuredFromContext(profileRef.current, ctx));
+    }
+    if (app.resumeSuggestions) {
+      setResumeOptimizeResult(tailoringToOptimizePreview(app.resumeSuggestions));
+    }
+  }, []);
 
   const refreshScrape = useCallback(async () => {
+    if (isApplicationMode) return;
     setScrapeBusy(true);
     setScrapeError(null);
     try {
@@ -179,7 +207,7 @@ function withStableResumeIds(resume: StructuredResume): StructuredResume {
     } finally {
       setScrapeBusy(false);
     }
-  }, []);
+  }, [isApplicationMode]);
 
   useEffect(() => {
     const el = panelShellRef.current;
@@ -227,6 +255,11 @@ function withStableResumeIds(resume: StructuredResume): StructuredResume {
   }, []);
 
   useEffect(() => {
+    if (isApplicationMode) {
+      setJobDescriptionAiBusy(false);
+      setJobDescriptionAiError(null);
+      return;
+    }
     if (!job?.pageUrl) {
       setJobDescriptionAiBusy(false);
       setJobDescriptionAiError(null);
@@ -295,7 +328,7 @@ function withStableResumeIds(resume: StructuredResume): StructuredResume {
         setJobDescriptionAiBusy(false);
       }
     };
-  }, [job?.pageUrl, job?.scrapedAt, liveSettings.useMock, liveSettings.authToken, liveSettings.apiBaseUrl]);
+  }, [isApplicationMode, job?.pageUrl, job?.scrapedAt, liveSettings.useMock, liveSettings.authToken, liveSettings.apiBaseUrl]);
 
   useEffect(() => {
     let cancelled = false;
@@ -319,25 +352,56 @@ function withStableResumeIds(resume: StructuredResume): StructuredResume {
   }, []);
 
   useEffect(() => {
-    void refreshScrape();
-  }, [refreshScrape]);
-
-  useEffect(() => {
-    if (!initialApplication) return;
-    const ctx: JobContext = {
-      jobTitle: initialApplication.title,
-      companyName: initialApplication.company,
-      pageUrl: initialApplication.jobUrl,
-      descriptionText: initialApplication.jobDescription,
-      scrapedAt: new Date(initialApplication.dateSaved).getTime(),
-    };
-    setJob(ctx);
-    if (initialApplication.coverLetterDraft) {
-      setLetter(initialApplication.coverLetterDraft);
+    if (!isApplicationMode) {
+      void refreshScrape();
     }
-  }, [initialApplication?.id, initialApplication?.updatedAt]);
+  }, [refreshScrape, isApplicationMode]);
 
   useEffect(() => {
+    if (!isApplicationMode || !initialApplication) return;
+    applyApplicationRecord(initialApplication);
+  }, [isApplicationMode, initialApplication?.id, initialApplication?.updatedAt, applyApplicationRecord]);
+
+  useEffect(() => {
+    if (!isApplicationMode || !initialApplication?.id) return;
+    if (initialApplication.status !== "PREPARING") return;
+
+    applicationPollRef.current?.abort();
+    const ac = new AbortController();
+    applicationPollRef.current = ac;
+
+    void pollApplicationUntilReady(
+      liveSettings.apiBaseUrl,
+      liveSettings.authToken,
+      liveSettings.useMock,
+      initialApplication.id,
+      (app) => applyApplicationRecord(app),
+      ac.signal,
+    ).catch(() => {
+      /* cancelled */
+    });
+
+    return () => {
+      ac.abort();
+    };
+  }, [
+    isApplicationMode,
+    initialApplication?.id,
+    initialApplication?.status,
+    liveSettings.apiBaseUrl,
+    liveSettings.authToken,
+    liveSettings.useMock,
+    applyApplicationRecord,
+  ]);
+
+  useEffect(() => {
+    return () => {
+      applicationPollRef.current?.abort();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (isApplicationMode) return;
     if (!job?.pageUrl) return;
     let cancelled = false;
     const p = profileRef.current;
@@ -359,9 +423,10 @@ function withStableResumeIds(resume: StructuredResume): StructuredResume {
     return () => {
       cancelled = true;
     };
-  }, [job?.pageUrl]);
+  }, [isApplicationMode, job?.pageUrl]);
 
   useEffect(() => {
+    if (isApplicationMode) return;
     exportDirtyRef.current = false;
     setExportBasename(buildDefaultExportBasename(profileRef.current, jobRef.current));
   }, [job?.pageUrl]);
@@ -387,6 +452,7 @@ function withStableResumeIds(resume: StructuredResume): StructuredResume {
   }, []);
 
   useEffect(() => {
+    if (isApplicationMode) return;
     if (!job?.pageUrl) return;
     const has = letter.bodyParagraphs.some((p) => p.trim()) || letter.greeting.trim();
     if (!has) return;
@@ -398,7 +464,7 @@ function withStableResumeIds(resume: StructuredResume): StructuredResume {
       });
     }, 900);
     return () => window.clearTimeout(id);
-  }, [letter, job?.pageUrl]);
+  }, [isApplicationMode, letter, job?.pageUrl]);
 
   useEffect(() => {
     const onStorage = (changes: Record<string, chrome.storage.StorageChange>, areaName: string) => {
@@ -459,7 +525,9 @@ function withStableResumeIds(resume: StructuredResume): StructuredResume {
       const structured = resolveStructuredLetter(result, profile, job);
       setLetter(structured);
       setDocEditEpoch((e) => e + 1);
-      await saveCachedLetter({ pageUrl: job.pageUrl, structured, updatedAt: Date.now() });
+      if (!isApplicationMode) {
+        await saveCachedLetter({ pageUrl: job.pageUrl, structured, updatedAt: Date.now() });
+      }
       setStatus("Done");
       window.setTimeout(() => setStatus(null), 1200);
     } catch (e) {
@@ -467,7 +535,7 @@ function withStableResumeIds(resume: StructuredResume): StructuredResume {
     } finally {
       setGenBusy(false);
     }
-  }, [profile, job, tone, emphasis, length, responseShape]);
+  }, [profile, job, tone, emphasis, length, responseShape, isApplicationMode]);
 
   const onCopy = useCallback(async () => {
     try {
@@ -729,9 +797,9 @@ function withStableResumeIds(resume: StructuredResume): StructuredResume {
   const jobPaneBase = {
     job,
     profile,
-    busy: scrapeBusy,
-    error: scrapeError,
-    onRefresh: () => void refreshScrape(),
+    busy: isApplicationMode ? false : scrapeBusy,
+    error: isApplicationMode ? null : scrapeError,
+    onRefresh: isApplicationMode ? () => {} : () => void refreshScrape(),
     showRescanButton: false as const,
     onJobChange: handleJobChange,
     onRegenerateLetter: () => void runGeneration(),
@@ -785,7 +853,9 @@ function withStableResumeIds(resume: StructuredResume): StructuredResume {
           <WorkspaceBrandMark className="h-8 w-8 shrink-0 rounded-xl shadow-lg shadow-indigo-950/40" />
           <div className="min-w-0">
             <h1 className="text-[14px] font-bold tracking-tight">CoverClick</h1>
-            <p className="truncate text-[10px] font-medium text-indigo-100/80">From this tab · edit & export</p>
+            <p className="truncate text-[10px] font-medium text-indigo-100/80">
+              {isApplicationMode ? "Saved application · edit & export" : "From this tab · edit & export"}
+            </p>
           </div>
         </div>
         <span className="hidden shrink-0 rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-indigo-100/90 sm:inline">
@@ -796,6 +866,7 @@ function withStableResumeIds(resume: StructuredResume): StructuredResume {
       <WorkspaceToolbar
         scrapeBusy={scrapeBusy}
         onRescan={() => void refreshScrape()}
+        showRescan={!isApplicationMode}
         workspaceTab={workspaceTab}
         onWorkspaceTabChange={setWorkspaceTab}
         exportBasename={exportBasename}
@@ -806,6 +877,15 @@ function withStableResumeIds(resume: StructuredResume): StructuredResume {
       {error ? (
         <div className="shrink-0 border-b border-red-200/80 bg-red-50 px-3 py-2 text-[11px] font-medium text-red-900">
           {error}
+        </div>
+      ) : null}
+
+      {isApplicationMode && applicationRecord?.status === "PREPARING" ? (
+        <div className="shrink-0 border-b border-indigo-200/80 bg-indigo-50/80 px-3 py-3">
+          <PreparationProgress
+            steps={applicationRecord.preparationSteps}
+            error={applicationRecord.preparationError}
+          />
         </div>
       ) : null}
 
