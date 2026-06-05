@@ -15,6 +15,17 @@ enum SubscriptionStatus {
   CANCELED
 }
 
+enum JobApplicationStatus {
+  SAVED
+  PREPARING
+  READY_TO_APPLY
+  APPLIED
+  INTERVIEWING
+  OFFER
+  REJECTED
+  ARCHIVED
+}
+
 model User {
   id           String  @id @default(cuid())
   email        String  @unique
@@ -31,6 +42,42 @@ model User {
 
   profile       StoredProfile?
   authExchanges AuthExchange[]
+  applications  JobApplication[]
+}
+
+model JobApplication {
+  id             String               @id @default(cuid())
+  userId         String
+  user           User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  company        String               @default("")
+  title          String               @default("")
+  location       String               @default("")
+  source         String               @default("")
+  jobUrl         String
+  jobDescription String               @default("") @db.Text
+
+  dateSaved      DateTime             @default(now())
+  dateApplied    DateTime?
+  status         JobApplicationStatus @default(SAVED)
+
+  fitScore           Int?
+  resumeUsed         Json?
+  coverLetterDraft   Json?
+  resumeSuggestions  Json?
+  preparationSteps   Json?
+  preparationError   String?
+
+  notes          String               @default("") @db.Text
+  interviewDate  DateTime?
+  followUpDate   DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, status])
+  @@index([userId, dateSaved])
+  @@unique([userId, jobUrl])
 }
 
 model StoredProfile {

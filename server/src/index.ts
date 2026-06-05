@@ -16,6 +16,15 @@ import { generateCoverLetterWithOpenAI } from "./generateCoverLetterOpenAI.js";
 import { generateResumeSummaryWithOpenAI } from "./generateResumeSummaryWithOpenAI.js";
 import { resumeOptimizeForJobWithOpenAI } from "./resumeOptimizeForJobWithOpenAI.js";
 import { hasPaidSubscription, subscriptionStatusFromStripe } from "./access.js";
+import {
+  computeApplicationStats,
+  createJobApplication,
+  runPreparationPipeline,
+  serializeApplication,
+  updateJobApplication,
+  type CreateApplicationInput,
+  type UpdateApplicationInput,
+} from "./applications.js";
 
 const prisma = new PrismaClient();
 const upload = multer({
@@ -893,6 +902,125 @@ app.post("/api/resume/optimize-for-job", authMiddleware, requirePaidMiddleware, 
     const msg = e instanceof Error ? e.message : "Resume optimization failed";
     const status = msg.includes("OPENAI_API_KEY") ? 503 : 500;
     res.status(status).json({ error: status === 503 || !IS_PRODUCTION ? msg : publicApiError(e) });
+  }
+});
+
+function isCreateApplicationBody(body: unknown): body is CreateApplicationInput {
+  if (!body || typeof body !== "object") return false;
+  const b = body as Record<string, unknown>;
+  return typeof b.jobUrl === "string" && b.jobUrl.trim().length > 0;
+}
+
+function isUpdateApplicationBody(body: unknown): body is UpdateApplicationInput {
+  return Boolean(body && typeof body === "object");
+}
+
+app.get("/api/applications", authMiddleware, requirePaidMiddleware, async (req, res) => {
+  try {
+    const userId = (req as express.Request & { auth: Authed }).auth.userId;
+    const rows = await prisma.jobApplication.findMany({
+      where: { userId },
+      orderBy: { dateSaved: "desc" },
+    });
+    const stats = await computeApplicationStats(prisma, userId);
+    res.json({ applications: rows.map(serializeApplication), stats });
+  } catch (e) {
+    res.status(500).json({ error: publicApiError(e) });
+  }
+});
+
+app.get("/api/applications/by-url", authMiddleware, requirePaidMiddleware, async (req, res) => {
+  try {
+    const userId = (req as express.Request & { auth: Authed }).auth.userId;
+    const jobUrl = typeof req.query.url === "string" ? req.query.url.trim() : "";
+    if (!jobUrl) {
+      res.status(400).json({ error: "url query parameter required." });
+      return;
+    }
+    const row = await prisma.jobApplication.findUnique({
+      where: { userId_jobUrl: { userId, jobUrl } },
+    });
+    res.json({ application: row ? serializeApplication(row) : null });
+  } catch (e) {
+    res.status(500).json({ error: publicApiError(e) });
+  }
+});
+
+app.get("/api/applications/:id", authMiddleware, requirePaidMiddleware, async (req, res) => {
+  try {
+    const userId = (req as express.Request & { auth: Authed }).auth.userId;
+    const id = req.params.id;
+    const row = await prisma.jobApplication.findFirst({ where: { id, userId } });
+    if (!row) {
+      res.status(404).json({ error: "Application not found." });
+      return;
+    }
+    res.json({ application: serializeApplication(row) });
+  } catch (e) {
+    res.status(500).json({ error: publicApiError(e) });
+  }
+});
+
+app.post("/api/applications", authMiddleware, requirePaidMiddleware, async (req, res) => {
+  try {
+    if (!isCreateApplicationBody(req.body)) {
+      res.status(400).json({ error: "Invalid body: jobUrl required." });
+      return;
+    }
+    const userId = (req as express.Request & { auth: Authed }).auth.userId;
+    const application = await createJobApplication(prisma, userId, req.body);
+    runPreparationPipeline(prisma, application.id);
+    res.status(201).json({ application });
+  } catch (e) {
+    res.status(500).json({ error: publicApiError(e) });
+  }
+});
+
+app.patch("/api/applications/:id", authMiddleware, requirePaidMiddleware, async (req, res) => {
+  try {
+    if (!isUpdateApplicationBody(req.body)) {
+      res.status(400).json({ error: "Invalid body." });
+      return;
+    }
+    const userId = (req as express.Request & { auth: Authed }).auth.userId;
+    const application = await updateJobApplication(prisma, userId, req.params.id, req.body);
+    if (!application) {
+      res.status(404).json({ error: "Application not found." });
+      return;
+    }
+    res.json({ application });
+  } catch (e) {
+    res.status(500).json({ error: publicApiError(e) });
+  }
+});
+
+app.post("/api/applications/:id/prepare", authMiddleware, requirePaidMiddleware, async (req, res) => {
+  try {
+    const userId = (req as express.Request & { auth: Authed }).auth.userId;
+    const id = req.params.id;
+    const row = await prisma.jobApplication.findFirst({ where: { id, userId } });
+    if (!row) {
+      res.status(404).json({ error: "Application not found." });
+      return;
+    }
+    await prisma.jobApplication.update({
+      where: { id },
+      data: {
+        status: "PREPARING",
+        preparationError: null,
+        preparationSteps: {
+          jobSaved: true,
+          fitAnalyzed: false,
+          coverLetterDrafted: false,
+          resumeSuggestionsGenerated: false,
+        },
+      },
+    });
+    runPreparationPipeline(prisma, id);
+    const updated = await prisma.jobApplication.findUnique({ where: { id } });
+    res.json({ application: updated ? serializeApplication(updated) : null });
+  } catch (e) {
+    res.status(500).json({ error: publicApiError(e) });
   }
 });
 

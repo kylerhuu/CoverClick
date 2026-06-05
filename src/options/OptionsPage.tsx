@@ -14,6 +14,7 @@ import { ConnectionSettings } from "./components/ConnectionSettings";
 import { Field } from "./components/Field";
 import { OptionsSectionNav, type OptionsMainTab } from "./components/OptionsSectionNav";
 import { ResumeImportSection } from "./components/ResumeImportSection";
+import { ApplicationHubSection } from "../hub/ApplicationHubSection";
 import { ccBtnPrimarySm, ccEyebrow, ccHairline, ccMuted, ccSectionTitle, ccSurfaceQuiet } from "../ui/ccUi";
 import { EXTENSION_BUILD_ID } from "virtual:coverclick-build";
 
@@ -68,6 +69,16 @@ export function OptionsPage() {
   const [serverSync, setServerSync] = useState<ServerSyncStatus>("idle");
   const [serverSyncMsg, setServerSyncMsg] = useState<string | null>(null);
   const [showApiAdvanced, setShowApiAdvanced] = useState(false);
+
+  useEffect(() => {
+    const applyHash = () => {
+      const hash = window.location.hash.replace(/^#/, "").split("?")[0];
+      if (hash === "applications") setMainTab("applications");
+    };
+    applyHash();
+    window.addEventListener("hashchange", applyHash);
+    return () => window.removeEventListener("hashchange", applyHash);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -485,6 +496,12 @@ export function OptionsPage() {
                 </details>
               </div>
             </div>
+          </div>
+        ) : null}
+
+        {mainTab === "applications" ? (
+          <div className="cc-fade-in mt-6">
+            <ApplicationHubSection />
           </div>
         ) : null}
 

@@ -159,6 +159,75 @@ export interface ResumeTailoringResponse {
   warnings: string[];
 }
 
+export type JobApplicationStatus =
+  | "SAVED"
+  | "PREPARING"
+  | "READY_TO_APPLY"
+  | "APPLIED"
+  | "INTERVIEWING"
+  | "OFFER"
+  | "REJECTED"
+  | "ARCHIVED";
+
+export interface PreparationSteps {
+  jobSaved: boolean;
+  fitAnalyzed: boolean;
+  coverLetterDrafted: boolean;
+  resumeSuggestionsGenerated: boolean;
+}
+
+export interface JobApplicationRecord {
+  id: string;
+  userId: string;
+  company: string;
+  title: string;
+  location: string;
+  source: string;
+  jobUrl: string;
+  jobDescription: string;
+  dateSaved: string;
+  dateApplied: string | null;
+  status: JobApplicationStatus;
+  fitScore: number | null;
+  resumeUsed: unknown;
+  coverLetterDraft: StructuredCoverLetter | null;
+  resumeSuggestions: ResumeTailoringResponse | null;
+  preparationSteps: PreparationSteps | null;
+  preparationError: string | null;
+  notes: string;
+  interviewDate: string | null;
+  followUpDate: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ApplicationStats {
+  saved: number;
+  readyToApply: number;
+  applied: number;
+  interviewing: number;
+}
+
+export interface CreateApplicationRequest {
+  company: string;
+  title: string;
+  location?: string;
+  source: string;
+  jobUrl: string;
+  jobDescription: string;
+}
+
+export interface UpdateApplicationRequest {
+  status?: JobApplicationStatus;
+  notes?: string;
+  dateApplied?: string | null;
+  interviewDate?: string | null;
+  followUpDate?: string | null;
+  company?: string;
+  title?: string;
+  location?: string;
+}
+
 export interface ResumeContact {
   fullName: string;
   email: string;
