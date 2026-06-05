@@ -70,3 +70,66 @@ export const ccHairline = "h-px w-full bg-gradient-to-r from-transparent via-sla
 
 /** Quiet surface: no heavy card border. */
 export const ccSurfaceQuiet = cn("rounded-xl bg-white/70 ring-1 ring-slate-200/40 shadow-[0_1px_2px_rgba(15,23,42,0.04)]");
+
+/** Premium hub list card — clickable row with depth. */
+export const ccHubCard = cn(
+  "rounded-2xl border border-slate-200/70 bg-white px-3.5 py-3 text-left shadow-[0_1px_3px_rgba(15,23,42,0.05)]",
+  "transition-all duration-150 hover:border-indigo-200/90 hover:shadow-[0_4px_14px_rgba(79,70,229,0.08)] hover:-translate-y-px",
+);
+
+export const ccHubCardSelected = cn(
+  "border-indigo-300/90 bg-indigo-50/40 ring-2 ring-indigo-200/50 shadow-[0_4px_14px_rgba(79,70,229,0.1)]",
+);
+
+/** Hero / detail surface. */
+export const ccHeroCard = cn(
+  "rounded-2xl border border-slate-200/60 bg-gradient-to-b from-white to-slate-50/80 p-4 shadow-[0_2px_8px_rgba(15,23,42,0.04)]",
+);
+
+/** Compact status pill — primary visual marker. */
+export function ccStatusPill(colorClasses: string): string {
+  return cn(
+    "inline-flex shrink-0 items-center rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide ring-1",
+    colorClasses,
+  );
+}
+
+/** Secondary metadata chip (fit, letter, etc.). */
+export function ccMetaChip(colorClasses: string): string {
+  return cn("inline-flex items-center rounded-md px-1.5 py-0.5 text-[9px] font-semibold ring-1", colorClasses);
+}
+
+/** Hub summary stat chip at list top. */
+export function ccSummaryChip(active: boolean): string {
+  return cn(
+    "inline-flex flex-col items-center rounded-xl px-3 py-2 ring-1",
+    active
+      ? "bg-white text-slate-900 ring-slate-200/80 shadow-sm"
+      : "bg-slate-50/80 text-slate-600 ring-slate-200/50",
+  );
+}
+
+/** Profile avatar chip in header. */
+export const ccProfileChip = cn(
+  "flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-white/20 bg-white/15 text-[11px] font-bold text-white",
+  "hover:bg-white/25 transition-colors",
+  ccFocusRing,
+);
+
+/** Side panel mode tab — active state with indigo accent. */
+export function ccSidePanelTab(active: boolean): string {
+  return cn(
+    "relative min-h-[36px] flex-1 rounded-lg px-3 py-2 text-[12px] font-semibold transition-all duration-150",
+    active
+      ? "bg-white text-indigo-950 shadow-sm ring-1 ring-indigo-200/70"
+      : "text-slate-500 hover:bg-white/60 hover:text-slate-800",
+  );
+}
+
+export const ccSidePanelTabTrack = cn(
+  "inline-flex w-full rounded-xl border border-slate-200/70 bg-slate-100/60 p-1 shadow-[inset_0_1px_2px_rgba(15,23,42,0.04)]",
+);
+
+export const ccCountBadge = cn(
+  "ml-1.5 inline-flex min-w-[1.125rem] items-center justify-center rounded-full bg-indigo-100 px-1.5 py-0.5 text-[9px] font-bold text-indigo-700",
+);

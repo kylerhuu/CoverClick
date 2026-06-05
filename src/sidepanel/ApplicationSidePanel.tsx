@@ -10,38 +10,10 @@ import { jobSourceFromUrl, normalizeJobUrl } from "../lib/jobSource";
 import { applyScrapedCompanyDefaults } from "../lib/jobCompanyScrape";
 import { requestJobContextFromActiveTab } from "../lib/tabScrape";
 import { loadSettings } from "../lib/storage";
-import { cn } from "../lib/classNames";
 import { DetectedJobCard } from "./components/DetectedJobCard";
+import { SidePanelHeader } from "./components/SidePanelHeader";
 import { SidePanelHubView, type HubSubview } from "./components/SidePanelHubView";
 import { SidePanelModeNav, type SidePanelMode } from "./components/SidePanelModeNav";
-
-function SidePanelBrand() {
-  const [iconFailed, setIconFailed] = useState(false);
-  const src =
-    typeof chrome !== "undefined" && chrome.runtime?.id != null
-      ? chrome.runtime.getURL("icons/coverclick-icon.png")
-      : "";
-  return (
-    <header
-      className={cn(
-        "flex shrink-0 items-center gap-2.5 border-b border-white/10 px-3 py-2.5",
-        "bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white shadow-[0_4px_20px_rgba(15,23,42,0.28)]",
-      )}
-    >
-      {iconFailed || !src ? (
-        <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-400 to-sky-400 text-[12px] font-black">
-          CC
-        </div>
-      ) : (
-        <img src={src} alt="" className="h-8 w-8 rounded-xl object-cover" onError={() => setIconFailed(true)} />
-      )}
-      <div className="min-w-0">
-        <h1 className="text-[14px] font-bold tracking-tight">CoverClick</h1>
-        <p className="truncate text-[10px] font-medium text-indigo-100/80">Browse · Save · Apply</p>
-      </div>
-    </header>
-  );
-}
 
 export function ApplicationSidePanel() {
   const [mode, setMode] = useState<SidePanelMode>("scan");
@@ -185,8 +157,13 @@ export function ApplicationSidePanel() {
 
   return (
     <div className="flex h-screen min-h-[360px] w-full min-w-0 flex-col overflow-hidden bg-[#f0f2f6] text-slate-900 antialiased">
-      <SidePanelBrand />
-      <SidePanelModeNav mode={mode} hubCount={hubApplications.length} onChange={handleModeChange} />
+      <SidePanelHeader />
+      <SidePanelModeNav
+        mode={mode}
+        hubCount={hubApplications.length}
+        preparingOnCurrentTab={preparingCurrentTab}
+        onChange={handleModeChange}
+      />
 
       {saveNotice && mode === "scan" ? (
         <div className="shrink-0 border-b border-indigo-200/80 bg-indigo-50 px-3 py-2 text-[11px] font-medium text-indigo-900">
@@ -218,6 +195,7 @@ export function ApplicationSidePanel() {
             onRescan={() => void refreshScrape()}
             onSave={() => void handleSave()}
             alreadySaved={Boolean(currentTabSaved)}
+            currentTabSaved={currentTabSaved}
             preparingInBackground={preparingCurrentTab}
             onOpenHub={() => handleModeChange("hub")}
           />

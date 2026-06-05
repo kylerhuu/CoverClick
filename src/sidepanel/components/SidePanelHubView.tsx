@@ -7,9 +7,12 @@ import {
   updateApplication,
 } from "../../lib/applicationsApi";
 import { loadSettings } from "../../lib/storage";
+import { hubSummaryCounts, sortApplicationsByStatusPriority } from "../../hub/applicationDisplay";
 import { ApplicationDetailPanel } from "../../hub/components/ApplicationDetailPanel";
 import { ApplicationListRow } from "../../hub/components/ApplicationListRow";
+import { HubSummaryChips } from "../../hub/components/HubSummaryChips";
 import { WorkspaceApp } from "../../workspace/WorkspaceApp";
+import { ccEyebrow, ccMuted } from "../../ui/ccUi";
 
 export type HubSubview = "list" | "detail" | "materials";
 
@@ -131,12 +134,19 @@ export function SidePanelHubView({
     );
   }
 
+  const sortedApplications = sortApplicationsByStatusPriority(applications);
+  const summary = hubSummaryCounts(applications);
+
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-3 p-3">
       <div>
-        <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">Saved jobs</p>
-        <p className="text-[12px] text-slate-600">Tap a job to view details and materials.</p>
+        <p className={ccEyebrow}>Application Hub</p>
+        <p className={ccMuted}>Tap a job to view details and materials.</p>
       </div>
+
+      {applications.length > 0 ? (
+        <HubSummaryChips saved={summary.saved} ready={summary.ready} preparing={summary.preparing} />
+      ) : null}
 
       {error ? (
         <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-[11px] font-medium text-red-900">{error}</p>
@@ -153,7 +163,7 @@ export function SidePanelHubView({
         </p>
       ) : (
         <ul className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto">
-          {applications.map((app) => (
+          {sortedApplications.map((app) => (
             <li key={app.id}>
               <ApplicationListRow
                 application={app}

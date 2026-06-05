@@ -29,21 +29,31 @@ export function PreparationProgress({ steps, error, className }: Props) {
 
   return (
     <div className={cn("space-y-3", className)}>
-      <p className="text-[13px] font-semibold text-slate-800">Preparing application…</p>
-      <ul className="space-y-2">
+      <p className="text-[12px] font-bold uppercase tracking-wide text-indigo-900/80">Preparing application…</p>
+      <ul className="relative space-y-0">
         {STEPS.map((step, idx) => {
           const done = current[step.key];
           const prevDone = idx === 0 || current[STEPS[idx - 1].key];
           const active = !done && prevDone;
+          const isLast = idx === STEPS.length - 1;
           return (
-            <li key={step.key} className="flex items-center gap-2.5">
+            <li key={step.key} className="relative flex items-start gap-3 pb-3 last:pb-0">
+              {!isLast ? (
+                <span
+                  className={cn(
+                    "absolute left-[9px] top-5 h-[calc(100%-12px)] w-px",
+                    done ? "bg-emerald-300" : "bg-slate-200",
+                  )}
+                  aria-hidden
+                />
+              ) : null}
               <span
                 className={cn(
-                  "flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-bold",
+                  "relative z-[1] flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-full text-[9px] font-bold",
                   done
-                    ? "bg-emerald-500 text-white"
+                    ? "bg-emerald-500 text-white shadow-sm shadow-emerald-500/30"
                     : active
-                      ? "border-2 border-indigo-400 bg-indigo-50 text-indigo-600"
+                      ? "border-2 border-indigo-400 bg-white text-indigo-600"
                       : "border border-slate-200 bg-slate-50 text-slate-400",
                 )}
                 aria-hidden
@@ -52,7 +62,7 @@ export function PreparationProgress({ steps, error, className }: Props) {
               </span>
               <span
                 className={cn(
-                  "text-[12px] font-medium",
+                  "pt-0.5 text-[12px] font-medium leading-snug",
                   done ? "text-emerald-800" : active ? "text-indigo-900" : "text-slate-500",
                 )}
               >

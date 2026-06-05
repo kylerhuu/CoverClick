@@ -858,9 +858,18 @@ function withStableResumeIds(resume: StructuredResume): StructuredResume {
             </p>
           </div>
         </div>
-        <span className="hidden shrink-0 rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-indigo-100/90 sm:inline">
-          Beta
-        </span>
+        {isApplicationMode && applicationRecord?.company ? (
+          <span
+            className="max-w-[42%] shrink-0 truncate rounded-full border border-white/15 bg-white/10 px-2.5 py-1 text-[10px] font-semibold text-white"
+            title={applicationRecord.company}
+          >
+            {applicationRecord.company}
+          </span>
+        ) : (
+          <span className="hidden shrink-0 rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-indigo-100/90 sm:inline">
+            Beta
+          </span>
+        )}
       </header>
 
       <WorkspaceToolbar
