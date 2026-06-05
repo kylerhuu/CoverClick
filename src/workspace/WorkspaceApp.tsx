@@ -85,7 +85,13 @@ function WorkspaceBrandMark({ className }: { className?: string }) {
   );
 }
 
-export function WorkspaceApp() {
+export function WorkspaceApp({
+  initialApplication,
+  onBackToCapture,
+}: {
+  initialApplication?: import("../lib/types").JobApplication | null;
+  onBackToCapture?: () => void;
+} = {}) {
 
 function stableItemId(prefix: string, idx: number, explicit?: string): string {
   if (explicit && explicit.trim()) return explicit;
@@ -315,6 +321,21 @@ function withStableResumeIds(resume: StructuredResume): StructuredResume {
   useEffect(() => {
     void refreshScrape();
   }, [refreshScrape]);
+
+  useEffect(() => {
+    if (!initialApplication) return;
+    const ctx: JobContext = {
+      jobTitle: initialApplication.title,
+      companyName: initialApplication.company,
+      pageUrl: initialApplication.jobUrl,
+      descriptionText: initialApplication.jobDescription,
+      scrapedAt: new Date(initialApplication.dateSaved).getTime(),
+    };
+    setJob(ctx);
+    if (initialApplication.coverLetterDraft) {
+      setLetter(initialApplication.coverLetterDraft);
+    }
+  }, [initialApplication?.id, initialApplication?.updatedAt]);
 
   useEffect(() => {
     if (!job?.pageUrl) return;
@@ -752,6 +773,15 @@ function withStableResumeIds(resume: StructuredResume): StructuredResume {
         )}
       >
         <div className="flex min-w-0 items-center gap-2.5">
+          {onBackToCapture ? (
+            <button
+              type="button"
+              onClick={onBackToCapture}
+              className="shrink-0 rounded-lg border border-white/15 bg-white/10 px-2 py-1 text-[11px] font-semibold text-white hover:bg-white/15"
+            >
+              ← Back
+            </button>
+          ) : null}
           <WorkspaceBrandMark className="h-8 w-8 shrink-0 rounded-xl shadow-lg shadow-indigo-950/40" />
           <div className="min-w-0">
             <h1 className="text-[14px] font-bold tracking-tight">CoverClick</h1>

@@ -384,6 +384,117 @@ export const DEFAULT_GENERATION_PREFS: GenerationPreferences = {
   responseShape: "structured",
 };
 
+export type JobApplicationStatus =
+  | "SAVED"
+  | "PREPARING"
+  | "READY_TO_APPLY"
+  | "APPLIED"
+  | "INTERVIEWING"
+  | "OFFER"
+  | "REJECTED"
+  | "ARCHIVED";
+
+export interface PreparationSteps {
+  jobSaved: boolean;
+  fitAnalyzed: boolean;
+  coverLetterDrafted: boolean;
+  resumeSuggestionsGenerated: boolean;
+}
+
+export interface JobApplication {
+  id: string;
+  userId: string;
+  company: string;
+  title: string;
+  location: string;
+  source: string;
+  jobUrl: string;
+  jobDescription: string;
+  dateSaved: string;
+  dateApplied: string | null;
+  status: JobApplicationStatus;
+  fitScore: number | null;
+  resumeUsed: unknown;
+  coverLetterDraft: StructuredCoverLetter | null;
+  resumeSuggestions: ResumeTailoringResponse | null;
+  preparationSteps: PreparationSteps | null;
+  preparationError: string | null;
+  notes: string;
+  interviewDate: string | null;
+  followUpDate: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ApplicationStats {
+  saved: number;
+  readyToApply: number;
+  applied: number;
+  interviewing: number;
+}
+
+export interface CreateApplicationRequest {
+  company: string;
+  title: string;
+  location?: string;
+  source: string;
+  jobUrl: string;
+  jobDescription: string;
+}
+
+export interface UpdateApplicationRequest {
+  status?: JobApplicationStatus;
+  notes?: string;
+  dateApplied?: string | null;
+  interviewDate?: string | null;
+  followUpDate?: string | null;
+  company?: string;
+  title?: string;
+  location?: string;
+}
+
+export const JOB_APPLICATION_STATUSES: JobApplicationStatus[] = [
+  "SAVED",
+  "PREPARING",
+  "READY_TO_APPLY",
+  "APPLIED",
+  "INTERVIEWING",
+  "OFFER",
+  "REJECTED",
+  "ARCHIVED",
+];
+
+export const KANBAN_COLUMNS: JobApplicationStatus[] = [
+  "SAVED",
+  "PREPARING",
+  "READY_TO_APPLY",
+  "APPLIED",
+  "INTERVIEWING",
+  "OFFER",
+  "REJECTED",
+];
+
+export function jobApplicationStatusLabel(status: JobApplicationStatus): string {
+  switch (status) {
+    case "SAVED":
+      return "Saved";
+    case "PREPARING":
+      return "Preparing";
+    case "READY_TO_APPLY":
+      return "Ready to Apply";
+    case "APPLIED":
+      return "Applied";
+    case "INTERVIEWING":
+      return "Interviewing";
+    case "OFFER":
+      return "Offer";
+    case "REJECTED":
+      return "Rejected";
+    case "ARCHIVED":
+      return "Archived";
+  }
+}
+
 export const EMPTY_STRUCTURED_RESUME: StructuredResume = {
   contact: {
     fullName: "",

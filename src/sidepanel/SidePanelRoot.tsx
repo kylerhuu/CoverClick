@@ -1,6 +1,6 @@
 import { AuthWall } from "../auth/AuthWall";
 import { useAccessGate } from "../auth/useAccessGate";
-import { WorkspaceApp } from "../workspace/WorkspaceApp";
+import { ApplicationSidePanel } from "./ApplicationSidePanel";
 
 export function SidePanelRoot() {
   const gate = useAccessGate();
@@ -50,5 +50,5 @@ export function SidePanelRoot() {
     );
   }
 
-  return <WorkspaceApp />;
+  return <ApplicationSidePanel />;
 }

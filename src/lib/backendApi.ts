@@ -23,7 +23,7 @@ export function normalizeApiOrigin(raw: string): string {
   return raw.trim().replace(/\/+$/, "");
 }
 
-function apiUrl(base: string, path: string): string {
+export function apiUrl(base: string, path: string): string {
   const origin = normalizeApiOrigin(base);
   const p = path.startsWith("/") ? path : `/${path}`;
   return `${origin}${p}`;
@@ -42,7 +42,7 @@ function describeFetchNetworkFailure(url: string, cause: unknown): string {
   );
 }
 
-async function apiFetch(url: string, init?: RequestInit): Promise<Response> {
+export async function apiFetch(url: string, init?: RequestInit): Promise<Response> {
   try {
     return await fetch(url, {
       ...init,
@@ -68,7 +68,7 @@ export async function readApiErrorBody(res: Response): Promise<string> {
   return text.trim() || `Request failed (${res.status})`;
 }
 
-async function requireOk(res: Response): Promise<void> {
+export async function requireOk(res: Response): Promise<void> {
   if (res.ok) return;
   throw new ApiHttpError(res.status, await readApiErrorBody(res));
 }
