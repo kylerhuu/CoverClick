@@ -1,9 +1,24 @@
 import type { JobApplication } from "../../lib/types";
 import { formatRelativeDate } from "../../lib/jobSource";
-import { coverLetterStatus, fitScoreLabel, statusBadgeLabel } from "../applicationDisplay";
+import {
+  coverLetterStatus,
+  fitScoreChipClass,
+  fitScoreLabel,
+  fitScoreTone,
+  letterChipClass,
+  statusBadgeLabel,
+  statusPillClass,
+} from "../applicationDisplay";
 import { PreparationProgress } from "../../sidepanel/components/PreparationProgress";
 import { cn } from "../../lib/classNames";
-import { ccBtnPrimary, ccBtnSecondarySm, ccSurfaceQuiet } from "../../ui/ccUi";
+import {
+  ccBtnGhost,
+  ccBtnPrimary,
+  ccBtnSecondarySm,
+  ccHeroCard,
+  ccMetaChip,
+  ccStatusPill,
+} from "../../ui/ccUi";
 
 type Props = {
   application: JobApplication;
@@ -23,60 +38,68 @@ export function ApplicationDetailPanel({
   markAppliedBusy,
 }: Props) {
   const isPreparing = application.status === "PREPARING";
+  const fit = fitScoreLabel(application);
+  const fitTone = fitScoreTone(application);
+  const showMarkApplied =
+    application.status !== "APPLIED" && application.status !== "INTERVIEWING" && application.status !== "OFFER";
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-4 p-4">
-      <button
-        type="button"
-        onClick={onBack}
-        className="self-start text-[12px] font-semibold text-indigo-600 hover:text-indigo-800"
-      >
+    <div className="flex min-h-0 flex-1 flex-col gap-3.5 p-3">
+      <button type="button" className={cn(ccBtnGhost, "self-start px-1")} onClick={onBack}>
         ← Back to saved jobs
       </button>
 
-      <div>
-        <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">
-          {statusBadgeLabel(application)}
-        </p>
-        <h2 className="mt-1 text-[16px] font-bold tracking-tight text-slate-900">{application.title || "Untitled role"}</h2>
-        <p className="mt-0.5 text-[13px] font-medium text-indigo-700">{application.company || "Unknown company"}</p>
-      </div>
+      <div className={ccHeroCard}>
+        <div className="flex items-start justify-between gap-2">
+          <span className={ccStatusPill(statusPillClass(application.status))}>{statusBadgeLabel(application)}</span>
+          <span className="shrink-0 text-[10px] font-medium text-slate-400">
+            {formatRelativeDate(application.dateSaved)}
+          </span>
+        </div>
 
-      <div className={cn(ccSurfaceQuiet, "grid grid-cols-2 gap-2 p-3 text-[11px]")}>
-        <div>
-          <p className="text-slate-500">Fit score</p>
-          <p className="font-semibold text-slate-900">{fitScoreLabel(application)}</p>
-        </div>
-        <div>
-          <p className="text-slate-500">Cover letter</p>
-          <p className="font-semibold text-emerald-700">{coverLetterStatus(application)}</p>
-        </div>
-        <div>
-          <p className="text-slate-500">Source</p>
-          <p className="font-semibold text-slate-900">{application.source || "—"}</p>
-        </div>
-        <div>
-          <p className="text-slate-500">Saved</p>
-          <p className="font-semibold text-slate-900">{formatRelativeDate(application.dateSaved)}</p>
+        <h2 className="mt-3 text-[17px] font-bold leading-snug tracking-tight text-slate-900">
+          {application.title || "Untitled role"}
+        </h2>
+        <p className="mt-1 text-[14px] font-semibold text-indigo-700">{application.company || "Unknown company"}</p>
+
+        {application.source ? (
+          <p className="mt-2 text-[10px] font-medium text-slate-500">{application.source}</p>
+        ) : null}
+
+        <div className="mt-3 flex flex-wrap items-center gap-1.5">
+          <span className={ccMetaChip(letterChipClass(application))}>{coverLetterStatus(application)}</span>
+          {fit ? (
+            <span className={ccMetaChip(fitScoreChipClass(fitTone))}>{fit} fit</span>
+          ) : (
+            <span className={ccMetaChip(fitScoreChipClass("muted"))}>Fit —</span>
+          )}
         </div>
       </div>
 
       {isPreparing ? (
-        <PreparationProgress steps={application.preparationSteps} error={application.preparationError} />
+        <PreparationProgress
+          steps={application.preparationSteps}
+          error={application.preparationError}
+          className="rounded-2xl border border-indigo-200/60 bg-indigo-50/50 p-3.5"
+        />
       ) : null}
 
-      <div className="mt-auto grid grid-cols-2 gap-2">
-        <button type="button" className={ccBtnSecondarySm} onClick={onOpenJob}>
-          Open Job
-        </button>
-        <button type="button" className={ccBtnSecondarySm} onClick={onViewMaterials}>
+      <div className="mt-auto flex flex-col gap-2">
+        <button type="button" className={cn(ccBtnPrimary, "w-full py-2.5")} onClick={onViewMaterials}>
           View Materials
         </button>
-        {application.status !== "APPLIED" && application.status !== "INTERVIEWING" && application.status !== "OFFER" ? (
-          <button type="button" className={ccBtnPrimary} disabled={markAppliedBusy} onClick={onMarkApplied}>
-            {markAppliedBusy ? "Updating…" : "Mark Applied"}
+        <div className="grid grid-cols-2 gap-2">
+          <button type="button" className={ccBtnSecondarySm} onClick={onOpenJob}>
+            Open Job
           </button>
-        ) : null}
+          {showMarkApplied ? (
+            <button type="button" className={ccBtnSecondarySm} disabled={markAppliedBusy} onClick={onMarkApplied}>
+              {markAppliedBusy ? "Updating…" : "Mark Applied"}
+            </button>
+          ) : (
+            <div />
+          )}
+        </div>
       </div>
     </div>
   );
