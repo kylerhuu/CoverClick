@@ -19,12 +19,14 @@ import { hasPaidSubscription, subscriptionStatusFromStripe } from "./access.js";
 import {
   computeApplicationStats,
   createJobApplication,
+  normalizeJobUrl,
+  parseCreateApplicationBody,
   runPreparationPipeline,
   serializeApplication,
   updateJobApplication,
-  type CreateApplicationInput,
   type UpdateApplicationInput,
 } from "./applications.js";
+import { applicationRouteError, logApplicationRouteError } from "./applicationErrors.js";
 
 const prisma = new PrismaClient();
 const upload = multer({
@@ -905,12 +907,6 @@ app.post("/api/resume/optimize-for-job", authMiddleware, requirePaidMiddleware, 
   }
 });
 
-function isCreateApplicationBody(body: unknown): body is CreateApplicationInput {
-  if (!body || typeof body !== "object") return false;
-  const b = body as Record<string, unknown>;
-  return typeof b.jobUrl === "string" && b.jobUrl.trim().length > 0;
-}
-
 function isUpdateApplicationBody(body: unknown): body is UpdateApplicationInput {
   return Boolean(body && typeof body === "object");
 }
@@ -925,16 +921,18 @@ app.get("/api/applications", authMiddleware, requirePaidMiddleware, async (req, 
     const stats = await computeApplicationStats(prisma, userId);
     res.json({ applications: rows.map(serializeApplication), stats });
   } catch (e) {
-    res.status(500).json({ error: publicApiError(e) });
+    logApplicationRouteError("GET /api/applications", e, { userId: (req as express.Request & { auth?: Authed }).auth?.userId });
+    const mapped = applicationRouteError(e);
+    res.status(mapped.status).json({ error: mapped.error });
   }
 });
 
 app.get("/api/applications/by-url", authMiddleware, requirePaidMiddleware, async (req, res) => {
   try {
     const userId = (req as express.Request & { auth: Authed }).auth.userId;
-    const jobUrl = typeof req.query.url === "string" ? req.query.url.trim() : "";
+    const jobUrl = normalizeJobUrl(typeof req.query.url === "string" ? req.query.url : "");
     if (!jobUrl) {
-      res.status(400).json({ error: "url query parameter required." });
+      res.status(400).json({ error: "Missing required query parameter: url" });
       return;
     }
     const row = await prisma.jobApplication.findUnique({
@@ -942,7 +940,12 @@ app.get("/api/applications/by-url", authMiddleware, requirePaidMiddleware, async
     });
     res.json({ application: row ? serializeApplication(row) : null });
   } catch (e) {
-    res.status(500).json({ error: publicApiError(e) });
+    logApplicationRouteError("GET /api/applications/by-url", e, {
+      userId: (req as express.Request & { auth?: Authed }).auth?.userId,
+      url: req.query.url,
+    });
+    const mapped = applicationRouteError(e);
+    res.status(mapped.status).json({ error: mapped.error });
   }
 });
 
@@ -957,22 +960,51 @@ app.get("/api/applications/:id", authMiddleware, requirePaidMiddleware, async (r
     }
     res.json({ application: serializeApplication(row) });
   } catch (e) {
-    res.status(500).json({ error: publicApiError(e) });
+    logApplicationRouteError("GET /api/applications/:id", e, {
+      userId: (req as express.Request & { auth?: Authed }).auth?.userId,
+      id: req.params.id,
+    });
+    const mapped = applicationRouteError(e);
+    res.status(mapped.status).json({ error: mapped.error });
   }
 });
 
 app.post("/api/applications", authMiddleware, requirePaidMiddleware, async (req, res) => {
+  const authed = (req as express.Request & { auth: Authed }).auth;
   try {
-    if (!isCreateApplicationBody(req.body)) {
-      res.status(400).json({ error: "Invalid body: jobUrl required." });
+    const parsed = parseCreateApplicationBody(req.body);
+    if (!parsed.ok) {
+      res.status(400).json({ error: parsed.error });
       return;
     }
-    const userId = (req as express.Request & { auth: Authed }).auth.userId;
-    const application = await createJobApplication(prisma, userId, req.body);
+    if (!authed?.userId) {
+      res.status(401).json({ error: "Authentication required. Please sign in again." });
+      return;
+    }
+
+    console.info("[POST /api/applications] save request", {
+      userId: authed.userId,
+      jobUrl: parsed.input.jobUrl,
+      company: parsed.input.company,
+      title: parsed.input.title,
+      source: parsed.input.source,
+    });
+
+    const { application, alreadySaved } = await createJobApplication(prisma, authed.userId, parsed.input);
     runPreparationPipeline(prisma, application.id);
-    res.status(201).json({ application });
+
+    res.status(alreadySaved ? 200 : 201).json({
+      application,
+      alreadySaved,
+      message: alreadySaved ? "Job already saved — re-preparing application materials." : undefined,
+    });
   } catch (e) {
-    res.status(500).json({ error: publicApiError(e) });
+    logApplicationRouteError("POST /api/applications", e, {
+      userId: authed?.userId,
+      body: req.body,
+    });
+    const mapped = applicationRouteError(e);
+    res.status(mapped.status).json({ error: mapped.error || "Could not save job." });
   }
 });
 
@@ -990,7 +1022,12 @@ app.patch("/api/applications/:id", authMiddleware, requirePaidMiddleware, async 
     }
     res.json({ application });
   } catch (e) {
-    res.status(500).json({ error: publicApiError(e) });
+    logApplicationRouteError("PATCH /api/applications/:id", e, {
+      userId: (req as express.Request & { auth?: Authed }).auth?.userId,
+      id: req.params.id,
+    });
+    const mapped = applicationRouteError(e);
+    res.status(mapped.status).json({ error: mapped.error });
   }
 });
 
@@ -1020,7 +1057,12 @@ app.post("/api/applications/:id/prepare", authMiddleware, requirePaidMiddleware,
     const updated = await prisma.jobApplication.findUnique({ where: { id } });
     res.json({ application: updated ? serializeApplication(updated) : null });
   } catch (e) {
-    res.status(500).json({ error: publicApiError(e) });
+    logApplicationRouteError("POST /api/applications/:id/prepare", e, {
+      userId: (req as express.Request & { auth?: Authed }).auth?.userId,
+      id: req.params.id,
+    });
+    const mapped = applicationRouteError(e);
+    res.status(mapped.status).json({ error: mapped.error });
   }
 });
 

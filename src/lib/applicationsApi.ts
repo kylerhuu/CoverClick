@@ -4,7 +4,8 @@ import type {
   JobApplication,
   UpdateApplicationRequest,
 } from "./types";
-import { apiFetch, apiUrl, requireOk } from "./backendApi";
+import { ApiHttpError, apiFetch, apiUrl, readApiErrorBody, requireOk } from "./backendApi";
+import { normalizeJobUrl } from "./jobSource";
 import {
   mockCreateApplication,
   mockGetApplication,
@@ -12,6 +13,29 @@ import {
   mockListApplications,
   mockUpdateApplication,
 } from "./mockApplications";
+
+/** Surface backend `{ error }` JSON with HTTP status context for the UI. */
+export function formatApplicationApiError(err: unknown): string {
+  if (err instanceof ApiHttpError) {
+    if (err.status === 401) return err.message || "Session expired. Please sign in again.";
+    if (err.status === 403) return err.message || "Active subscription required to save jobs.";
+    if (err.status === 503) return err.message || "Server is not ready. Try again shortly.";
+    return err.message || `Request failed (${err.status})`;
+  }
+  return err instanceof Error ? err.message : "Could not save job.";
+}
+
+function normalizeCreateBody(body: CreateApplicationRequest): CreateApplicationRequest {
+  return {
+    ...body,
+    jobUrl: normalizeJobUrl(body.jobUrl),
+    company: body.company?.trim() || "Unknown company",
+    title: body.title?.trim() || "Untitled role",
+    location: body.location?.trim() ?? "",
+    source: body.source?.trim() || "Web",
+    jobDescription: body.jobDescription?.trim() ?? "",
+  };
+}
 
 export async function apiListApplications(
   apiBaseUrl: string,
@@ -29,7 +53,7 @@ export async function apiGetApplicationByUrl(
   token: string,
   jobUrl: string,
 ): Promise<JobApplication | null> {
-  const q = encodeURIComponent(jobUrl);
+  const q = encodeURIComponent(normalizeJobUrl(jobUrl));
   const res = await apiFetch(apiUrl(apiBaseUrl, `/api/applications/by-url?url=${q}`), {
     headers: { Authorization: `Bearer ${token}` },
   });
@@ -55,15 +79,26 @@ export async function apiCreateApplication(
   apiBaseUrl: string,
   token: string,
   body: CreateApplicationRequest,
-): Promise<JobApplication> {
+): Promise<{ application: JobApplication; alreadySaved: boolean; message?: string }> {
+  const payload = normalizeCreateBody(body);
   const res = await apiFetch(apiUrl(apiBaseUrl, "/api/applications"), {
     method: "POST",
     headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-    body: JSON.stringify(body),
+    body: JSON.stringify(payload),
   });
-  await requireOk(res);
-  const data = (await res.json()) as { application: JobApplication };
-  return data.application;
+  if (!res.ok) {
+    throw new ApiHttpError(res.status, await readApiErrorBody(res));
+  }
+  const data = (await res.json()) as {
+    application: JobApplication;
+    alreadySaved?: boolean;
+    message?: string;
+  };
+  return {
+    application: data.application,
+    alreadySaved: Boolean(data.alreadySaved),
+    message: data.message,
+  };
 }
 
 export async function apiUpdateApplication(
@@ -120,9 +155,13 @@ export async function createApplication(
   token: string | undefined,
   useMock: boolean,
   body: CreateApplicationRequest,
-): Promise<JobApplication> {
-  if (useMock || !token?.trim() || !apiBaseUrl.trim()) return mockCreateApplication(body);
-  return apiCreateApplication(apiBaseUrl, token, body);
+): Promise<{ application: JobApplication; alreadySaved: boolean; message?: string }> {
+  const payload = normalizeCreateBody(body);
+  if (useMock || !token?.trim() || !apiBaseUrl.trim()) {
+    const application = await mockCreateApplication(payload);
+    return { application, alreadySaved: false };
+  }
+  return apiCreateApplication(apiBaseUrl, token, payload);
 }
 
 export async function updateApplication(
