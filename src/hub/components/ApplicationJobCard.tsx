@@ -1,6 +1,7 @@
 import type { JobApplication, JobApplicationStatus } from "../../lib/types";
 import { jobApplicationStatusLabel } from "../../lib/types";
 import { formatRelativeDate } from "../../lib/jobSource";
+import { coverLetterStatus, fitScoreLabel } from "../applicationDisplay";
 import { cn } from "../../lib/classNames";
 import { ccBtnSecondarySm, ccSurfaceQuiet } from "../../ui/ccUi";
 
@@ -19,12 +20,6 @@ export function ApplicationJobCard({
   onStatusChange,
   statusBusy,
 }: Props) {
-  const coverStatus = application.coverLetterDraft
-    ? "Draft ready"
-    : application.status === "PREPARING"
-      ? "Generating…"
-      : "None";
-
   return (
     <article className={cn(ccSurfaceQuiet, "flex flex-col gap-2.5 p-3")}>
       <div className="min-w-0">
@@ -36,11 +31,11 @@ export function ApplicationJobCard({
         <span>
           Fit:{" "}
           <strong className="text-slate-800">
-            {application.fitScore != null ? `${application.fitScore}%` : "—"}
+            {fitScoreLabel(application)}
           </strong>
         </span>
         <span>
-          Letter: <strong className="text-slate-800">{coverStatus}</strong>
+          Letter: <strong className="text-slate-800">{coverLetterStatus(application)}</strong>
         </span>
         <span>
           Source: <strong className="text-slate-800">{application.source || "—"}</strong>

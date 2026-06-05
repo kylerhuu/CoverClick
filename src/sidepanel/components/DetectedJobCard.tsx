@@ -11,6 +11,8 @@ type Props = {
   onRescan: () => void;
   onSave: () => void;
   alreadySaved?: boolean;
+  preparingInBackground?: boolean;
+  onOpenHub?: () => void;
 };
 
 export function DetectedJobCard({
@@ -21,6 +23,8 @@ export function DetectedJobCard({
   onRescan,
   onSave,
   alreadySaved,
+  preparingInBackground,
+  onOpenHub,
 }: Props) {
   const source = job?.pageUrl ? jobSourceFromUrl(job.pageUrl) : "";
 
@@ -54,10 +58,23 @@ export function DetectedJobCard({
         <p className={ccMuted}>Open a job posting in your browser tab, then rescan.</p>
       ) : null}
 
+      {alreadySaved ? (
+        <p className="rounded-lg border border-emerald-200/80 bg-emerald-50 px-3 py-2 text-[11px] font-medium text-emerald-900">
+          {preparingInBackground
+            ? "Saved — preparing materials in the background. Keep browsing other jobs."
+            : "Already saved. You can re-save to refresh materials, or open Application Hub."}
+        </p>
+      ) : null}
+
       <div className="mt-auto flex flex-col gap-2">
         <button type="button" className={ccBtnPrimary} disabled={!job?.pageUrl || saveBusy || scrapeBusy} onClick={onSave}>
           {saveBusy ? "Saving…" : alreadySaved ? "Save again & re-prepare" : "Save Job"}
         </button>
+        {onOpenHub ? (
+          <button type="button" className="text-[12px] font-semibold text-indigo-600 hover:text-indigo-800" onClick={onOpenHub}>
+            View saved jobs in Application Hub
+          </button>
+        ) : null}
         <button
           type="button"
           className="text-[12px] font-semibold text-indigo-600 hover:text-indigo-800 disabled:opacity-40"
