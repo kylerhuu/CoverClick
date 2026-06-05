@@ -5,18 +5,15 @@ import {
   formatApplicationApiError,
   getApplicationByUrl,
   pollApplicationUntilReady,
-  updateApplication,
 } from "../lib/applicationsApi";
-import { normalizeJobUrl } from "../lib/jobSource";
+import { jobSourceFromUrl, normalizeJobUrl } from "../lib/jobSource";
 import { applyScrapedCompanyDefaults } from "../lib/jobCompanyScrape";
-import { jobSourceFromUrl } from "../lib/jobSource";
 import { requestJobContextFromActiveTab } from "../lib/tabScrape";
 import { loadSettings } from "../lib/storage";
 import { cn } from "../lib/classNames";
 import { DetectedJobCard } from "./components/DetectedJobCard";
-import { PreparationProgress } from "./components/PreparationProgress";
-import { ReadyToApplyPanel } from "./components/ReadyToApplyPanel";
-import { WorkspaceApp } from "../workspace/WorkspaceApp";
+import { SidePanelHubView, type HubSubview } from "./components/SidePanelHubView";
+import { SidePanelModeNav, type SidePanelMode } from "./components/SidePanelModeNav";
 
 function SidePanelBrand() {
   const [iconFailed, setIconFailed] = useState(false);
@@ -46,18 +43,19 @@ function SidePanelBrand() {
   );
 }
 
-type View = "capture" | "materials";
-
 export function ApplicationSidePanel() {
-  const [view, setView] = useState<View>("capture");
+  const [mode, setMode] = useState<SidePanelMode>("scan");
+  const [hubSubview, setHubSubview] = useState<HubSubview>("list");
+  const [selectedHubId, setSelectedHubId] = useState<string | null>(null);
+  const [hubApplications, setHubApplications] = useState<JobApplication[]>([]);
+
   const [job, setJob] = useState<JobContext | null>(null);
-  const [application, setApplication] = useState<JobApplication | null>(null);
+  const [currentTabSaved, setCurrentTabSaved] = useState<JobApplication | null>(null);
   const [scrapeBusy, setScrapeBusy] = useState(false);
   const [scrapeError, setScrapeError] = useState<string | null>(null);
   const [saveBusy, setSaveBusy] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saveNotice, setSaveNotice] = useState<string | null>(null);
-  const [markAppliedBusy, setMarkAppliedBusy] = useState(false);
   const [settings, setSettings] = useState({ useMock: true, authToken: "", apiBaseUrl: "" });
   const pollAbortRef = useRef<AbortController | null>(null);
 
@@ -75,6 +73,20 @@ export function ApplicationSidePanel() {
     }
   }, []);
 
+  const refreshCurrentTabSaved = useCallback(async () => {
+    if (!job?.pageUrl) {
+      setCurrentTabSaved(null);
+      return;
+    }
+    const existing = await getApplicationByUrl(
+      settings.apiBaseUrl,
+      settings.authToken,
+      settings.useMock,
+      job.pageUrl,
+    );
+    setCurrentTabSaved(existing);
+  }, [job?.pageUrl, settings]);
+
   useEffect(() => {
     void loadSettings().then((s) =>
       setSettings({ useMock: s.useMock, authToken: s.authToken ?? "", apiBaseUrl: s.apiBaseUrl }),
@@ -86,30 +98,27 @@ export function ApplicationSidePanel() {
   }, [refreshScrape]);
 
   useEffect(() => {
-    if (!job?.pageUrl) {
-      setApplication(null);
-      return;
-    }
-    let cancelled = false;
-    void (async () => {
-      const existing = await getApplicationByUrl(
-        settings.apiBaseUrl,
-        settings.authToken,
-        settings.useMock,
-        job.pageUrl,
-      );
-      if (!cancelled) setApplication(existing);
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [job?.pageUrl, settings.apiBaseUrl, settings.authToken, settings.useMock]);
+    void refreshCurrentTabSaved();
+  }, [refreshCurrentTabSaved]);
 
   useEffect(() => {
     return () => {
       pollAbortRef.current?.abort();
     };
   }, []);
+
+  const upsertHubApplication = useCallback((app: JobApplication) => {
+    setHubApplications((prev) => {
+      const idx = prev.findIndex((a) => a.id === app.id);
+      if (idx < 0) return [app, ...prev];
+      const next = [...prev];
+      next[idx] = app;
+      return next;
+    });
+    if (job?.pageUrl && normalizeJobUrl(job.pageUrl) === normalizeJobUrl(app.jobUrl)) {
+      setCurrentTabSaved(app);
+    }
+  }, [job?.pageUrl]);
 
   const startPolling = useCallback(
     (id: string) => {
@@ -121,13 +130,13 @@ export function ApplicationSidePanel() {
         settings.authToken,
         settings.useMock,
         id,
-        (app) => setApplication(app),
+        upsertHubApplication,
         ac.signal,
       ).catch(() => {
-        /* cancelled or failed — UI keeps last known state */
+        /* cancelled or failed */
       });
     },
-    [settings.apiBaseUrl, settings.authToken, settings.useMock],
+    [settings, upsertHubApplication],
   );
 
   const handleSave = useCallback(async () => {
@@ -153,66 +162,33 @@ export function ApplicationSidePanel() {
           jobDescription: job.descriptionText?.trim() || "",
         },
       );
-      setApplication(saved);
-      if (message) setSaveNotice(message);
+      upsertHubApplication(saved);
+      setCurrentTabSaved(saved);
+      setSaveNotice(message ?? "Job saved — preparing in the background. Keep browsing!");
       if (saved.status === "PREPARING") startPolling(saved.id);
     } catch (e) {
       setSaveError(formatApplicationApiError(e));
     } finally {
       setSaveBusy(false);
     }
-  }, [job, settings, startPolling]);
+  }, [job, settings, startPolling, upsertHubApplication]);
 
-  const openJob = useCallback(() => {
-    if (!application?.jobUrl) return;
-    void chrome.tabs.create({ url: application.jobUrl });
-  }, [application?.jobUrl]);
-
-  const openHub = useCallback(() => {
-    const url = chrome.runtime.getURL("options.html#applications");
-    void chrome.tabs.create({ url });
+  const handleModeChange = useCallback((next: SidePanelMode) => {
+    setMode(next);
+    if (next === "hub") {
+      setHubSubview("list");
+      setSelectedHubId(null);
+    }
   }, []);
 
-  const handleMarkApplied = useCallback(async () => {
-    if (!application) return;
-    setMarkAppliedBusy(true);
-    try {
-      const updated = await updateApplication(
-        settings.apiBaseUrl,
-        settings.authToken,
-        settings.useMock,
-        application.id,
-        { status: "APPLIED", dateApplied: new Date().toISOString() },
-      );
-      setApplication(updated);
-    } catch (e) {
-      setSaveError(e instanceof Error ? e.message : "Could not update status.");
-    } finally {
-      setMarkAppliedBusy(false);
-    }
-  }, [application, settings]);
-
-  if (view === "materials" && application) {
-    return (
-      <WorkspaceApp
-        initialApplication={application}
-        onBackToCapture={() => setView("capture")}
-      />
-    );
-  }
-
-  const showPreparing = application?.status === "PREPARING";
-  const showReady =
-    application?.status === "READY_TO_APPLY" ||
-    application?.status === "APPLIED" ||
-    application?.status === "INTERVIEWING" ||
-    application?.status === "OFFER";
+  const preparingCurrentTab = currentTabSaved?.status === "PREPARING";
 
   return (
     <div className="flex h-screen min-h-[360px] w-full min-w-0 flex-col overflow-hidden bg-[#f0f2f6] text-slate-900 antialiased">
       <SidePanelBrand />
+      <SidePanelModeNav mode={mode} hubCount={hubApplications.length} onChange={handleModeChange} />
 
-      {saveNotice ? (
+      {saveNotice && mode === "scan" ? (
         <div className="shrink-0 border-b border-indigo-200/80 bg-indigo-50 px-3 py-2 text-[11px] font-medium text-indigo-900">
           {saveNotice}
         </div>
@@ -224,28 +200,15 @@ export function ApplicationSidePanel() {
         </div>
       ) : null}
 
-      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
-        {showReady && application ? (
-          <ReadyToApplyPanel
-            application={application}
-            onOpenJob={openJob}
-            onViewMaterials={() => setView("materials")}
-            onMarkApplied={() => void handleMarkApplied()}
-            onOpenHub={openHub}
-            markAppliedBusy={markAppliedBusy}
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+        {mode === "hub" ? (
+          <SidePanelHubView
+            selectedId={selectedHubId}
+            onSelectedIdChange={setSelectedHubId}
+            subview={hubSubview}
+            onSubviewChange={setHubSubview}
+            onApplicationsChange={setHubApplications}
           />
-        ) : showPreparing && application ? (
-          <div className="flex flex-col gap-4 p-4">
-            <div>
-              <h2 className="text-[15px] font-bold text-slate-900">{application.title}</h2>
-              <p className="text-[12px] font-medium text-indigo-700">{application.company}</p>
-            </div>
-            <PreparationProgress steps={application.preparationSteps} error={application.preparationError} />
-            <p className="text-[11px] text-slate-500">Keep browsing — we&apos;ll prepare everything in the background.</p>
-            <button type="button" className="text-[12px] font-semibold text-indigo-600" onClick={openHub}>
-              Open Application Hub
-            </button>
-          </div>
         ) : (
           <DetectedJobCard
             job={job}
@@ -254,7 +217,9 @@ export function ApplicationSidePanel() {
             saveBusy={saveBusy}
             onRescan={() => void refreshScrape()}
             onSave={() => void handleSave()}
-            alreadySaved={Boolean(application)}
+            alreadySaved={Boolean(currentTabSaved)}
+            preparingInBackground={preparingCurrentTab}
+            onOpenHub={() => handleModeChange("hub")}
           />
         )}
       </div>
