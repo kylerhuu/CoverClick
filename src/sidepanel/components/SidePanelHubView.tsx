@@ -1,6 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
 import type { JobApplication } from "../../lib/types";
-import { formatApplicationApiError, getApplication, listApplications, updateApplication } from "../../lib/applicationsApi";
+import {
+  formatApplicationApiError,
+  getApplication,
+  listApplications,
+  updateApplication,
+} from "../../lib/applicationsApi";
 import { loadSettings } from "../../lib/storage";
 import { ApplicationDetailPanel } from "../../hub/components/ApplicationDetailPanel";
 import { ApplicationListRow } from "../../hub/components/ApplicationListRow";
@@ -24,6 +29,7 @@ export function SidePanelHubView({
   onApplicationsChange,
 }: Props) {
   const [applications, setApplications] = useState<JobApplication[]>([]);
+  const [selectedApplication, setSelectedApplication] = useState<JobApplication | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [markAppliedBusy, setMarkAppliedBusy] = useState(false);
@@ -37,12 +43,16 @@ export function SidePanelHubView({
       const data = await listApplications(s.apiBaseUrl, s.authToken, s.useMock);
       setApplications(data.applications);
       onApplicationsChange?.(data.applications);
+      if (selectedId) {
+        const match = data.applications.find((a) => a.id === selectedId);
+        if (match) setSelectedApplication(match);
+      }
     } catch (e) {
       setError(formatApplicationApiError(e));
     } finally {
       setLoading(false);
     }
-  }, [onApplicationsChange]);
+  }, [onApplicationsChange, selectedId]);
 
   useEffect(() => {
     void refresh();
@@ -50,55 +60,71 @@ export function SidePanelHubView({
     return () => window.clearInterval(interval);
   }, [refresh]);
 
-  const selected = applications.find((a) => a.id === selectedId) ?? null;
-
   useEffect(() => {
-    if (!selectedId || subview === "list") return;
+    if (!selectedId) {
+      setSelectedApplication(null);
+      return;
+    }
+    let cancelled = false;
     void (async () => {
       const fresh = await getApplication(settings.apiBaseUrl, settings.authToken, settings.useMock, selectedId);
-      if (!fresh) return;
-      setApplications((prev) => prev.map((a) => (a.id === fresh.id ? fresh : a)));
+      if (!cancelled && fresh) setSelectedApplication(fresh);
     })();
-  }, [selectedId, subview, settings]);
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedId, settings.apiBaseUrl, settings.authToken, settings.useMock]);
 
   const handleMarkApplied = useCallback(async () => {
-    if (!selected) return;
+    if (!selectedApplication) return;
     setMarkAppliedBusy(true);
     try {
       const updated = await updateApplication(
         settings.apiBaseUrl,
         settings.authToken,
         settings.useMock,
-        selected.id,
+        selectedApplication.id,
         { status: "APPLIED", dateApplied: new Date().toISOString() },
       );
+      setSelectedApplication(updated);
       setApplications((prev) => prev.map((a) => (a.id === updated.id ? updated : a)));
     } catch (e) {
       setError(formatApplicationApiError(e));
     } finally {
       setMarkAppliedBusy(false);
     }
-  }, [selected, settings]);
+  }, [selectedApplication, settings]);
 
-  if (subview === "materials" && selected) {
+  const openMaterials = useCallback(async () => {
+    if (!selectedId) return;
+    try {
+      const fresh = await getApplication(settings.apiBaseUrl, settings.authToken, settings.useMock, selectedId);
+      if (fresh) setSelectedApplication(fresh);
+      onSubviewChange("materials");
+    } catch (e) {
+      setError(formatApplicationApiError(e));
+    }
+  }, [selectedId, settings, onSubviewChange]);
+
+  if (subview === "materials" && selectedApplication) {
     return (
       <WorkspaceApp
-        initialApplication={selected}
+        mode="application"
+        initialApplication={selectedApplication}
         onBackToCapture={() => onSubviewChange("detail")}
       />
     );
   }
 
-  if (subview === "detail" && selected) {
+  if (subview === "detail" && selectedApplication) {
     return (
       <ApplicationDetailPanel
-        application={selected}
+        application={selectedApplication}
         onBack={() => {
-          onSelectedIdChange(null);
           onSubviewChange("list");
         }}
-        onOpenJob={() => void chrome.tabs.create({ url: selected.jobUrl })}
-        onViewMaterials={() => onSubviewChange("materials")}
+        onOpenJob={() => void chrome.tabs.create({ url: selectedApplication.jobUrl })}
+        onViewMaterials={() => void openMaterials()}
         onMarkApplied={() => void handleMarkApplied()}
         markAppliedBusy={markAppliedBusy}
       />
@@ -134,6 +160,7 @@ export function SidePanelHubView({
                 selected={app.id === selectedId}
                 onClick={() => {
                   onSelectedIdChange(app.id);
+                  setSelectedApplication(app);
                   onSubviewChange("detail");
                 }}
               />

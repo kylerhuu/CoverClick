@@ -5,6 +5,8 @@ import type { WorkspaceTab } from "../workspaceLayout";
 type Props = {
   scrapeBusy: boolean;
   onRescan: () => void;
+  /** When false, hides Re-scan (saved application mode). */
+  showRescan?: boolean;
   workspaceTab: WorkspaceTab;
   onWorkspaceTabChange: (tab: WorkspaceTab) => void;
   exportBasename: string;
@@ -29,6 +31,7 @@ const segments: { id: WorkspaceTab; label: string; title: string }[] = [
 export function WorkspaceToolbar({
   scrapeBusy,
   onRescan,
+  showRescan = true,
   workspaceTab,
   onWorkspaceTabChange,
   exportBasename,
@@ -59,9 +62,11 @@ export function WorkspaceToolbar({
 
         <span className="hidden h-5 w-px shrink-0 bg-slate-200/80 sm:block" aria-hidden />
 
-        <button type="button" className={toolBtn} onClick={onRescan} disabled={scrapeBusy}>
-          {scrapeBusy ? "Scanning…" : "Re-scan tab"}
-        </button>
+        {showRescan ? (
+          <button type="button" className={toolBtn} onClick={onRescan} disabled={scrapeBusy}>
+            {scrapeBusy ? "Scanning…" : "Re-scan tab"}
+          </button>
+        ) : null}
 
         <label className="flex min-w-0 flex-[1_1_160px] flex-col gap-0.5 sm:flex-[1_1_220px]">
           <span className="text-[9px] font-semibold uppercase tracking-wide text-slate-400">Export name</span>
