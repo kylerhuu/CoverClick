@@ -1,5 +1,8 @@
-import type { DegreeType, StructuredResume, UserProfile } from "./types";
+import type { DegreeType, ResumeEducationItem, StructuredResume, UserProfile } from "./types";
 import { EMPTY_STRUCTURED_RESUME } from "./types";
+import { normalizeEducationItem } from "./resumeEducation";
+
+export { degreeLabel } from "./resumeEducation";
 
 function hasStructuredEntriesData(profile: UserProfile): boolean {
   return (
@@ -10,17 +13,28 @@ function hasStructuredEntriesData(profile: UserProfile): boolean {
   );
 }
 
-function degreeLabel(degreeType: DegreeType): string {
-  switch (degreeType) {
-    case "Bachelor's":
-      return "Bachelor's Degree";
-    case "Master's":
-      return "Master's Degree";
-    case "High School":
-      return "High School Diploma";
-    default:
-      return degreeType === "Other" ? "Degree" : degreeType;
-  }
+function mapProfileEducation(
+  school: string,
+  degreeType: DegreeType,
+  degree: string,
+  major: string,
+  concentrationOrMinor: string,
+  gpa: string,
+  graduationDate: string,
+  details: string[],
+  id: string,
+): ResumeEducationItem {
+  return normalizeEducationItem({
+    id,
+    school,
+    degreeType,
+    degree,
+    major,
+    concentrationOrMinor,
+    gpa,
+    graduationDate,
+    details: [...details],
+  });
 }
 
 /** True when the CoverClick profile has fields worth mapping into Resume Studio. */
@@ -111,30 +125,32 @@ export function profileToStructuredResume(profile: UserProfile): StructuredResum
   const hasStructured = hasStructuredEntriesData(profile);
 
   const education = hasStructured
-    ? (structured?.education ?? []).map((e, idx) => ({
-        id: `edu-${idx + 1}`,
-        school: e.school,
-        degreeType: e.degreeType,
-        degree: e.degree || degreeLabel(e.degreeType),
-        major: e.major ?? "",
-        concentrationOrMinor: e.concentrationOrMinor ?? "",
-        gpa: e.gpa ?? "",
-        graduationDate: e.graduationDate ?? "",
-        details: [...e.details],
-      }))
+    ? (structured?.education ?? []).map((e, idx) =>
+        mapProfileEducation(
+          e.school,
+          e.degreeType,
+          e.degree,
+          e.major ?? "",
+          e.concentrationOrMinor ?? "",
+          e.gpa ?? "",
+          e.graduationDate ?? "",
+          e.details,
+          `edu-${idx + 1}`,
+        ),
+      )
     : profile.school.trim() || profile.major.trim() || profile.graduationYear.trim()
       ? [
-          {
-            id: "edu-1",
-            school: profile.school.trim(),
-            degreeType: "Bachelor's" as DegreeType,
-            degree: "Bachelor's Degree",
-            major: profile.major.trim(),
-            concentrationOrMinor: "",
-            gpa: "",
-            graduationDate: profile.graduationYear.trim(),
-            details: [] as string[],
-          },
+          mapProfileEducation(
+            profile.school.trim(),
+            "Bachelor's",
+            "",
+            profile.major.trim(),
+            "",
+            "",
+            profile.graduationYear.trim(),
+            [],
+            "edu-1",
+          ),
         ]
       : [];
 

@@ -13,6 +13,7 @@ import { parseStructuredLetter } from "./generationNormalize";
 import { STORAGE_KEYS } from "./storageKeys";
 import { hasBuiltInApiOrigin, resolveApiBaseUrl, VITE_COVERCLICK_API_ORIGIN } from "./apiOrigin";
 import type { ResumeStudioLayoutSettings } from "./resumeFitSettings";
+import { normalizeEducationItem } from "./resumeEducation";
 
 export { STORAGE_KEYS };
 
@@ -370,21 +371,23 @@ export function normalizeStructuredResume(raw: unknown): StructuredResume {
     education: Array.isArray(r.education)
       ? r.education
           .filter((x): x is Record<string, unknown> => typeof x === "object" && x != null)
-          .map((x, idx) => ({
-            id: typeof x.id === "string" && x.id.trim() ? x.id : makeStableId("edu", idx),
-            school: typeof x.school === "string" ? x.school : "",
-            degreeType: parseDegreeType(x.degreeType),
-            degree: typeof x.degree === "string" ? x.degree : "",
-            major: typeof x.major === "string" ? x.major : "",
-            concentrationOrMinor: typeof x.concentrationOrMinor === "string" ? x.concentrationOrMinor : "",
-            gpa: typeof x.gpa === "string" ? x.gpa : "",
-            graduationDate: typeof x.graduationDate === "string"
-              ? x.graduationDate
-              : typeof x.dates === "string"
-                ? x.dates
-                : "",
-            details: arr(x.details),
-          }))
+          .map((x, idx) =>
+            normalizeEducationItem({
+              id: typeof x.id === "string" && x.id.trim() ? x.id : makeStableId("edu", idx),
+              school: typeof x.school === "string" ? x.school : "",
+              degreeType: parseDegreeType(x.degreeType),
+              degree: typeof x.degree === "string" ? x.degree : "",
+              major: typeof x.major === "string" ? x.major : "",
+              concentrationOrMinor: typeof x.concentrationOrMinor === "string" ? x.concentrationOrMinor : "",
+              gpa: typeof x.gpa === "string" ? x.gpa : "",
+              graduationDate: typeof x.graduationDate === "string"
+                ? x.graduationDate
+                : typeof x.dates === "string"
+                  ? x.dates
+                  : "",
+              details: arr(x.details),
+            }),
+          )
       : [],
     experience: Array.isArray(r.experience)
       ? r.experience

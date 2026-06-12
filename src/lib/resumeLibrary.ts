@@ -2,6 +2,18 @@ import type { StructuredResume } from "./types";
 import type { ResumeStudioLayoutSettings } from "./resumeFitSettings";
 import { EMPTY_STRUCTURED_RESUME } from "./types";
 import { hasProfileResumeData, hasResumeStudioContent, profileToStructuredResume } from "./profileToStructuredResume";
+import { normalizeStructuredResume } from "./storage";
+
+let libraryWriteQueue: Promise<void> = Promise.resolve();
+
+function enqueueLibraryWrite<T>(fn: () => Promise<T>): Promise<T> {
+  const run = libraryWriteQueue.then(fn, fn);
+  libraryWriteQueue = run.then(
+    () => undefined,
+    () => undefined,
+  );
+  return run;
+}
 import {
   DEFAULT_RESUME_LAYOUT_SETTINGS,
   normalizeFitMode,
@@ -58,7 +70,7 @@ function normalizeVariant(raw: unknown): ResumeVariant | null {
   return {
     id,
     name,
-    resume: (o.resume as StructuredResume) ?? { ...EMPTY_STRUCTURED_RESUME },
+    resume: normalizeStructuredResume(o.resume ?? EMPTY_STRUCTURED_RESUME),
     layoutSettings: normalizeLayout(o.layoutSettings),
     createdAt,
     updatedAt,
@@ -143,25 +155,29 @@ export async function setActiveVariant(id: string): Promise<ResumeVariant> {
 }
 
 export async function updateActiveResume(resume: StructuredResume): Promise<void> {
-  const library = await loadResumeLibrary();
-  const idx = library.variants.findIndex((v) => v.id === library.activeVariantId);
-  if (idx < 0) throw new Error("Active resume variant not found.");
-  const variants = [...library.variants];
-  variants[idx] = { ...variants[idx], resume: cloneResume(resume), updatedAt: Date.now() };
-  await saveResumeLibrary({ ...library, variants });
+  return enqueueLibraryWrite(async () => {
+    const library = await loadResumeLibrary();
+    const idx = library.variants.findIndex((v) => v.id === library.activeVariantId);
+    if (idx < 0) throw new Error("Active resume variant not found.");
+    const variants = [...library.variants];
+    variants[idx] = { ...variants[idx], resume: cloneResume(resume), updatedAt: Date.now() };
+    await saveResumeLibrary({ ...library, variants });
+  });
 }
 
 export async function updateActiveLayoutSettings(settings: ResumeStudioLayoutSettings): Promise<void> {
-  const library = await loadResumeLibrary();
-  const idx = library.variants.findIndex((v) => v.id === library.activeVariantId);
-  if (idx < 0) throw new Error("Active resume variant not found.");
-  const variants = [...library.variants];
-  variants[idx] = {
-    ...variants[idx],
-    layoutSettings: cloneLayout(settings),
-    updatedAt: Date.now(),
-  };
-  await saveResumeLibrary({ ...library, variants });
+  return enqueueLibraryWrite(async () => {
+    const library = await loadResumeLibrary();
+    const idx = library.variants.findIndex((v) => v.id === library.activeVariantId);
+    if (idx < 0) throw new Error("Active resume variant not found.");
+    const variants = [...library.variants];
+    variants[idx] = {
+      ...variants[idx],
+      layoutSettings: cloneLayout(settings),
+      updatedAt: Date.now(),
+    };
+    await saveResumeLibrary({ ...library, variants });
+  });
 }
 
 export function validateVariantName(

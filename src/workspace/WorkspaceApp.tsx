@@ -45,12 +45,8 @@ import { applyScrapedCompanyDefaults } from "../lib/jobCompanyScrape";
 import { requestJobContextFromActiveTab } from "../lib/tabScrape";
 import { requestCleanJobDescription } from "../lib/jobDescriptionCleanApi";
 import { shouldUseAiDescriptionClean } from "../lib/jobDescriptionQuality";
-import {
-  hasProfileResumeData,
-  hasResumeStudioContent,
-  isResumeStudioEmpty,
-  profileToStructuredResume,
-} from "../lib/profileToStructuredResume";
+import { hasResumeStudioContent, profileToStructuredResume } from "../lib/profileToStructuredResume";
+import { normalizeEducationItem } from "../lib/resumeEducation";
 import { buildDefaultExportBasename, buildDefaultResumeExportBasename } from "../lib/utils";
 import { cn } from "../lib/classNames";
 import { apiGenerateResumeSummary, apiOptimizeResumeForJob, ApiHttpError } from "../lib/backendApi";
@@ -62,6 +58,8 @@ import { PreparationProgress } from "../sidepanel/components/PreparationProgress
 import { SPLIT_STACK_MAX_WIDTH, type WorkspaceTab, panelDensityFromWidth } from "./workspaceLayout";
 
 export type WorkspaceMode = "capture" | "application";
+
+const RESUME_AUTOSAVE_MS = 600;
 
 function WorkspaceBrandMark({ className }: { className?: string }) {
   const [iconFailed, setIconFailed] = useState(false);
@@ -118,7 +116,9 @@ function stableItemId(prefix: string, idx: number, explicit?: string): string {
 function withStableResumeIds(resume: StructuredResume): StructuredResume {
   return {
     ...resume,
-    education: resume.education.map((item, idx) => ({ ...item, id: stableItemId("edu", idx, item.id) })),
+    education: resume.education.map((item, idx) =>
+      normalizeEducationItem({ ...item, id: stableItemId("edu", idx, item.id) }),
+    ),
     experience: resume.experience.map((item, idx) => ({ ...item, id: stableItemId("exp", idx, item.id) })),
     projects: resume.projects.map((item, idx) => ({ ...item, id: stableItemId("proj", idx, item.id) })),
     skills: resume.skills.map((item, idx) => ({ ...item, id: stableItemId("skills", idx, item.id) })),
@@ -172,6 +172,11 @@ function withStableResumeIds(resume: StructuredResume): StructuredResume {
     apiBaseUrl: "",
   }));
   const [resume, setResume] = useState<StructuredResume>(EMPTY_STRUCTURED_RESUME);
+  const resumeRef = useRef<StructuredResume>(EMPTY_STRUCTURED_RESUME);
+  const resumeDirtyRef = useRef(false);
+  const resumeLoadGenerationRef = useRef(0);
+  const resumeSaveGenerationRef = useRef(0);
+  const resumeSaveTimerRef = useRef<number | null>(null);
   const [resumeTargetRole, setResumeTargetRole] = useState("");
   const [resumeSummaryBusy, setResumeSummaryBusy] = useState(false);
   const [resumeSummaryError, setResumeSummaryError] = useState<string | null>(null);
@@ -248,18 +253,49 @@ function withStableResumeIds(resume: StructuredResume): StructuredResume {
   }, []);
 
   useEffect(() => {
+    let cancelled = false;
+    const loadGeneration = ++resumeLoadGenerationRef.current;
     void (async () => {
-      const [storedProfile, storedResume] = await Promise.all([loadProfile(), loadResumeStudio()]);
+      const storedResume = await loadResumeStudio();
+      if (cancelled || loadGeneration !== resumeLoadGenerationRef.current || resumeDirtyRef.current) return;
       const normalized = withStableResumeIds(storedResume);
-      if (isResumeStudioEmpty(normalized) && hasProfileResumeData(storedProfile)) {
-        const fromProfile = withStableResumeIds(profileToStructuredResume(storedProfile));
-        setResume(fromProfile);
-        void saveResumeStudio(fromProfile);
-      } else {
-        setResume(normalized);
-      }
+      setResume(normalized);
+      resumeRef.current = normalized;
     })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
+
+  const flushResumeSave = useCallback(async () => {
+    if (resumeSaveTimerRef.current != null) {
+      window.clearTimeout(resumeSaveTimerRef.current);
+      resumeSaveTimerRef.current = null;
+    }
+    if (!resumeDirtyRef.current) return;
+    resumeSaveGenerationRef.current += 1;
+    const normalized = withStableResumeIds(resumeRef.current);
+    await saveResumeStudio(normalized);
+  }, []);
+
+  const scheduleResumeSave = useCallback(() => {
+    if (resumeSaveTimerRef.current != null) {
+      window.clearTimeout(resumeSaveTimerRef.current);
+    }
+    const saveGeneration = ++resumeSaveGenerationRef.current;
+    resumeSaveTimerRef.current = window.setTimeout(() => {
+      resumeSaveTimerRef.current = null;
+      if (saveGeneration !== resumeSaveGenerationRef.current) return;
+      const normalized = withStableResumeIds(resumeRef.current);
+      void saveResumeStudio(normalized);
+    }, RESUME_AUTOSAVE_MS);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      void flushResumeSave();
+    };
+  }, [flushResumeSave]);
 
   useEffect(() => {
     if (isApplicationMode) {
@@ -600,25 +636,43 @@ function withStableResumeIds(resume: StructuredResume): StructuredResume {
     void chrome.runtime.openOptionsPage();
   }, []);
 
-  const onResumeChange = useCallback((next: StructuredResume) => {
-    const normalized = withStableResumeIds(next);
-    setResume(normalized);
-    void saveResumeStudio(normalized);
-    setResumeOptimizeResult(null);
-    setSuggestionDecisions({});
-    setResumeOptimizeError(null);
-  }, []);
+  const onResumeChange = useCallback(
+    (next: StructuredResume) => {
+      const normalized = withStableResumeIds(next);
+      resumeDirtyRef.current = true;
+      resumeRef.current = normalized;
+      setResume(normalized);
+      scheduleResumeSave();
+      setResumeOptimizeResult(null);
+      setSuggestionDecisions({});
+      setResumeOptimizeError(null);
+    },
+    [scheduleResumeSave],
+  );
 
   const onImportResumeFromProfile = useCallback(() => {
     const mapped = withStableResumeIds(profileToStructuredResume(profileRef.current));
     if (hasResumeStudioContent(resume)) {
       const ok = window.confirm(
-        "This will replace your current resume draft with your profile info. Continue?",
+        "This will replace your saved resume with your profile info. Continue?",
       );
       if (!ok) return;
     }
-    onResumeChange(mapped);
-  }, [resume, onResumeChange]);
+    resumeDirtyRef.current = true;
+    resumeRef.current = mapped;
+    setResume(mapped);
+    void flushResumeSave();
+    setResumeOptimizeResult(null);
+    setSuggestionDecisions({});
+    setResumeOptimizeError(null);
+  }, [resume, flushResumeSave]);
+
+  const handleBackToCapture = useCallback(() => {
+    void (async () => {
+      await flushResumeSave();
+      onBackToCapture?.();
+    })();
+  }, [flushResumeSave, onBackToCapture]);
 
   const onGenerateResumeSummary = useCallback(async () => {
     setResumeSummaryBusy(true);
@@ -851,7 +905,7 @@ function withStableResumeIds(resume: StructuredResume): StructuredResume {
           {onBackToCapture ? (
             <button
               type="button"
-              onClick={onBackToCapture}
+              onClick={handleBackToCapture}
               className="shrink-0 rounded-lg border border-white/15 bg-white/10 px-2 py-1 text-[11px] font-semibold text-white hover:bg-white/15"
             >
               ← Back

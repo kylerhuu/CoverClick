@@ -60,7 +60,7 @@ export function ResumeVariantSelector({
 
   return (
     <div className="space-y-2">
-      <p className={ccEyebrow}>Resume</p>
+      <p className={ccEyebrow}>Saved Resume</p>
 
       {showDropdown ? (
         <select
@@ -86,7 +86,7 @@ export function ResumeVariantSelector({
       {creating ? (
         <div className="space-y-2 rounded-lg border border-indigo-200/70 bg-indigo-50/40 p-2.5">
           <label className="block text-[10px] font-semibold uppercase tracking-wide text-slate-600">
-            New resume name
+            New resume version name
             <input
               className={cn(
                 "mt-1.5 w-full rounded-md border border-slate-200/90 bg-white px-2.5 py-1.5 text-[12px] font-medium text-slate-900 shadow-sm",
@@ -129,9 +129,13 @@ export function ResumeVariantSelector({
           )}
           onClick={startCreate}
         >
-          + Create new resume
+          + Create new resume version
         </button>
       )}
+
+      <p className="text-[10px] leading-snug text-slate-500">
+        Changes are saved to this resume version and reused across jobs.
+      </p>
 
       {displayError ? (
         <p className="text-[11px] font-medium text-red-700" role="alert">

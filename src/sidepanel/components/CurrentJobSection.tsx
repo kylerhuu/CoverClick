@@ -172,7 +172,7 @@ export function CurrentJobSection({
       />
 
       <button type="button" className={cn(ccBtnSecondary, "w-full py-2.5 text-[13px]")} onClick={onEditResume}>
-        Edit Resume
+        Edit Saved Resume
       </button>
 
       <div className="space-y-2">
@@ -194,7 +194,7 @@ export function CurrentJobSection({
           {saveBusy ? "Saving…" : alreadySaved ? "Save again & re-prepare" : "Save to Hub"}
         </button>
         <p className="px-0.5 text-center text-[10px] leading-snug text-slate-500">
-          Cover letter is tailored to this job. Your selected resume version is saved with the application.
+          Cover letter is tailored to this job. Your selected saved resume version is linked to this application.
         </p>
       </div>
 

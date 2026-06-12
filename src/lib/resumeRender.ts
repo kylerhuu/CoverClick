@@ -1,4 +1,5 @@
 import type { ResumeEducationItem, ResumeSectionKey, StructuredResume } from "./types";
+import { educationDegreeLine, educationMajorLine } from "./resumeEducation";
 import {
   cloneRenderPlan,
   computeOnePageLayoutPlan,
@@ -293,13 +294,8 @@ export function formatEducationBlock(entry: ResumeEducationItem): ResumeEducatio
     .filter(Boolean)
     .join("        ");
 
-  const degreeLine = trim(entry.degree);
-
-  const majorPieces = [entry.major, entry.concentrationOrMinor ?? ""]
-    .map(trim)
-    .filter(Boolean);
-  const majorLine = majorPieces.join(" | ");
-
+  const degreeLine = educationDegreeLine(entry);
+  const majorLine = educationMajorLine(entry);
   const gpaLine = trim(entry.gpa ?? "") ? `GPA: ${trim(entry.gpa ?? "")}` : "";
 
   return { schoolLine, degreeLine, majorLine, gpaLine };

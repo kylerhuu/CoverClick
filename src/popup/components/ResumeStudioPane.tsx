@@ -37,6 +37,7 @@ import {
   projectTrimImpact,
 } from "../../lib/resumeTrimSuggestions";
 import { loadResumeStudioLayoutSettings, saveResumeStudioLayoutSettings } from "../../lib/storage";
+import { degreeLabel } from "../../lib/resumeEducation";
 import { ResumePreview } from "./resume/ResumePreview";
 
 type Props = {
@@ -535,7 +536,26 @@ export function ResumeStudioPane({
             <div className="grid grid-cols-2 gap-2">
               <input className={inputCls} placeholder="School" value={edu.school} onChange={(e) => onResumeChange({ ...resume, education: resume.education.map((x, i) => i === idx ? { ...x, school: e.target.value } : x) })} />
               <input className={inputCls} placeholder="Graduation date" value={edu.graduationDate} onChange={(e) => onResumeChange({ ...resume, education: resume.education.map((x, i) => i === idx ? { ...x, graduationDate: e.target.value } : x) })} />
-              <select className={inputCls} value={edu.degreeType ?? "Other"} onChange={(e) => onResumeChange({ ...resume, education: resume.education.map((x, i) => i === idx ? { ...x, degreeType: e.target.value as (typeof degreeTypeOptions)[number] } : x) })}>
+              <select
+                className={inputCls}
+                value={edu.degreeType ?? "Other"}
+                onChange={(e) => {
+                  const degreeType = e.target.value as (typeof degreeTypeOptions)[number];
+                  const major = edu.major.trim();
+                  onResumeChange({
+                    ...resume,
+                    education: resume.education.map((x, i) =>
+                      i === idx
+                        ? {
+                            ...x,
+                            degreeType,
+                            degree: major ? "" : degreeLabel(degreeType),
+                          }
+                        : x,
+                    ),
+                  });
+                }}
+              >
                 {degreeTypeOptions.map((opt) => <option key={opt} value={opt}>{opt}</option>)}
               </select>
               <input className={inputCls} placeholder="Degree" value={edu.degree} onChange={(e) => onResumeChange({ ...resume, education: resume.education.map((x, i) => i === idx ? { ...x, degree: e.target.value } : x) })} />
@@ -635,6 +655,9 @@ export function ResumeStudioPane({
       <div className="shrink-0 space-y-3 border-b border-slate-200/70 bg-white/90 px-4 py-3">
         <div>
           <h2 className="text-[13px] font-semibold text-slate-900">Resume Studio</h2>
+          <p className="mt-0.5 text-[11px] text-slate-500">
+            Editing your saved resume version. Changes are saved to this resume version and reused across jobs.
+          </p>
           <p className="mt-0.5 text-[11px] text-slate-500">Preview matches export. Layout trims are render-only and never delete your resume text.</p>
         </div>
         <div className="grid gap-2 sm:grid-cols-2">
