@@ -11,10 +11,19 @@ import { STORAGE_KEYS } from "./storageKeys";
 import { loadProfile } from "./storage";
 import { normalizeJobUrl } from "./jobSource";
 
+function normalizeStoredApplication(raw: JobApplication): JobApplication {
+  return {
+    ...raw,
+    resumeVariantId: raw.resumeVariantId ?? null,
+    resumeVariantName: raw.resumeVariantName ?? null,
+  };
+}
+
 async function readStore(): Promise<JobApplication[]> {
   const raw = await chrome.storage.local.get(STORAGE_KEYS.applications);
   const list = raw[STORAGE_KEYS.applications];
-  return Array.isArray(list) ? (list as JobApplication[]) : [];
+  if (!Array.isArray(list)) return [];
+  return (list as JobApplication[]).map(normalizeStoredApplication);
 }
 
 async function writeStore(applications: JobApplication[]): Promise<void> {
@@ -144,6 +153,8 @@ export async function mockCreateApplication(input: CreateApplicationRequest): Pr
     notes: "",
     interviewDate: null,
     followUpDate: null,
+    resumeVariantId: input.resumeVariantId?.trim() || null,
+    resumeVariantName: input.resumeVariantName?.trim() || null,
     createdAt: existingIdx >= 0 ? apps[existingIdx].createdAt : now,
     updatedAt: now,
   };

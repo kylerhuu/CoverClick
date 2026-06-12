@@ -8,9 +8,15 @@ import {
   pollApplicationUntilReady,
 } from "../lib/applicationsApi";
 import { jobSourceFromUrl, normalizeJobUrl } from "../lib/jobSource";
+import {
+  createVariant,
+  loadResumeLibrary,
+  setActiveVariant,
+  type ResumeLibraryStore,
+} from "../lib/resumeLibrary";
 import { applyScrapedCompanyDefaults } from "../lib/jobCompanyScrape";
 import { requestJobContextFromActiveTab } from "../lib/tabScrape";
-import { loadSettings } from "../lib/storage";
+import { STORAGE_KEYS, loadSettings } from "../lib/storage";
 import { WorkspaceApp } from "../workspace/WorkspaceApp";
 import type { WorkspaceTab } from "../workspace/workspaceLayout";
 import { CurrentJobSection } from "./components/CurrentJobSection";
@@ -19,7 +25,7 @@ import { SidePanelHeader } from "./components/SidePanelHeader";
 import { SidePanelHubView, type HubSubview } from "./components/SidePanelHubView";
 import { SidePanelModeNav, type SidePanelMode } from "./components/SidePanelModeNav";
 
-export type ScanSubview = "home" | "letter" | "resume";
+export type ScanSubview = "home" | "letter" | "resume-edit";
 
 export function ApplicationSidePanel() {
   const [mode, setMode] = useState<SidePanelMode>("scan");
@@ -28,6 +34,10 @@ export function ApplicationSidePanel() {
   const [selectedHubId, setSelectedHubId] = useState<string | null>(null);
   const [hubApplications, setHubApplications] = useState<JobApplication[]>([]);
   const [hubAppsLoading, setHubAppsLoading] = useState(true);
+
+  const [resumeLibrary, setResumeLibrary] = useState<ResumeLibraryStore | null>(null);
+  const [resumeCreateBusy, setResumeCreateBusy] = useState(false);
+  const [resumeCreateError, setResumeCreateError] = useState<string | null>(null);
 
   const [job, setJob] = useState<JobContext | null>(null);
   const [currentTabSaved, setCurrentTabSaved] = useState<JobApplication | null>(null);
@@ -38,6 +48,12 @@ export function ApplicationSidePanel() {
   const [saveNotice, setSaveNotice] = useState<string | null>(null);
   const [settings, setSettings] = useState({ useMock: true, authToken: "", apiBaseUrl: "" });
   const pollAbortRef = useRef<AbortController | null>(null);
+
+  const refreshResumeLibrary = useCallback(async () => {
+    const library = await loadResumeLibrary();
+    setResumeLibrary(library);
+    return library;
+  }, []);
 
   const refreshScrape = useCallback(async () => {
     setScrapeBusy(true);
@@ -84,6 +100,19 @@ export function ApplicationSidePanel() {
       setSettings({ useMock: s.useMock, authToken: s.authToken ?? "", apiBaseUrl: s.apiBaseUrl }),
     );
   }, []);
+
+  useEffect(() => {
+    void refreshResumeLibrary();
+  }, [refreshResumeLibrary]);
+
+  useEffect(() => {
+    const onStorage = (changes: Record<string, chrome.storage.StorageChange>, area: string) => {
+      if (area !== "local") return;
+      if (changes[STORAGE_KEYS.resumeLibrary]) void refreshResumeLibrary();
+    };
+    chrome.storage.onChanged.addListener(onStorage);
+    return () => chrome.storage.onChanged.removeListener(onStorage);
+  }, [refreshResumeLibrary]);
 
   useEffect(() => {
     void refreshScrape();
@@ -143,6 +172,12 @@ export function ApplicationSidePanel() {
       setSaveError("Sign in with an active subscription to save jobs to the cloud.");
       return;
     }
+    const library = resumeLibrary ?? (await refreshResumeLibrary());
+    const active = library.variants.find((v) => v.id === library.activeVariantId) ?? library.variants[0];
+    if (!active) {
+      setSaveError("No resume variant selected.");
+      return;
+    }
     setSaveBusy(true);
     setSaveError(null);
     setSaveNotice(null);
@@ -158,6 +193,8 @@ export function ApplicationSidePanel() {
           source: jobSourceFromUrl(job.pageUrl),
           jobUrl: normalizeJobUrl(job.pageUrl),
           jobDescription: job.descriptionText?.trim() || "",
+          resumeVariantId: active.id,
+          resumeVariantName: active.name,
         },
       );
       upsertHubApplication(saved);
@@ -169,7 +206,7 @@ export function ApplicationSidePanel() {
     } finally {
       setSaveBusy(false);
     }
-  }, [job, settings, startPolling, upsertHubApplication]);
+  }, [job, settings, startPolling, upsertHubApplication, resumeLibrary, refreshResumeLibrary]);
 
   const handleModeChange = useCallback((next: SidePanelMode) => {
     setMode(next);
@@ -181,9 +218,31 @@ export function ApplicationSidePanel() {
     }
   }, []);
 
-  const openQuickGenerate = useCallback((target: "letter" | "resume") => {
-    setScanSubview(target);
-  }, []);
+  const handleSelectResumeVariant = useCallback(
+    async (id: string) => {
+      await setActiveVariant(id);
+      await refreshResumeLibrary();
+    },
+    [refreshResumeLibrary],
+  );
+
+  const handleCreateResumeVariant = useCallback(
+    async (name: string) => {
+      setResumeCreateBusy(true);
+      setResumeCreateError(null);
+      try {
+        await createVariant(name);
+        await refreshResumeLibrary();
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : "Could not create resume.";
+        setResumeCreateError(msg);
+        throw e;
+      } finally {
+        setResumeCreateBusy(false);
+      }
+    },
+    [refreshResumeLibrary],
+  );
 
   const openHubForApplication = useCallback((app: JobApplication) => {
     setSelectedHubId(app.id);
@@ -194,7 +253,9 @@ export function ApplicationSidePanel() {
   const preparingCurrentTab = currentTabSaved?.status === "PREPARING";
 
   const workspaceTabForScan: WorkspaceTab | undefined =
-    scanSubview === "letter" ? "letter" : scanSubview === "resume" ? "resume" : undefined;
+    scanSubview === "letter" ? "letter" : scanSubview === "resume-edit" ? "resume" : undefined;
+
+  const activeResumeVariantId = resumeLibrary?.activeVariantId ?? "";
 
   return (
     <div className="flex h-screen min-h-[360px] w-full min-w-0 flex-col overflow-hidden bg-[#f0f2f6] text-slate-900 antialiased">
@@ -227,7 +288,7 @@ export function ApplicationSidePanel() {
             onSubviewChange={setHubSubview}
             onApplicationsChange={setHubApplications}
           />
-        ) : scanSubview === "letter" || scanSubview === "resume" ? (
+        ) : scanSubview === "letter" || scanSubview === "resume-edit" ? (
           <WorkspaceApp
             mode="capture"
             initialJob={job}
@@ -242,10 +303,16 @@ export function ApplicationSidePanel() {
                 scrapeBusy={scrapeBusy}
                 scrapeError={scrapeError}
                 saveBusy={saveBusy}
+                resumeVariants={resumeLibrary?.variants ?? []}
+                activeResumeVariantId={activeResumeVariantId}
+                resumeCreateBusy={resumeCreateBusy}
+                resumeCreateError={resumeCreateError}
+                onSelectResumeVariant={(id) => void handleSelectResumeVariant(id)}
+                onCreateResumeVariant={handleCreateResumeVariant}
+                onEditResume={() => setScanSubview("resume-edit")}
                 onRescan={() => void refreshScrape()}
                 onSave={() => void handleSave()}
-                onGenerateLetter={() => openQuickGenerate("letter")}
-                onTailorResume={() => openQuickGenerate("resume")}
+                onGenerateLetter={() => setScanSubview("letter")}
                 alreadySaved={Boolean(currentTabSaved)}
                 currentTabSaved={currentTabSaved}
                 preparingInBackground={preparingCurrentTab}

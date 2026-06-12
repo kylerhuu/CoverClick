@@ -1,4 +1,5 @@
 import type { JobApplication, JobContext } from "../../lib/types";
+import type { ResumeVariant } from "../../lib/resumeLibrary";
 import { currentJobSavedBannerClass, currentJobSavedBannerMessage } from "../../hub/applicationDisplay";
 import { jobSourceFromUrl } from "../../lib/jobSource";
 import { cn } from "../../lib/classNames";
@@ -10,6 +11,7 @@ import {
   ccMuted,
 } from "../../ui/ccUi";
 import { ProfileInsightStrip } from "./ProfileInsightStrip";
+import { ResumeVariantSelector } from "./ResumeVariantSelector";
 
 type DetectionState = "scanning" | "detected" | "empty" | "error";
 
@@ -39,10 +41,16 @@ type Props = {
   scrapeBusy: boolean;
   scrapeError: string | null;
   saveBusy: boolean;
+  resumeVariants: ResumeVariant[];
+  activeResumeVariantId: string;
+  resumeCreateBusy?: boolean;
+  resumeCreateError?: string | null;
+  onSelectResumeVariant: (id: string) => void;
+  onCreateResumeVariant: (name: string) => Promise<void>;
+  onEditResume: () => void;
   onRescan: () => void;
   onSave: () => void;
   onGenerateLetter: () => void;
-  onTailorResume: () => void;
   alreadySaved?: boolean;
   currentTabSaved?: JobApplication | null;
   preparingInBackground?: boolean;
@@ -54,10 +62,16 @@ export function CurrentJobSection({
   scrapeBusy,
   scrapeError,
   saveBusy,
+  resumeVariants,
+  activeResumeVariantId,
+  resumeCreateBusy,
+  resumeCreateError,
+  onSelectResumeVariant,
+  onCreateResumeVariant,
+  onEditResume,
   onRescan,
   onSave,
   onGenerateLetter,
-  onTailorResume,
   alreadySaved,
   currentTabSaved,
   preparingInBackground,
@@ -148,6 +162,19 @@ export function CurrentJobSection({
         </div>
       </div>
 
+      <ResumeVariantSelector
+        variants={resumeVariants}
+        activeId={activeResumeVariantId}
+        onSelect={onSelectResumeVariant}
+        onCreate={onCreateResumeVariant}
+        createBusy={resumeCreateBusy}
+        createError={resumeCreateError}
+      />
+
+      <button type="button" className={cn(ccBtnSecondary, "w-full py-2.5 text-[13px]")} onClick={onEditResume}>
+        Edit Resume
+      </button>
+
       <div className="space-y-2">
         <p className="px-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">Quick actions</p>
         <button
@@ -160,14 +187,6 @@ export function CurrentJobSection({
         </button>
         <button
           type="button"
-          className={cn(ccBtnSecondary, "w-full py-2.5 text-[13px]")}
-          disabled={!canGenerate}
-          onClick={onTailorResume}
-        >
-          Tailor Resume
-        </button>
-        <button
-          type="button"
           className={cn(ccBtnSecondary, "w-full py-2 text-[12px]")}
           disabled={!job?.pageUrl || saveBusy || scrapeBusy}
           onClick={onSave}
@@ -175,7 +194,7 @@ export function CurrentJobSection({
           {saveBusy ? "Saving…" : alreadySaved ? "Save again & re-prepare" : "Save to Hub"}
         </button>
         <p className="px-0.5 text-center text-[10px] leading-snug text-slate-500">
-          Generate without saving, or save to track and auto-prepare in the background.
+          Cover letter is tailored to this job. Your selected resume version is saved with the application.
         </p>
       </div>
 

@@ -25,6 +25,8 @@ export type JobApplicationDto = {
   dateApplied: string | null;
   status: JobApplicationStatus;
   fitScore: number | null;
+  resumeVariantId: string | null;
+  resumeVariantName: string | null;
   resumeUsed: unknown;
   coverLetterDraft: unknown;
   resumeSuggestions: unknown;
@@ -69,6 +71,8 @@ export function serializeApplication(row: JobApplication): JobApplicationDto {
     dateApplied: toIso(row.dateApplied),
     status: row.status,
     fitScore: row.fitScore,
+    resumeVariantId: row.resumeVariantId,
+    resumeVariantName: row.resumeVariantName,
     resumeUsed: row.resumeUsed,
     coverLetterDraft: row.coverLetterDraft,
     resumeSuggestions: row.resumeSuggestions,
@@ -124,6 +128,8 @@ export type CreateApplicationInput = {
   source: string;
   jobUrl: string;
   jobDescription: string;
+  resumeVariantId?: string;
+  resumeVariantName?: string;
 };
 
 /** Canonicalize job URLs so duplicate saves match the same row. */
@@ -167,6 +173,8 @@ export function parseCreateApplicationBody(body: unknown): ParseCreateApplicatio
       location: asTrimmedString(b.location),
       source: asTrimmedString(b.source, "Web"),
       jobDescription: asTrimmedString(b.jobDescription),
+      resumeVariantId: asTrimmedString(b.resumeVariantId) || undefined,
+      resumeVariantName: asTrimmedString(b.resumeVariantName) || undefined,
     },
   };
 }
@@ -196,6 +204,8 @@ export async function createJobApplication(
       source: asTrimmedString(input.source, "Web"),
       jobUrl,
       jobDescription: asTrimmedString(input.jobDescription),
+      resumeVariantId: input.resumeVariantId ?? null,
+      resumeVariantName: input.resumeVariantName ?? null,
       status: "PREPARING",
       dateSaved: new Date(),
       preparationSteps: { ...DEFAULT_STEPS, jobSaved: true },
@@ -206,6 +216,8 @@ export async function createJobApplication(
       location: asTrimmedString(input.location),
       source: asTrimmedString(input.source, "Web"),
       jobDescription: asTrimmedString(input.jobDescription),
+      resumeVariantId: input.resumeVariantId ?? null,
+      resumeVariantName: input.resumeVariantName ?? null,
       status: "PREPARING",
       dateSaved: new Date(),
       preparationError: null,

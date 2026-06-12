@@ -34,6 +34,8 @@ function normalizeCreateBody(body: CreateApplicationRequest): CreateApplicationR
     location: body.location?.trim() ?? "",
     source: body.source?.trim() || "Web",
     jobDescription: body.jobDescription?.trim() ?? "",
+    resumeVariantId: body.resumeVariantId?.trim() || undefined,
+    resumeVariantName: body.resumeVariantName?.trim() || undefined,
   };
 }
 

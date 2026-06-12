@@ -189,6 +189,8 @@ export interface JobApplicationRecord {
   dateApplied: string | null;
   status: JobApplicationStatus;
   fitScore: number | null;
+  resumeVariantId: string | null;
+  resumeVariantName: string | null;
   resumeUsed: unknown;
   coverLetterDraft: StructuredCoverLetter | null;
   resumeSuggestions: ResumeTailoringResponse | null;
@@ -215,6 +217,8 @@ export interface CreateApplicationRequest {
   source: string;
   jobUrl: string;
   jobDescription: string;
+  resumeVariantId?: string;
+  resumeVariantName?: string;
 }
 
 export interface UpdateApplicationRequest {

@@ -13,11 +13,6 @@ import { parseStructuredLetter } from "./generationNormalize";
 import { STORAGE_KEYS } from "./storageKeys";
 import { hasBuiltInApiOrigin, resolveApiBaseUrl, VITE_COVERCLICK_API_ORIGIN } from "./apiOrigin";
 import type { ResumeStudioLayoutSettings } from "./resumeFitSettings";
-import {
-  DEFAULT_RESUME_LAYOUT_SETTINGS,
-  normalizeFitMode,
-  normalizeTargetLength,
-} from "./resumeFitSettings";
 
 export { STORAGE_KEYS };
 
@@ -25,7 +20,6 @@ const PROFILE_KEY = STORAGE_KEYS.profile;
 const SETTINGS_KEY = STORAGE_KEYS.settings;
 const PREFS_KEY = STORAGE_KEYS.generationPrefs;
 const LETTER_CACHE_KEY = STORAGE_KEYS.letterCache;
-const RESUME_STUDIO_KEY = STORAGE_KEYS.resumeStudio;
 
 function makeStableId(seed: string, idx: number): string {
   return `${seed}-${idx + 1}`;
@@ -293,7 +287,7 @@ export async function clearCachedLetter(): Promise<void> {
   await chrome.storage.local.remove(LETTER_CACHE_KEY);
 }
 
-function normalizeStructuredResume(raw: unknown): StructuredResume {
+export function normalizeStructuredResume(raw: unknown): StructuredResume {
   if (!raw || typeof raw !== "object") return { ...EMPTY_STRUCTURED_RESUME };
   const r = raw as Record<string, unknown>;
   const arr = (v: unknown): string[] =>
@@ -444,27 +438,21 @@ function normalizeStructuredResume(raw: unknown): StructuredResume {
 }
 
 export async function loadResumeStudio(): Promise<StructuredResume> {
-  const data = await chrome.storage.local.get(RESUME_STUDIO_KEY);
-  return normalizeStructuredResume(data[RESUME_STUDIO_KEY]);
+  const { getActiveVariant } = await import("./resumeLibrary");
+  return (await getActiveVariant()).resume;
 }
 
 export async function saveResumeStudio(resume: StructuredResume): Promise<void> {
-  await chrome.storage.local.set({ [RESUME_STUDIO_KEY]: resume });
+  const { updateActiveResume } = await import("./resumeLibrary");
+  await updateActiveResume(resume);
 }
 
-const RESUME_LAYOUT_KEY = STORAGE_KEYS.resumeStudioLayout;
-
 export async function loadResumeStudioLayoutSettings(): Promise<ResumeStudioLayoutSettings> {
-  const data = await chrome.storage.local.get(RESUME_LAYOUT_KEY);
-  const raw = data[RESUME_LAYOUT_KEY];
-  if (!raw || typeof raw !== "object") return { ...DEFAULT_RESUME_LAYOUT_SETTINGS };
-  const o = raw as Record<string, unknown>;
-  return {
-    fitMode: normalizeFitMode(o.fitMode),
-    targetLength: normalizeTargetLength(o.targetLength),
-  };
+  const { getActiveVariant } = await import("./resumeLibrary");
+  return (await getActiveVariant()).layoutSettings;
 }
 
 export async function saveResumeStudioLayoutSettings(settings: ResumeStudioLayoutSettings): Promise<void> {
-  await chrome.storage.local.set({ [RESUME_LAYOUT_KEY]: settings });
+  const { updateActiveLayoutSettings } = await import("./resumeLibrary");
+  await updateActiveLayoutSettings(settings);
 }

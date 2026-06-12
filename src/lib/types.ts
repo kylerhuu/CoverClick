@@ -422,6 +422,8 @@ export interface JobApplication {
   notes: string;
   interviewDate: string | null;
   followUpDate: string | null;
+  resumeVariantId: string | null;
+  resumeVariantName: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -440,6 +442,8 @@ export interface CreateApplicationRequest {
   source: string;
   jobUrl: string;
   jobDescription: string;
+  resumeVariantId?: string;
+  resumeVariantName?: string;
 }
 
 export interface UpdateApplicationRequest {

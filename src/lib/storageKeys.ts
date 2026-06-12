@@ -6,6 +6,7 @@ export const STORAGE_KEYS = {
   letterCache: "coverclick_last_letter",
   resumeStudio: "coverclick_resume_studio",
   resumeStudioLayout: "coverclick_resume_studio_layout",
+  resumeLibrary: "coverclick_resume_library",
   applications: "coverclick_applications",
 } as const;
 

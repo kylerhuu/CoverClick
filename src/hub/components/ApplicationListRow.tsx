@@ -6,6 +6,8 @@ import {
   fitScoreLabel,
   fitScoreTone,
   letterChipClass,
+  resumeVariantChipClass,
+  resumeVariantChipLabel,
   statusBadgeLabel,
   statusPillClass,
 } from "../applicationDisplay";
@@ -21,6 +23,7 @@ type Props = {
 export function ApplicationListRow({ application, selected, onClick }: Props) {
   const fit = fitScoreLabel(application);
   const fitTone = fitScoreTone(application);
+  const resumeLabel = resumeVariantChipLabel(application);
 
   return (
     <button
@@ -47,6 +50,9 @@ export function ApplicationListRow({ application, selected, onClick }: Props) {
 
       <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
         <span className={ccMetaChip(letterChipClass(application))}>{coverLetterStatus(application)}</span>
+        {resumeLabel ? (
+          <span className={ccMetaChip(resumeVariantChipClass())}>{resumeLabel}</span>
+        ) : null}
         {fit ? (
           <span className={ccMetaChip(fitScoreChipClass(fitTone))}>{fit} fit</span>
         ) : (

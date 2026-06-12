@@ -62,6 +62,8 @@ model JobApplication {
   status         JobApplicationStatus @default(SAVED)
 
   fitScore           Int?
+  resumeVariantId    String?
+  resumeVariantName  String?
   resumeUsed         Json?
   coverLetterDraft   Json?
   resumeSuggestions  Json?

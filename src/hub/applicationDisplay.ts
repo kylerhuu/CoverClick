@@ -30,6 +30,16 @@ export function hubSummaryCounts(apps: JobApplication[]): { saved: number; ready
   };
 }
 
+export function resumeVariantChipLabel(app: JobApplication): string | null {
+  const name = app.resumeVariantName?.trim();
+  if (!name) return null;
+  return `Resume: ${name}`;
+}
+
+export function resumeVariantChipClass(): string {
+  return "bg-violet-50/80 text-violet-700 ring-violet-200/55";
+}
+
 export function coverLetterStatus(app: JobApplication): string {
   if (app.coverLetterDraft) return "Draft ready";
   if (app.status === "PREPARING") return "Generating…";

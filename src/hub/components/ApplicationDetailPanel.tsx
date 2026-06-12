@@ -6,6 +6,8 @@ import {
   fitScoreLabel,
   fitScoreTone,
   letterChipClass,
+  resumeVariantChipClass,
+  resumeVariantChipLabel,
   statusBadgeLabel,
   statusPillClass,
 } from "../applicationDisplay";
@@ -40,6 +42,7 @@ export function ApplicationDetailPanel({
   const isPreparing = application.status === "PREPARING";
   const fit = fitScoreLabel(application);
   const fitTone = fitScoreTone(application);
+  const resumeLabel = resumeVariantChipLabel(application);
   const showMarkApplied =
     application.status !== "APPLIED" && application.status !== "INTERVIEWING" && application.status !== "OFFER";
 
@@ -68,6 +71,9 @@ export function ApplicationDetailPanel({
 
         <div className="mt-3 flex flex-wrap items-center gap-1.5">
           <span className={ccMetaChip(letterChipClass(application))}>{coverLetterStatus(application)}</span>
+          {resumeLabel ? (
+            <span className={ccMetaChip(resumeVariantChipClass())}>{resumeLabel}</span>
+          ) : null}
           {fit ? (
             <span className={ccMetaChip(fitScoreChipClass(fitTone))}>{fit} fit</span>
           ) : (
