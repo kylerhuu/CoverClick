@@ -4,22 +4,30 @@ import {
   createApplication,
   formatApplicationApiError,
   getApplicationByUrl,
+  listApplications,
   pollApplicationUntilReady,
 } from "../lib/applicationsApi";
 import { jobSourceFromUrl, normalizeJobUrl } from "../lib/jobSource";
 import { applyScrapedCompanyDefaults } from "../lib/jobCompanyScrape";
 import { requestJobContextFromActiveTab } from "../lib/tabScrape";
 import { loadSettings } from "../lib/storage";
-import { DetectedJobCard } from "./components/DetectedJobCard";
+import { WorkspaceApp } from "../workspace/WorkspaceApp";
+import type { WorkspaceTab } from "../workspace/workspaceLayout";
+import { CurrentJobSection } from "./components/CurrentJobSection";
+import { RecentApplicationsSection } from "./components/RecentApplicationsSection";
 import { SidePanelHeader } from "./components/SidePanelHeader";
 import { SidePanelHubView, type HubSubview } from "./components/SidePanelHubView";
 import { SidePanelModeNav, type SidePanelMode } from "./components/SidePanelModeNav";
 
+export type ScanSubview = "home" | "letter" | "resume";
+
 export function ApplicationSidePanel() {
   const [mode, setMode] = useState<SidePanelMode>("scan");
+  const [scanSubview, setScanSubview] = useState<ScanSubview>("home");
   const [hubSubview, setHubSubview] = useState<HubSubview>("list");
   const [selectedHubId, setSelectedHubId] = useState<string | null>(null);
   const [hubApplications, setHubApplications] = useState<JobApplication[]>([]);
+  const [hubAppsLoading, setHubAppsLoading] = useState(true);
 
   const [job, setJob] = useState<JobContext | null>(null);
   const [currentTabSaved, setCurrentTabSaved] = useState<JobApplication | null>(null);
@@ -42,6 +50,18 @@ export function ApplicationSidePanel() {
       setJob(null);
     } finally {
       setScrapeBusy(false);
+    }
+  }, []);
+
+  const refreshHubApplications = useCallback(async () => {
+    try {
+      const s = await loadSettings();
+      const data = await listApplications(s.apiBaseUrl, s.authToken, s.useMock);
+      setHubApplications(data.applications);
+    } catch {
+      /* keep last list */
+    } finally {
+      setHubAppsLoading(false);
     }
   }, []);
 
@@ -68,6 +88,12 @@ export function ApplicationSidePanel() {
   useEffect(() => {
     void refreshScrape();
   }, [refreshScrape]);
+
+  useEffect(() => {
+    void refreshHubApplications();
+    const interval = window.setInterval(() => void refreshHubApplications(), 5000);
+    return () => window.clearInterval(interval);
+  }, [refreshHubApplications]);
 
   useEffect(() => {
     void refreshCurrentTabSaved();
@@ -150,10 +176,25 @@ export function ApplicationSidePanel() {
     if (next === "hub") {
       setHubSubview("list");
       setSelectedHubId(null);
+    } else {
+      setScanSubview("home");
     }
   }, []);
 
+  const openQuickGenerate = useCallback((target: "letter" | "resume") => {
+    setScanSubview(target);
+  }, []);
+
+  const openHubForApplication = useCallback((app: JobApplication) => {
+    setSelectedHubId(app.id);
+    setHubSubview("detail");
+    setMode("hub");
+  }, []);
+
   const preparingCurrentTab = currentTabSaved?.status === "PREPARING";
+
+  const workspaceTabForScan: WorkspaceTab | undefined =
+    scanSubview === "letter" ? "letter" : scanSubview === "resume" ? "resume" : undefined;
 
   return (
     <div className="flex h-screen min-h-[360px] w-full min-w-0 flex-col overflow-hidden bg-[#f0f2f6] text-slate-900 antialiased">
@@ -165,7 +206,7 @@ export function ApplicationSidePanel() {
         onChange={handleModeChange}
       />
 
-      {saveNotice && mode === "scan" ? (
+      {saveNotice && mode === "scan" && scanSubview === "home" ? (
         <div className="shrink-0 border-b border-indigo-200/80 bg-indigo-50 px-3 py-2 text-[11px] font-medium text-indigo-900">
           {saveNotice}
         </div>
@@ -186,19 +227,38 @@ export function ApplicationSidePanel() {
             onSubviewChange={setHubSubview}
             onApplicationsChange={setHubApplications}
           />
-        ) : (
-          <DetectedJobCard
-            job={job}
-            scrapeBusy={scrapeBusy}
-            scrapeError={scrapeError}
-            saveBusy={saveBusy}
-            onRescan={() => void refreshScrape()}
-            onSave={() => void handleSave()}
-            alreadySaved={Boolean(currentTabSaved)}
-            currentTabSaved={currentTabSaved}
-            preparingInBackground={preparingCurrentTab}
-            onOpenHub={() => handleModeChange("hub")}
+        ) : scanSubview === "letter" || scanSubview === "resume" ? (
+          <WorkspaceApp
+            mode="capture"
+            initialJob={job}
+            initialWorkspaceTab={workspaceTabForScan}
+            onBackToCapture={() => setScanSubview("home")}
           />
+        ) : (
+          <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+            <div className="flex flex-col gap-4 p-3">
+              <CurrentJobSection
+                job={job}
+                scrapeBusy={scrapeBusy}
+                scrapeError={scrapeError}
+                saveBusy={saveBusy}
+                onRescan={() => void refreshScrape()}
+                onSave={() => void handleSave()}
+                onGenerateLetter={() => openQuickGenerate("letter")}
+                onTailorResume={() => openQuickGenerate("resume")}
+                alreadySaved={Boolean(currentTabSaved)}
+                currentTabSaved={currentTabSaved}
+                preparingInBackground={preparingCurrentTab}
+                onOpenHub={() => handleModeChange("hub")}
+              />
+              <RecentApplicationsSection
+                applications={hubApplications}
+                loading={hubAppsLoading}
+                onSelectApplication={openHubForApplication}
+                onViewAll={() => handleModeChange("hub")}
+              />
+            </div>
+          </div>
         )}
       </div>
     </div>

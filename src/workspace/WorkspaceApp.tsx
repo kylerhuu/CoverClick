@@ -94,10 +94,15 @@ function WorkspaceBrandMark({ className }: { className?: string }) {
 export function WorkspaceApp({
   mode = "capture",
   initialApplication,
+  initialJob,
+  initialWorkspaceTab,
   onBackToCapture,
 }: {
   mode?: WorkspaceMode;
   initialApplication?: JobApplication | null;
+  /** Seed job from side panel scrape — skips initial re-scrape in capture mode. */
+  initialJob?: JobContext | null;
+  initialWorkspaceTab?: WorkspaceTab;
   onBackToCapture?: () => void;
 } = {}) {
   const isApplicationMode = mode === "application";
@@ -121,7 +126,9 @@ function withStableResumeIds(resume: StructuredResume): StructuredResume {
 }
 
   const [profile, setProfile] = useState<UserProfile>(EMPTY_PROFILE);
-  const [job, setJob] = useState<JobContext | null>(null);
+  const [job, setJob] = useState<JobContext | null>(() =>
+    !isApplicationMode && initialJob?.pageUrl ? initialJob : null,
+  );
   const [tone, setTone] = useState<DefaultTone>("professional");
   const [emphasis, setEmphasis] = useState<Emphasis>("general");
   const [length, setLength] = useState<LetterLength>("medium");
@@ -145,7 +152,7 @@ function withStableResumeIds(resume: StructuredResume): StructuredResume {
   const [scrapeError, setScrapeError] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [workspaceTab, setWorkspaceTab] = useState<WorkspaceTab>("split");
+  const [workspaceTab, setWorkspaceTab] = useState<WorkspaceTab>(initialWorkspaceTab ?? "split");
   const [exportBasename, setExportBasename] = useState(() => buildDefaultExportBasename(EMPTY_PROFILE, null));
   const exportDirtyRef = useRef(false);
   const [resumeExportBasename, setResumeExportBasename] = useState(() =>
@@ -352,10 +359,10 @@ function withStableResumeIds(resume: StructuredResume): StructuredResume {
   }, []);
 
   useEffect(() => {
-    if (!isApplicationMode) {
+    if (!isApplicationMode && !initialJob?.pageUrl) {
       void refreshScrape();
     }
-  }, [refreshScrape, isApplicationMode]);
+  }, [refreshScrape, isApplicationMode, initialJob?.pageUrl]);
 
   useEffect(() => {
     if (!isApplicationMode || !initialApplication) return;
