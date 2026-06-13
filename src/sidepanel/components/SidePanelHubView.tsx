@@ -124,6 +124,20 @@ export function SidePanelHubView({
     }
   }, [selectedId, settings, onSubviewChange]);
 
+  const filteredApplications = useMemo(
+    () => filterApplicationsByHubSearch(applications, searchQuery),
+    [applications, searchQuery],
+  );
+  const sections = groupApplicationsForHubList(filteredApplications);
+  const summary = hubSummaryCounts(applications);
+  const hasSearchQuery = searchQuery.trim().length > 0;
+
+  const openApplication = (app: JobApplication) => {
+    onSelectedIdChange(app.id);
+    setSelectedApplication(app);
+    onSubviewChange("detail");
+  };
+
   if (subview === "materials" && selectedApplication) {
     return (
       <WorkspaceApp
@@ -149,19 +163,14 @@ export function SidePanelHubView({
     );
   }
 
-  const filteredApplications = useMemo(
-    () => filterApplicationsByHubSearch(applications, searchQuery),
-    [applications, searchQuery],
-  );
-  const sections = groupApplicationsForHubList(filteredApplications);
-  const summary = hubSummaryCounts(applications);
-  const hasSearchQuery = searchQuery.trim().length > 0;
-
-  const openApplication = (app: JobApplication) => {
-    onSelectedIdChange(app.id);
-    setSelectedApplication(app);
-    onSubviewChange("detail");
-  };
+  if (subview === "detail" && selectedId) {
+    return (
+      <div className={cn("flex min-h-0 flex-1 flex-col items-center justify-center", ccPagePadding)}>
+        <span className="cc-spinner h-4 w-4 border-2" aria-hidden />
+        <p className="mt-2 text-[12px] text-slate-500">Loading application…</p>
+      </div>
+    );
+  }
 
   return (
     <div className={cn("flex min-h-0 flex-1 flex-col", ccPagePadding)}>
