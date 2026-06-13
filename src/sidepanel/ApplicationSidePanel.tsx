@@ -18,7 +18,7 @@ import { requestJobContextFromActiveTab } from "../lib/tabScrape";
 import { STORAGE_KEYS, loadProfile, loadSettings } from "../lib/storage";
 import { isProfileReadyForGeneration } from "../lib/profileReadiness";
 import { requestJobFitScore } from "../lib/jobFitApi";
-import { isProPlan } from "../lib/planAccess";
+import { getEntitlementStatus, isProPlan } from "../lib/planAccess";
 import { getStep, loadOnboardingState, saveOnboardingState, shouldOfferOnboarding } from "../lib/onboarding";
 import { requestOptionsTab } from "../lib/openOptionsTab";
 import { useAccessGate } from "../auth/useAccessGate";
@@ -37,6 +37,7 @@ export type ScanSubview = "home" | "apply";
 
 export function ApplicationSidePanel() {
   const gate = useAccessGate();
+  const entitlement = getEntitlementStatus(gate.phase);
   const isPro = isProPlan(gate.phase);
   const [upgradeOpen, setUpgradeOpen] = useState(false);
   const [scanFitScore, setScanFitScore] = useState<number | null>(null);
@@ -211,7 +212,8 @@ export function ApplicationSidePanel() {
   );
 
   const handleSaveForLater = useCallback(async () => {
-    if (!isPro) {
+    if (entitlement === "loading") return;
+    if (entitlement === "free") {
       setUpgradeOpen(true);
       return;
     }
@@ -254,10 +256,10 @@ export function ApplicationSidePanel() {
     } finally {
       setSaveBusy(false);
     }
-  }, [job, settings, startPolling, upsertHubApplication, resumeLibrary, refreshResumeLibrary, isPro]);
+  }, [job, settings, startPolling, upsertHubApplication, resumeLibrary, refreshResumeLibrary, entitlement]);
 
   useEffect(() => {
-    if (!job?.pageUrl || settings.useMock || !settings.authToken?.trim() || !settings.apiBaseUrl.trim()) {
+    if (entitlement !== "free" || !job?.pageUrl || settings.useMock || !settings.authToken?.trim() || !settings.apiBaseUrl.trim()) {
       setScanFitScore(null);
       setFitScoreBusy(false);
       return;
@@ -280,7 +282,7 @@ export function ApplicationSidePanel() {
     return () => {
       cancelled = true;
     };
-  }, [job?.pageUrl, job?.scrapedAt, job?.jobTitle, job?.companyName, settings.apiBaseUrl, settings.authToken, settings.useMock]);
+  }, [job?.pageUrl, job?.scrapedAt, job?.jobTitle, job?.companyName, settings.apiBaseUrl, settings.authToken, settings.useMock, entitlement]);
 
   const handleModeChange = useCallback((next: SidePanelMode) => {
     setMode(next);
@@ -339,6 +341,7 @@ export function ApplicationSidePanel() {
             onSubviewChange={setHubSubview}
             onApplicationsChange={setHubApplications}
             isPro={isPro}
+            entitlementLoading={entitlement === "loading"}
             onUpgrade={() => setUpgradeOpen(true)}
           />
         ) : scanSubview === "apply" ? (
@@ -363,12 +366,14 @@ export function ApplicationSidePanel() {
                 onApplyNow={handleApplyNow}
                 profileReady={profileReady}
                 onSaveForLater={() => void handleSaveForLater()}
-                saveLocked={!isPro}
+                saveLocked={entitlement === "free"}
                 onSaveLockedClick={() => setUpgradeOpen(true)}
-                scanFitScore={isPro ? null : scanFitScore}
-                fitScoreBusy={!isPro && fitScoreBusy}
+                scanFitScore={entitlement === "free" ? scanFitScore : null}
+                fitScoreBusy={entitlement === "free" && fitScoreBusy}
                 freeGenerationsRemaining={
-                  gate.me?.hasPaidAccess ? null : (gate.me?.freeCoverLetterGenerationsRemaining ?? 0)
+                  entitlement === "loading" || gate.me?.hasPaidAccess
+                    ? null
+                    : (gate.me?.freeCoverLetterGenerationsRemaining ?? 0)
                 }
                 currentTabSaved={currentTabSaved}
                 preparingInBackground={preparingCurrentTab}

@@ -3,12 +3,16 @@ import { ccBtnPrimarySm } from "./ccUi";
 
 type Props = {
   isPro: boolean;
+  loading?: boolean;
   className?: string;
   onUpgrade?: () => void;
   compact?: boolean;
 };
 
-export function PlanBadge({ isPro, className, onUpgrade, compact = false }: Props) {
+export function PlanBadge({ isPro, loading = false, className, onUpgrade, compact = false }: Props) {
+  if (loading) {
+    return <span className={cn("inline-block h-6 w-[88px] animate-pulse rounded-full bg-slate-200/90", className)} aria-hidden />;
+  }
   if (isPro) {
     return (
       <span

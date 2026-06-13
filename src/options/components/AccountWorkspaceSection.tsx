@@ -51,7 +51,11 @@ export function AccountWorkspaceSection({
               <p className="mt-0.5 text-[13px] text-slate-500">{settings.authEmail}</p>
             ) : null}
           </div>
-          <PlanBadge isPro={serverFeaturesEnabled && !settings.useMock} onUpgrade={onOpenCheckout} />
+          <PlanBadge
+            isPro={serverFeaturesEnabled && !settings.useMock}
+            loading={false}
+            onUpgrade={onOpenCheckout}
+          />
         </div>
       </WorkspaceHero>
 

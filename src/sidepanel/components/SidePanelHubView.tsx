@@ -20,6 +20,7 @@ import { ApplicationListRow } from "../../hub/components/ApplicationListRow";
 import { HubSummaryChips } from "../../hub/components/HubSummaryChips";
 import { WorkspaceApp } from "../../workspace/WorkspaceApp";
 import { ProLockedPanel } from "../../ui/ProLockedPanel";
+import { EntitlementSkeleton } from "../../ui/EntitlementSkeleton";
 import { cn } from "../../lib/classNames";
 import {
   ccFocusRing,
@@ -39,6 +40,7 @@ type Props = {
   onSubviewChange: (view: HubSubview) => void;
   onApplicationsChange?: (apps: JobApplication[]) => void;
   isPro?: boolean;
+  entitlementLoading?: boolean;
   onUpgrade?: () => void;
 };
 
@@ -49,6 +51,7 @@ export function SidePanelHubView({
   onSubviewChange,
   onApplicationsChange,
   isPro = true,
+  entitlementLoading = false,
   onUpgrade,
 }: Props) {
   const [applications, setApplications] = useState<JobApplication[]>([]);
@@ -61,10 +64,12 @@ export function SidePanelHubView({
   const [settings, setSettings] = useState({ useMock: true, authToken: "", apiBaseUrl: "" });
 
   const refresh = useCallback(async () => {
-    if (!isPro) {
-      setLoading(false);
-      setApplications([]);
-      onApplicationsChange?.([]);
+    if (entitlementLoading || !isPro) {
+      if (!entitlementLoading && !isPro) {
+        setLoading(false);
+        setApplications([]);
+        onApplicationsChange?.([]);
+      }
       return;
     }
     setError(null);
@@ -83,14 +88,14 @@ export function SidePanelHubView({
     } finally {
       setLoading(false);
     }
-  }, [isPro, onApplicationsChange, selectedId]);
+  }, [entitlementLoading, isPro, onApplicationsChange, selectedId]);
 
   useEffect(() => {
-    if (!isPro) return;
+    if (entitlementLoading || !isPro) return;
     void refresh();
     const interval = window.setInterval(() => void refresh(), 5000);
     return () => window.clearInterval(interval);
-  }, [isPro, refresh]);
+  }, [entitlementLoading, isPro, refresh]);
 
   useEffect(() => {
     if (!selectedId) {
@@ -173,6 +178,14 @@ export function SidePanelHubView({
     setSelectedApplication(app);
     onSubviewChange("detail");
   };
+
+  if (entitlementLoading) {
+    return (
+      <div className={cn("flex min-h-0 flex-1 flex-col", ccPagePadding)}>
+        <EntitlementSkeleton variant="hub" />
+      </div>
+    );
+  }
 
   if (!isPro) {
     return (

@@ -21,9 +21,37 @@ export type AccessPhase =
   /** Valid token in storage but /api/me failed (network/5xx) — do not clear the session. */
   | "account_error";
 
+type EntitlementSnapshot = {
+  phase: AccessPhase;
+  me: AccountMeResponse | null;
+};
+
+let lastEntitlement: EntitlementSnapshot | null = null;
+
+function isResolvedEntitlementPhase(phase: AccessPhase): boolean {
+  return phase === "paid" || phase === "unpaid" || phase === "mock";
+}
+
+function rememberEntitlement(phase: AccessPhase, me: AccountMeResponse | null): void {
+  if (isResolvedEntitlementPhase(phase)) {
+    lastEntitlement = { phase, me };
+    return;
+  }
+  if (phase === "signed_out" || phase === "no_api" || phase === "account_error") {
+    lastEntitlement = null;
+  }
+}
+
+function initialEntitlementState(): { phase: AccessPhase; me: AccountMeResponse | null } {
+  if (lastEntitlement && isResolvedEntitlementPhase(lastEntitlement.phase)) {
+    return { phase: lastEntitlement.phase, me: lastEntitlement.me };
+  }
+  return { phase: "loading", me: null };
+}
+
 export function useAccessGate() {
-  const [phase, setPhase] = useState<AccessPhase>("loading");
-  const [me, setMe] = useState<AccountMeResponse | null>(null);
+  const [phase, setPhase] = useState<AccessPhase>(() => initialEntitlementState().phase);
+  const [me, setMe] = useState<AccountMeResponse | null>(() => initialEntitlementState().me);
   const [authBusy, setAuthBusy] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
 
@@ -33,16 +61,19 @@ export function useAccessGate() {
     if (s.useMock) {
       setPhase("mock");
       setMe(null);
+      rememberEntitlement("mock", null);
       return;
     }
     if (!s.apiBaseUrl.trim()) {
       setPhase("no_api");
       setMe(null);
+      rememberEntitlement("no_api", null);
       return;
     }
     if (!s.authToken?.trim()) {
       setPhase("signed_out");
       setMe(null);
+      rememberEntitlement("signed_out", null);
       return;
     }
     try {
@@ -53,7 +84,9 @@ export function useAccessGate() {
         m = await apiGetMe(s.apiBaseUrl, s.authToken);
       }
       setMe(m);
-      setPhase(m.hasPaidAccess ? "paid" : "unpaid");
+      const nextPhase = m.hasPaidAccess ? "paid" : "unpaid";
+      setPhase(nextPhase);
+      rememberEntitlement(nextPhase, m);
     } catch (e) {
       if (e instanceof ApiHttpError && (e.status === 401 || e.status === 404)) {
         const cur = await loadSettings();
@@ -64,12 +97,14 @@ export function useAccessGate() {
         );
         setPhase("signed_out");
         setMe(null);
+        rememberEntitlement("signed_out", null);
         return;
       }
       const msg = e instanceof Error ? e.message : "Could not verify your account.";
       setMe(null);
       setAuthError(msg);
       setPhase("account_error");
+      rememberEntitlement("account_error", null);
     }
   }, []);
 
@@ -117,7 +152,9 @@ export function useAccessGate() {
     await saveSettings({ ...s, authToken: undefined, authEmail: undefined });
     setMe(null);
     setAuthError(null);
-    setPhase(s.useMock ? "mock" : "signed_out");
+    const nextPhase = s.useMock ? "mock" : "signed_out";
+    setPhase(nextPhase);
+    rememberEntitlement(nextPhase, null);
   }, []);
 
   const deleteAccount = useCallback(async () => {
@@ -137,6 +174,7 @@ export function useAccessGate() {
       await clearLocalUserData();
       setMe(null);
       setPhase(s.useMock ? "mock" : "signed_out");
+      rememberEntitlement(s.useMock ? "mock" : "signed_out", null);
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Could not delete account";
       setAuthError(msg);
@@ -205,6 +243,7 @@ export function useAccessGate() {
   return {
     phase,
     me,
+    entitlementLoading: phase === "loading",
     authBusy,
     authError,
     refresh,

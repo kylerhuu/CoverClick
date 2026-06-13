@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAccessGate } from "../auth/useAccessGate";
-import { isProPlan } from "../lib/planAccess";
+import { getEntitlementStatus } from "../lib/planAccess";
 import { ProLockedPanel } from "../ui/ProLockedPanel";
+import { EntitlementSkeleton } from "../ui/EntitlementSkeleton";
 import type { ApplicationStats, JobApplication, JobApplicationStatus } from "../lib/types";
 import { listApplications, updateApplication, deleteApplication } from "../lib/applicationsApi";
 import { loadSettings } from "../lib/storage";
@@ -16,7 +17,7 @@ const EMPTY_STATS: ApplicationStats = { saved: 0, readyToApply: 0, applied: 0, i
 
 export function ApplicationHubSection() {
   const gate = useAccessGate();
-  const isPro = isProPlan(gate.phase);
+  const entitlement = getEntitlementStatus(gate.phase);
   const [applications, setApplications] = useState<JobApplication[]>([]);
   const [stats, setStats] = useState<ApplicationStats>(EMPTY_STATS);
   const [loading, setLoading] = useState(true);
@@ -28,10 +29,12 @@ export function ApplicationHubSection() {
   const [settings, setSettings] = useState({ useMock: true, authToken: "", apiBaseUrl: "" });
 
   const refresh = useCallback(async () => {
-    if (!isPro) {
-      setLoading(false);
-      setApplications([]);
-      setStats(EMPTY_STATS);
+    if (entitlement !== "pro") {
+      if (entitlement === "free") {
+        setLoading(false);
+        setApplications([]);
+        setStats(EMPTY_STATS);
+      }
       return;
     }
     setLoading(true);
@@ -47,11 +50,11 @@ export function ApplicationHubSection() {
     } finally {
       setLoading(false);
     }
-  }, [isPro]);
+  }, [entitlement]);
 
   useEffect(() => {
-    if (!isPro) {
-      setLoading(false);
+    if (entitlement !== "pro") {
+      if (entitlement === "free") setLoading(false);
       return;
     }
     void refresh();
@@ -59,7 +62,7 @@ export function ApplicationHubSection() {
       void refresh();
     }, 5000);
     return () => window.clearInterval(interval);
-  }, [isPro, refresh]);
+  }, [entitlement, refresh]);
 
   useEffect(() => {
     const stored = sessionStorage.getItem("coverclick_view_materials_id");
@@ -122,7 +125,11 @@ export function ApplicationHubSection() {
   const summary = hubSummaryCounts(applications);
   const hasSearchQuery = searchQuery.trim().length > 0;
 
-  if (!isPro) {
+  if (entitlement === "loading") {
+    return <EntitlementSkeleton variant="hub" className="cc-fade-in mt-4" />;
+  }
+
+  if (entitlement === "free") {
     return (
       <div className="cc-fade-in mt-4 space-y-6">
         <ProLockedPanel

@@ -31,6 +31,7 @@ type Props = {
   onRelaunchTour?: () => void;
   showRelaunchTour?: boolean;
   isPro?: boolean;
+  planLoading?: boolean;
   onUpgrade?: () => void;
 };
 
@@ -43,6 +44,7 @@ export function ProfileWorkspaceSection({
   onRelaunchTour,
   showRelaunchTour = false,
   isPro = false,
+  planLoading = false,
   onUpgrade,
 }: Props) {
   const [resumeCount, setResumeCount] = useState(0);
@@ -120,7 +122,7 @@ export function ProfileWorkspaceSection({
             </div>
           </div>
           <div className="flex shrink-0 flex-col items-start gap-4 sm:items-end">
-            <PlanBadge isPro={isPro} onUpgrade={onUpgrade} />
+            <PlanBadge isPro={isPro} loading={planLoading} onUpgrade={onUpgrade} />
             <div className="grid grid-cols-3 gap-6 sm:gap-8">
             <WorkspaceStat label="Resume versions" value={resumeCount} />
             <WorkspaceStat label="Saved applications" value={applicationCount} />

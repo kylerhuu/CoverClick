@@ -9,8 +9,9 @@ import { AuthWall } from "../auth/AuthWall";
 import { useAccessGate } from "../auth/useAccessGate";
 import { useOnboardingTour } from "../hooks/useOnboardingTour";
 import { PlanBadge } from "../ui/PlanBadge";
-import { isProPlan } from "../lib/planAccess";
+import { getEntitlementStatus } from "../lib/planAccess";
 import { OnboardingTour } from "../ui/OnboardingTour";
+import { EntitlementSkeleton } from "../ui/EntitlementSkeleton";
 import { AutosaveStatus, type SaveStatus, type ServerSyncStatus } from "./components/AutosaveStatus";
 import { AccountWorkspaceSection } from "./components/AccountWorkspaceSection";
 import { OptionsSectionNav, type OptionsMainTab } from "./components/OptionsSectionNav";
@@ -63,6 +64,7 @@ function OptionsBuildFootnote() {
 
 export function OptionsPage() {
   const gate = useAccessGate();
+  const entitlement = getEntitlementStatus(gate.phase);
   const [mainTab, setMainTab] = useState<OptionsMainTab>("profile");
   const [profile, setProfile] = useState<UserProfile>(EMPTY_PROFILE);
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
@@ -295,7 +297,8 @@ export function OptionsPage() {
           </div>
           <div className="flex shrink-0 flex-col items-end gap-1 sm:flex-row sm:items-center sm:gap-3">
             <PlanBadge
-              isPro={isProPlan(gate.phase)}
+              isPro={entitlement === "pro"}
+              loading={entitlement === "loading"}
               onUpgrade={() => void gate.openStripeCheckout()}
             />
             {gate.me?.email ? (
@@ -335,7 +338,8 @@ export function OptionsPage() {
             onNavigateImport={() => setMainTab("import")}
             onRelaunchTour={() => void tour.relaunch()}
             showRelaunchTour
-            isPro={isProPlan(gate.phase)}
+            isPro={entitlement === "pro"}
+            planLoading={entitlement === "loading"}
             onUpgrade={() => void gate.openStripeCheckout()}
           />
         ) : null}
@@ -347,7 +351,10 @@ export function OptionsPage() {
         {mainTab === "applications" ? <ApplicationHubSection /> : null}
 
         {mainTab === "account" ? (
-          <AccountWorkspaceSection
+          entitlement === "loading" ? (
+            <EntitlementSkeleton variant="hero" />
+          ) : (
+            <AccountWorkspaceSection
             settings={settings}
             setSettings={setSettings}
             profile={profile}
@@ -368,18 +375,23 @@ export function OptionsPage() {
             }}
             onOpenCheckout={() => void gate.openStripeCheckout()}
             onOpenBillingPortal={() => void gate.openCustomerPortal()}
-          />
+            />
+          )
         ) : null}
 
         {mainTab === "import" ? (
-          <ResumeImportSection
-            hydrated={hydrated}
-            settings={settings}
-            profile={profile}
-            setProfile={setProfile}
-            serverFeaturesEnabled={gate.phase === "paid"}
-            onNavigateToTab={setMainTab}
-          />
+          entitlement === "loading" ? (
+            <EntitlementSkeleton variant="resumes" />
+          ) : (
+            <ResumeImportSection
+              hydrated={hydrated}
+              settings={settings}
+              profile={profile}
+              setProfile={setProfile}
+              serverFeaturesEnabled={gate.phase === "paid"}
+              onNavigateToTab={setMainTab}
+            />
+          )
         ) : null}
       </div>
       {tour.currentStep ? (

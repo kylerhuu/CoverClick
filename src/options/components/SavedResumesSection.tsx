@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { useAccessGate } from "../../auth/useAccessGate";
-import { isProPlan } from "../../lib/planAccess";
+import { getEntitlementStatus } from "../../lib/planAccess";
 import { ProLockedPanel } from "../../ui/ProLockedPanel";
+import { EntitlementSkeleton } from "../../ui/EntitlementSkeleton";
 import {
   createVariant,
   loadResumeLibrary,
@@ -49,7 +50,7 @@ function resumeTrackLabel(name: string): string {
 
 export function SavedResumesSection() {
   const gate = useAccessGate();
-  const isPro = isProPlan(gate.phase);
+  const entitlement = getEntitlementStatus(gate.phase);
   const [library, setLibrary] = useState<ResumeLibraryStore | null>(null);
   const [loading, setLoading] = useState(true);
   const [createBusy, setCreateBusy] = useState(false);
@@ -98,7 +99,11 @@ export function SavedResumesSection() {
     }
   };
 
-  if (!isPro) {
+  if (entitlement === "loading") {
+    return <EntitlementSkeleton variant="resumes" />;
+  }
+
+  if (entitlement === "free") {
     return (
       <div className="cc-fade-in mt-4">
         <ProLockedPanel
