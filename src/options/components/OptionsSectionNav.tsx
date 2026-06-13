@@ -1,14 +1,15 @@
 import { cn } from "../../lib/classNames";
-import { ccFocusRing, ccSegmentTab, ccSegmentTrack } from "../../ui/ccUi";
+import { ccFocusRing } from "../../ui/ccUi";
+import { wsNavIndicator, wsNavTab, wsNavTrack } from "../../ui/workspaceUi";
 
 export type OptionsMainTab = "profile" | "resumes" | "applications" | "account" | "import";
 
-const tabs: { id: OptionsMainTab; label: string; description: string }[] = [
-  { id: "profile", label: "Profile", description: "Your details and story" },
-  { id: "resumes", label: "Saved Resumes", description: "Reusable resume versions — source of truth" },
-  { id: "applications", label: "Application Hub", description: "Track saved jobs and application status" },
-  { id: "account", label: "Cloud & billing", description: "Connection, plan, sync" },
-  { id: "import", label: "Import resume", description: "Upload a file · autofill profile fields" },
+const tabs: { id: OptionsMainTab; label: string }[] = [
+  { id: "profile", label: "Profile" },
+  { id: "resumes", label: "Saved Resumes" },
+  { id: "applications", label: "Application Hub" },
+  { id: "account", label: "Cloud & Billing" },
+  { id: "import", label: "Import Resume" },
 ];
 
 type Props = {
@@ -18,30 +19,23 @@ type Props = {
 
 export function OptionsSectionNav({ active, onChange }: Props) {
   return (
-    <nav className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between" aria-label="Options sections">
-      <div className={cn(ccSegmentTrack, "w-full sm:w-auto")} role="tablist">
-        {tabs.map((t) => {
-          const isActive = active === t.id;
-          return (
-            <button
-              key={t.id}
-              type="button"
-              role="tab"
-              aria-selected={isActive}
-              title={t.description}
-              onClick={() => onChange(t.id)}
-              className={cn(
-                "min-h-[40px] flex-1 sm:flex-none sm:min-w-[7.5rem]",
-                ccSegmentTab(isActive),
-                ccFocusRing,
-              )}
-            >
-              {t.label}
-            </button>
-          );
-        })}
-      </div>
-      <p className="text-[12px] leading-snug text-slate-500 sm:text-right">{tabs.find((t) => t.id === active)?.description}</p>
+    <nav className={wsNavTrack} aria-label="Workspace sections">
+      {tabs.map((t) => {
+        const isActive = active === t.id;
+        return (
+          <button
+            key={t.id}
+            type="button"
+            role="tab"
+            aria-selected={isActive}
+            onClick={() => onChange(t.id)}
+            className={cn(wsNavTab(isActive), ccFocusRing)}
+          >
+            {t.label}
+            {isActive ? <span className={wsNavIndicator} aria-hidden /> : null}
+          </button>
+        );
+      })}
     </nav>
   );
 }

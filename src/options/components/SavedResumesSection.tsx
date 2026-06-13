@@ -9,14 +9,39 @@ import {
 import { STORAGE_KEYS } from "../../lib/storageKeys";
 import { cn } from "../../lib/classNames";
 import { WorkspaceApp } from "../../workspace/WorkspaceApp";
-import { ccBtnPrimarySm, ccBtnSecondarySm, ccEyebrow, ccMuted, ccSectionTitle, ccSurfaceQuiet } from "../../ui/ccUi";
+import {
+  WorkspaceActionCard,
+  WorkspaceCard,
+  WorkspaceHero,
+  WorkspaceSection,
+  wsHeroName,
+  wsPageIntro,
+} from "../../ui/workspaceUi";
+import { ccBtnPrimarySm, ccBtnSecondarySm } from "../../ui/ccUi";
 
 function formatUpdatedAt(ts: number): string {
   try {
-    return new Date(ts).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+    const d = new Date(ts);
+    const now = new Date();
+    const isToday =
+      d.getDate() === now.getDate() &&
+      d.getMonth() === now.getMonth() &&
+      d.getFullYear() === now.getFullYear();
+    if (isToday) return "Updated today";
+    return `Updated ${d.toLocaleDateString(undefined, { month: "short", day: "numeric" })}`;
   } catch {
     return "";
   }
+}
+
+function resumeTrackLabel(name: string): string {
+  const lower = name.toLowerCase();
+  if (lower.includes("swe") || lower.includes("software") || lower.includes("engineer")) {
+    return "Software Engineering track";
+  }
+  if (lower.includes("product") || lower.includes("pm")) return "Product track";
+  if (lower.includes("business") || lower.includes("general")) return "Business / general applications";
+  return "Custom resume version";
 }
 
 export function SavedResumesSection() {
@@ -70,7 +95,7 @@ export function SavedResumesSection() {
 
   if (editingVariant) {
     return (
-      <div className="cc-fade-in fixed inset-0 z-40 flex flex-col bg-[#f0f2f6]">
+      <div className="cc-fade-in fixed inset-0 z-40 flex flex-col bg-[#F5F7FB]">
         <WorkspaceApp
           mode="library"
           libraryVariantId={editingVariant.id}
@@ -89,78 +114,61 @@ export function SavedResumesSection() {
   const activeId = library?.activeVariantId ?? "";
 
   return (
-    <div className="cc-fade-in mt-5 space-y-6">
-      <header className="max-w-3xl">
-        <p className={ccEyebrow}>Saved resumes</p>
-        <h2 className={cn(ccSectionTitle, "mt-1")}>Your reusable resume versions</h2>
-        <p className={cn(ccMuted, "mt-2")}>
-          This is where your resumes live. Create versions for different tracks, edit content here, and pick one per job
-          from the side panel.
+    <div className="cc-fade-in mt-4 space-y-6">
+      <WorkspaceHero>
+        <h2 className={wsHeroName}>Saved resumes</h2>
+        <p className={cn(wsPageIntro, "mt-1 max-w-2xl")}>
+          Your resume assets — create versions for different tracks, edit content here, and pick one per job from the side
+          panel.
         </p>
-      </header>
+      </WorkspaceHero>
 
-      <div className={cn(ccSurfaceQuiet, "overflow-hidden")}>
+      <WorkspaceSection title="Resume versions" description="Each version is a tailored asset for different application tracks.">
         {loading ? (
-          <p className="p-4 text-[13px] text-slate-500">Loading saved resumes…</p>
+          <WorkspaceCard>
+            <p className="text-[13px] text-slate-500">Loading saved resumes…</p>
+          </WorkspaceCard>
         ) : variants.length === 0 ? (
-          <p className="p-4 text-[13px] text-slate-500">No saved resumes yet.</p>
+          <WorkspaceCard>
+            <p className="text-[13px] text-slate-500">No saved resumes yet. Create your first version below.</p>
+          </WorkspaceCard>
         ) : (
-          <ul className="divide-y divide-slate-200/70">
+          <div className="space-y-3">
             {variants.map((variant) => {
               const isDefault = variant.id === activeId;
               return (
-                <li key={variant.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3.5">
-                  <div className="min-w-0">
-                    <p className="text-[14px] font-semibold text-slate-900">{variant.name}</p>
-                    <p className="mt-0.5 text-[11px] text-slate-500">
-                      Updated {formatUpdatedAt(variant.updatedAt)}
-                      {isDefault ? (
-                        <span className="ml-2 rounded-full bg-indigo-100 px-2 py-0.5 text-[10px] font-semibold text-indigo-800">
-                          Default
-                        </span>
-                      ) : null}
-                    </p>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    {!isDefault ? (
-                      <button
-                        type="button"
-                        className={ccBtnSecondarySm}
-                        onClick={() => void handleSetDefault(variant.id)}
-                      >
-                        Set as default
-                      </button>
-                    ) : null}
-                    <button
-                      type="button"
-                      className={ccBtnPrimarySm}
-                      onClick={() => {
-                        void (async () => {
-                          if (!isDefault) await setActiveVariant(variant.id);
-                          await refresh();
-                          setEditingVariant(variant);
-                        })();
-                      }}
-                    >
-                      Edit
-                    </button>
-                  </div>
-                </li>
+                <WorkspaceActionCard
+                  key={variant.id}
+                  title={variant.name}
+                  subtitle={resumeTrackLabel(variant.name)}
+                  meta={formatUpdatedAt(variant.updatedAt)}
+                  badge={isDefault ? "Default" : undefined}
+                  actionLabel="Edit resume"
+                  onAction={() => {
+                    void (async () => {
+                      if (!isDefault) await setActiveVariant(variant.id);
+                      await refresh();
+                      setEditingVariant(variant);
+                    })();
+                  }}
+                  secondaryActionLabel={!isDefault ? "Set as default" : undefined}
+                  onSecondaryAction={!isDefault ? () => void handleSetDefault(variant.id) : undefined}
+                />
               );
             })}
-          </ul>
+          </div>
         )}
-      </div>
+      </WorkspaceSection>
 
       {creating ? (
-        <div className={cn(ccSurfaceQuiet, "space-y-3 p-4")}>
+        <WorkspaceCard className="space-y-3">
           <label className="block text-[12px] font-semibold text-slate-800">
             New resume version name
             <input
-              className="mt-1.5 w-full max-w-md rounded-lg border border-slate-200 bg-white px-3 py-2 text-[13px] text-slate-900 outline-none focus:border-indigo-300 focus:ring-2 focus:ring-indigo-500/15"
+              className="mt-1.5 w-full max-w-md rounded-lg border border-slate-200 bg-white px-3 py-2 text-[13px] text-slate-900 outline-none focus:border-[#5B4CF0]/40 focus:ring-2 focus:ring-[#5B4CF0]/15"
               value={draftName}
               maxLength={40}
-              placeholder="e.g. Software Resume"
+              placeholder="e.g. SWE Resume"
               autoFocus
               onChange={(e) => {
                 setDraftName(e.target.value);
@@ -194,7 +202,7 @@ export function SavedResumesSection() {
             </button>
           </div>
           {createError ? <p className="text-[12px] font-medium text-red-700">{createError}</p> : null}
-        </div>
+        </WorkspaceCard>
       ) : (
         <button type="button" className={ccBtnPrimarySm} onClick={() => setCreating(true)}>
           + Create new resume

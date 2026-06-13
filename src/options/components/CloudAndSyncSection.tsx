@@ -5,6 +5,7 @@ import { apiGetServerProfile, apiPutServerProfile } from "../../lib/backendApi";
 import { compactProfileArrays } from "../../lib/profileArrays";
 import { saveProfile } from "../../lib/storage";
 import { cn } from "../../lib/classNames";
+import { WorkspaceCard, WorkspaceSection } from "../../ui/workspaceUi";
 import { ccBtnGhost, ccBtnPrimarySm, ccBtnSecondarySm, ccEyebrow, ccMuted, ccSectionTitle, ccSurfaceQuiet } from "../../ui/ccUi";
 
 type Props = {
@@ -16,6 +17,8 @@ type Props = {
   onSignOut: () => void | Promise<void>;
   onOpenCheckout: () => void | Promise<void>;
   onOpenBillingPortal: () => void | Promise<void>;
+  /** When true, renders as cards inside Account workspace (no page header). */
+  embedded?: boolean;
 };
 
 export function CloudAndSyncSection({
@@ -27,13 +30,14 @@ export function CloudAndSyncSection({
   onSignOut,
   onOpenCheckout,
   onOpenBillingPortal,
+  embedded = false,
 }: Props) {
   const [accountBusy, setAccountBusy] = useState(false);
   const [accountMsg, setAccountMsg] = useState<string | null>(null);
+  const [lastSyncedLabel] = useState("Autosave enabled");
 
   const base = settings.apiBaseUrl.trim();
   const token = settings.authToken?.trim();
-  /** Session may exist in storage before Options `settings` state catches up — still allow billing portal. */
   const hasLikelySession = Boolean(token) || Boolean(settings.authEmail?.trim());
   const canNetwork = hydrated && serverFeaturesEnabled && base.length > 0 && Boolean(token);
 
@@ -50,7 +54,7 @@ export function CloudAndSyncSection({
     try {
       const { profile: remote } = await apiGetServerProfile(base, token);
       if (!remote) {
-        setAccountMsg("Nothing on the server yet — save from this page with Push.");
+        setAccountMsg("Nothing on the server yet — save from Profile to sync.");
         return;
       }
       setProfile(compactProfileArrays(remote));
@@ -78,13 +82,9 @@ export function CloudAndSyncSection({
   }, [base, canNetwork, profile, token]);
 
   if (settings.useMock) {
-    return (
-      <div className="space-y-3">
-        <header>
-          <p className={ccEyebrow}>Cloud</p>
-          <h2 className={cn(ccSectionTitle, "mt-1")}>Account & sync</h2>
-        </header>
-        <div className={cn(ccSurfaceQuiet, "border border-amber-100/80 bg-amber-50/35 px-4 py-3")}>
+    const mockBody = (
+      <div className={cn(embedded ? "" : ccSurfaceQuiet, embedded ? "" : "border border-amber-100/80 bg-amber-50/35 px-4 py-3")}>
+        <WorkspaceCard className="border-amber-100/80 bg-amber-50/30">
           <p className={cn(ccMuted, "text-[13px]")}>
             {import.meta.env.PROD ? (
               <>
@@ -93,72 +93,53 @@ export function CloudAndSyncSection({
               </>
             ) : (
               <>
-                <span className="font-semibold text-amber-950">Demo mode is on.</span> The extension stays offline. Turn off
-                demo mode under Connection to sign in, subscribe, and sync your profile.
+                <span className="font-semibold text-amber-950">Demo mode is on.</span> Turn off demo mode in Advanced
+                settings to sign in, subscribe, and sync your profile.
               </>
             )}
           </p>
-        </div>
+        </WorkspaceCard>
+      </div>
+    );
+
+    if (embedded) {
+      return (
+        <WorkspaceSection title="Cloud & billing">
+          {mockBody}
+        </WorkspaceSection>
+      );
+    }
+
+    return (
+      <div className="space-y-3">
+        <header>
+          <p className={ccEyebrow}>Cloud</p>
+          <h2 className={cn(ccSectionTitle, "mt-1")}>Account & sync</h2>
+        </header>
+        {mockBody}
       </div>
     );
   }
 
-  return (
-    <div className="space-y-5">
-      <header>
-        <p className={ccEyebrow}>Cloud</p>
-        <h2 className={cn(ccSectionTitle, "mt-1")}>Account & sync</h2>
-        <p className={cn(ccMuted, "mt-2 max-w-2xl")}>
-          {serverFeaturesEnabled
-            ? "Your plan is active — sync your profile with the cloud and open billing if you need invoices, payment method, or cancellation."
-            : "Your subscription unlocks live drafting and a profile that follows you across devices."}
-        </p>
-      </header>
-
-      <div className={cn(ccSurfaceQuiet, "px-4 py-4")}>
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-          <div className="min-w-0">
-            {settings.authEmail ? (
-              <>
-                <p className="text-[11px] font-medium uppercase tracking-wide text-slate-500">Signed in</p>
-                <p className="mt-0.5 truncate text-[15px] font-semibold text-slate-900">{settings.authEmail}</p>
-              </>
-            ) : (
-              <p className="text-[13px] text-slate-600">Open the side panel to sign in with Google.</p>
-            )}
-            {!canNetwork ? (
-              <p className="mt-2 text-[12px] leading-snug text-amber-900/90">
-                An active plan is required for cloud sync. Use the side panel to finish checkout if needed.
-              </p>
-            ) : null}
-            {accountMsg ? (
-              <p className="mt-2 text-[12px] text-slate-600" role="status">
-                {accountMsg}
-              </p>
-            ) : null}
-          </div>
-          <div className="flex shrink-0 flex-wrap items-center gap-2">
-            {serverFeaturesEnabled ? (
-              <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-900 ring-1 ring-emerald-200/70">
-                Active plan
-              </span>
-            ) : (
-              <button type="button" className={ccBtnPrimarySm} disabled={accountBusy} onClick={() => void onOpenCheckout()}>
-                Subscribe
-              </button>
-            )}
-            <button
-              type="button"
-              className={ccBtnSecondarySm}
-              disabled={!hasLikelySession || accountBusy}
-              onClick={() => void onOpenBillingPortal()}
-            >
-              Manage billing
-            </button>
-          </div>
+  const syncCard = (
+    <WorkspaceCard>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Cloud sync</p>
+          <p className="mt-1 text-[14px] font-semibold text-slate-900">{lastSyncedLabel}</p>
+          <p className="mt-1 text-[12px] text-slate-500">Profile changes autosave and sync when your plan is active.</p>
+          {!canNetwork ? (
+            <p className="mt-2 text-[12px] leading-snug text-amber-900/90">
+              An active plan is required for cloud sync. Use the side panel to finish checkout if needed.
+            </p>
+          ) : null}
+          {accountMsg ? (
+            <p className="mt-2 text-[12px] text-slate-600" role="status">
+              {accountMsg}
+            </p>
+          ) : null}
         </div>
-
-        <div className="mt-4 flex flex-wrap gap-2 border-t border-slate-200/50 pt-4">
+        <div className="flex shrink-0 flex-wrap gap-2">
           <button
             type="button"
             className={ccBtnSecondarySm}
@@ -175,16 +156,75 @@ export function CloudAndSyncSection({
           >
             Push to cloud
           </button>
+        </div>
+      </div>
+    </WorkspaceCard>
+  );
+
+  const billingCard = (
+    <WorkspaceCard>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Billing</p>
+          <p className="mt-1 text-[14px] font-semibold text-slate-900">
+            {serverFeaturesEnabled ? "Manage your subscription" : "Unlock live generation & sync"}
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          {serverFeaturesEnabled ? (
+            <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-900 ring-1 ring-emerald-200/70">
+              Active plan
+            </span>
+          ) : (
+            <button type="button" className={ccBtnPrimarySm} disabled={accountBusy} onClick={() => void onOpenCheckout()}>
+              Subscribe
+            </button>
+          )}
           <button
             type="button"
-            className={cn(ccBtnGhost, "ml-auto text-slate-500")}
-            disabled={!token || accountBusy}
-            onClick={() => void onLogout()}
+            className={ccBtnPrimarySm}
+            disabled={!hasLikelySession || accountBusy}
+            onClick={() => void onOpenBillingPortal()}
           >
-            Sign out
+            Manage subscription
           </button>
         </div>
       </div>
+      <div className="mt-4 flex justify-end border-t border-slate-100 pt-3">
+        <button
+          type="button"
+          className={cn(ccBtnGhost, "text-slate-500")}
+          disabled={!token || accountBusy}
+          onClick={() => void onLogout()}
+        >
+          Sign out
+        </button>
+      </div>
+    </WorkspaceCard>
+  );
+
+  if (embedded) {
+    return (
+      <div className="space-y-4">
+        <WorkspaceSection title="Cloud & billing">{syncCard}</WorkspaceSection>
+        {billingCard}
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-5">
+      <header>
+        <p className={ccEyebrow}>Cloud</p>
+        <h2 className={cn(ccSectionTitle, "mt-1")}>Account & sync</h2>
+        <p className={cn(ccMuted, "mt-2 max-w-2xl")}>
+          {serverFeaturesEnabled
+            ? "Your plan is active — sync your profile with the cloud and open billing if you need invoices, payment method, or cancellation."
+            : "Your subscription unlocks live drafting and a profile that follows you across devices."}
+        </p>
+      </header>
+      {syncCard}
+      {billingCard}
     </div>
   );
 }

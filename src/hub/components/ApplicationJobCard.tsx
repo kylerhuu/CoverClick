@@ -1,7 +1,5 @@
 import type { JobApplication, JobApplicationStatus } from "../../lib/types";
 import { jobApplicationStatusLabel } from "../../lib/types";
-import { formatRelativeDate } from "../../lib/jobSource";
-import { coverLetterStatus, fitScoreLabel } from "../applicationDisplay";
 import { cn } from "../../lib/classNames";
 import { ccBtnSecondarySm, ccSurfaceQuiet } from "../../ui/ccUi";
 
@@ -21,28 +19,16 @@ export function ApplicationJobCard({
   statusBusy,
 }: Props) {
   return (
-    <article className={cn(ccSurfaceQuiet, "flex flex-col gap-2.5 p-3")}>
+    <article className={cn(ccSurfaceQuiet, "flex flex-col gap-2.5 border border-slate-200/80 p-3 shadow-sm transition-all duration-200 hover:border-[#5B4CF0]/25 hover:shadow-md")}>
       <div className="min-w-0">
-        <p className="truncate text-[12px] font-bold text-slate-900">{application.title || "Untitled role"}</p>
-        <p className="truncate text-[11px] font-medium text-indigo-700">{application.company || "Unknown company"}</p>
+        <p className="truncate text-[13px] font-bold text-slate-900">{application.title || "Untitled role"}</p>
+        <p className="truncate text-[12px] font-semibold text-[#5B4CF0]">{application.company || "Unknown company"}</p>
       </div>
 
-      <div className="grid grid-cols-2 gap-x-2 gap-y-1 text-[10px] text-slate-600">
-        <span>
-          Fit:{" "}
-          <strong className="text-slate-800">
-            {fitScoreLabel(application)}
-          </strong>
-        </span>
-        <span>
-          Letter: <strong className="text-slate-800">{coverLetterStatus(application)}</strong>
-        </span>
-        <span>
-          Source: <strong className="text-slate-800">{application.source || "—"}</strong>
-        </span>
-        <span>
-          Saved: <strong className="text-slate-800">{formatRelativeDate(application.dateSaved)}</strong>
-        </span>
+      <div className="text-[11px] text-slate-500">
+        {application.fitScore != null ? `${application.fitScore}% Match` : null}
+        {application.fitScore != null && application.resumeVariantName ? " · " : null}
+        {application.resumeVariantName ?? null}
       </div>
 
       <div className="flex flex-wrap gap-1.5">

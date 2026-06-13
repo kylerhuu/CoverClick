@@ -27,12 +27,12 @@ export function ApplicationKanban({
             <section
               key={column}
               className={cn(
-                "flex w-[240px] shrink-0 flex-col rounded-xl bg-slate-100/80 ring-1 ring-slate-200/60",
+                "flex w-[260px] shrink-0 flex-col rounded-xl border border-slate-200/90 bg-white shadow-[0_1px_3px_rgba(15,23,42,0.04)]",
               )}
             >
-              <header className="flex items-center justify-between border-b border-slate-200/60 px-3 py-2.5">
+              <header className="flex items-center justify-between border-b border-slate-100 px-3 py-2.5">
                 <h3 className="text-[12px] font-bold text-slate-800">{jobApplicationStatusLabel(column)}</h3>
-                <span className="rounded-full bg-white px-2 py-0.5 text-[10px] font-bold text-slate-600">
+                <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-600">
                   {cards.length}
                 </span>
               </header>

@@ -13,6 +13,8 @@ type Props = {
   showApiAdvanced: boolean;
   setShowApiAdvanced: Dispatch<SetStateAction<boolean>>;
   serverSyncMsg: string | null;
+  /** When true, hide page header and outer advanced toggle (parent provides shell). */
+  embedded?: boolean;
 };
 
 function summarizeOrigin(url: string): { label: string; detail: string } {
@@ -37,6 +39,7 @@ export function ConnectionSettings({
   showApiAdvanced,
   setShowApiAdvanced,
   serverSyncMsg,
+  embedded = false,
 }: Props) {
   const effective = settings.apiBaseUrl.trim();
   const summary = summarizeOrigin(effective);
@@ -58,17 +61,9 @@ export function ConnectionSettings({
     }
   }, [effective]);
 
-  return (
-    <div className="space-y-5">
-      <header>
-        <p className={ccEyebrow}>Connection</p>
-        <h2 className={cn(ccSectionTitle, "mt-1")}>How CoverClick reaches your workspace</h2>
-        <p className={cn(ccMuted, "mt-2 max-w-2xl")}>
-          Letters and profile sync use your CoverClick cloud — not ChatGPT in the tab. Your API keys stay on the server.
-        </p>
-      </header>
-
-      <div className={cn(ccSurfaceQuiet, "px-4 py-3.5")}>
+  const inner = (
+    <>
+      <div className={cn(ccSurfaceQuiet, embedded ? "border-0 bg-transparent p-0 shadow-none" : "px-4 py-3.5")}>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
             <p className="text-[11px] font-medium text-slate-500">Your CoverClick server</p>
@@ -155,49 +150,89 @@ export function ConnectionSettings({
         </div>
       ) : null}
 
-      <div className="border-t border-slate-200/60 pt-4">
-        <button
-          type="button"
-          className={cn(ccBtnGhost, "w-full justify-start text-left text-[12px] text-slate-600")}
-          aria-expanded={showApiAdvanced}
-          onClick={() => setShowApiAdvanced((v) => !v)}
-        >
-          <span
-            className={cn(
-              "mr-2 inline-block w-4 text-center text-slate-400 transition-transform duration-200",
-              showApiAdvanced && "rotate-90",
-            )}
-            aria-hidden
+      {!embedded ? (
+        <div className="border-t border-slate-200/60 pt-4">
+          <button
+            type="button"
+            className={cn(ccBtnGhost, "w-full justify-start text-left text-[12px] text-slate-600")}
+            aria-expanded={showApiAdvanced}
+            onClick={() => setShowApiAdvanced((v) => !v)}
           >
-            ›
-          </span>
-          Advanced: custom API URL
-        </button>
-        {showApiAdvanced ? (
-          <div className="mt-3 pl-1">
-            <Field
-              label="API base URL"
-              hint="For developers or staging. Leave empty to use the packaged default. No trailing slash."
+            <span
+              className={cn(
+                "mr-2 inline-block w-4 text-center text-slate-400 transition-transform duration-200",
+                showApiAdvanced && "rotate-90",
+              )}
+              aria-hidden
             >
-              <input
-                className={fieldInputClass}
-                value={settings.apiOriginOverride ?? ""}
-                onChange={(e) => {
-                  const raw = e.target.value.trim().replace(/\/+$/, "");
-                  setSettings({
-                    ...settings,
-                    apiOriginOverride: raw.length > 0 ? raw : undefined,
-                    apiBaseUrl: resolveApiBaseUrl(raw),
-                  });
-                }}
-                placeholder={hasBuiltInApiOrigin() ? VITE_COVERCLICK_API_ORIGIN : "https://api.example.com"}
-                autoComplete="off"
-                spellCheck={false}
-              />
-            </Field>
-          </div>
-        ) : null}
-      </div>
+              ›
+            </span>
+            Advanced: custom API URL
+          </button>
+          {showApiAdvanced ? (
+            <div className="mt-3 pl-1">
+              <Field
+                label="API base URL"
+                hint="For developers or staging. Leave empty to use the packaged default. No trailing slash."
+              >
+                <input
+                  className={fieldInputClass}
+                  value={settings.apiOriginOverride ?? ""}
+                  onChange={(e) => {
+                    const raw = e.target.value.trim().replace(/\/+$/, "");
+                    setSettings({
+                      ...settings,
+                      apiOriginOverride: raw.length > 0 ? raw : undefined,
+                      apiBaseUrl: resolveApiBaseUrl(raw),
+                    });
+                  }}
+                  placeholder={hasBuiltInApiOrigin() ? VITE_COVERCLICK_API_ORIGIN : "https://api.example.com"}
+                  autoComplete="off"
+                  spellCheck={false}
+                />
+              </Field>
+            </div>
+          ) : null}
+        </div>
+      ) : (
+        <div className="mt-4 space-y-3 border-t border-slate-100 pt-4">
+          <Field
+            label="API base URL"
+            hint="For developers or staging. Leave empty to use the packaged default."
+          >
+            <input
+              className={fieldInputClass}
+              value={settings.apiOriginOverride ?? ""}
+              onChange={(e) => {
+                const raw = e.target.value.trim().replace(/\/+$/, "");
+                setSettings({
+                  ...settings,
+                  apiOriginOverride: raw.length > 0 ? raw : undefined,
+                  apiBaseUrl: resolveApiBaseUrl(raw),
+                });
+              }}
+              placeholder={hasBuiltInApiOrigin() ? VITE_COVERCLICK_API_ORIGIN : "https://api.example.com"}
+              autoComplete="off"
+              spellCheck={false}
+            />
+          </Field>
+        </div>
+      )}
+    </>
+  );
+
+  if (embedded) return <div className="space-y-4">{inner}</div>;
+
+  return (
+    <div className="space-y-5">
+      <header>
+        <p className={ccEyebrow}>Connection</p>
+        <h2 className={cn(ccSectionTitle, "mt-1")}>How CoverClick reaches your workspace</h2>
+        <p className={cn(ccMuted, "mt-2 max-w-2xl")}>
+          Letters and profile sync use your CoverClick cloud — not ChatGPT in the tab. Your API keys stay on the server.
+        </p>
+      </header>
+      {inner}
     </div>
   );
 }
