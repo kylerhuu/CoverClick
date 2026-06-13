@@ -39,7 +39,6 @@ import {
   projectTrimImpact,
 } from "../../lib/resumeTrimSuggestions";
 import { loadResumeStudioLayoutSettings, saveResumeStudioLayoutSettings } from "../../lib/storage";
-import { degreeLabel } from "../../lib/resumeEducation";
 import { ResumePreview } from "./resume/ResumePreview";
 
 type Props = {
@@ -604,17 +603,10 @@ export function ResumeStudioPane({
                 value={edu.degreeType ?? "Other"}
                 onChange={(e) => {
                   const degreeType = e.target.value as (typeof degreeTypeOptions)[number];
-                  const major = edu.major.trim();
                   onResumeChange({
                     ...resume,
                     education: resume.education.map((x, i) =>
-                      i === idx
-                        ? {
-                            ...x,
-                            degreeType,
-                            degree: major ? "" : degreeLabel(degreeType),
-                          }
-                        : x,
+                      i === idx ? { ...x, degreeType } : x,
                     ),
                   });
                 }}

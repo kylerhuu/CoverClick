@@ -31,8 +31,6 @@ export function normalizeEducationItem<T extends ResumeEducationItem>(entry: T):
     } else if (degree.toLowerCase() === label.toLowerCase()) {
       degree = "";
     }
-  } else if (!degree && type !== "Other") {
-    degree = label;
   }
 
   return {
@@ -43,17 +41,13 @@ export function normalizeEducationItem<T extends ResumeEducationItem>(entry: T):
   };
 }
 
-/** Degree line for preview/export — uses explicit degree or falls back to degree type label. */
+/** Degree line for preview/export — only explicit stored degree text. */
 export function educationDegreeLine(entry: ResumeEducationItem): string {
   const major = trim(entry.major);
   const explicit = trim(entry.degree);
-  const label = entry.degreeType ? degreeLabel(entry.degreeType) : "";
-
-  if (explicit) {
-    if (major && explicit.toLowerCase() === major.toLowerCase()) return label || explicit;
-    return explicit;
-  }
-  return label;
+  if (!explicit) return "";
+  if (major && explicit.toLowerCase() === major.toLowerCase()) return "";
+  return explicit;
 }
 
 /** Major line for preview/export — omits text already shown on the degree line. */
