@@ -15,7 +15,7 @@ import { cleanJobDescriptionWithOpenAI } from "./cleanJobDescriptionOpenAI.js";
 import { generateCoverLetterWithOpenAI } from "./generateCoverLetterOpenAI.js";
 import { generateResumeSummaryWithOpenAI } from "./generateResumeSummaryWithOpenAI.js";
 import { resumeOptimizeForJobWithOpenAI } from "./resumeOptimizeForJobWithOpenAI.js";
-import { hasPaidSubscription, subscriptionStatusFromStripe } from "./access.js";
+import { hasPaidSubscription, subscriptionStatusFromStripe, serializeEntitlements, canGenerateCoverLetter, FREE_COVER_LETTER_LIMIT } from "./access.js";
 import {
   computeApplicationStats,
   createJobApplication,
@@ -598,7 +598,7 @@ app.post("/api/auth/exchange", authIpLimiter, async (req, res) => {
   res.json({
     token,
     user: { id: user.id, email: user.email },
-    hasPaidAccess: hasPaidSubscription(user.subscriptionStatus),
+    ...serializeEntitlements(user),
     subscriptionStatus: user.subscriptionStatus,
     subscriptionPeriodEnd: user.subscriptionPeriodEnd?.toISOString() ?? null,
   });
@@ -616,8 +616,8 @@ app.get("/api/me", authMiddleware, async (req, res) => {
       id: user.id,
       email: user.email,
       subscriptionStatus: user.subscriptionStatus,
-      hasPaidAccess: hasPaidSubscription(user.subscriptionStatus),
       subscriptionPeriodEnd: user.subscriptionPeriodEnd?.toISOString() ?? null,
+      ...serializeEntitlements(user),
     });
   } catch (e) {
     res.status(500).json({ error: publicApiError(e) });
@@ -680,8 +680,8 @@ app.post("/api/billing/sync-subscription", authMiddleware, async (req, res) => {
       id: updated.id,
       email: updated.email,
       subscriptionStatus: updated.subscriptionStatus,
-      hasPaidAccess: hasPaidSubscription(updated.subscriptionStatus),
       subscriptionPeriodEnd: updated.subscriptionPeriodEnd?.toISOString() ?? null,
+      ...serializeEntitlements(updated),
     });
   } catch (e) {
     console.error("[sync-subscription]", e);
@@ -862,15 +862,41 @@ app.post("/api/clean-job-description", authMiddleware, requirePaidMiddleware, au
   }
 });
 
-app.post("/api/generate-cover-letter", authMiddleware, requirePaidMiddleware, authedAiLimiter, async (req, res) => {
+app.post("/api/generate-cover-letter", authMiddleware, authedAiLimiter, async (req, res) => {
   try {
     if (!isGenerationRequest(req.body)) {
       res.status(400).json({ error: "Invalid body: expected profile, job, tone, emphasis, length, responseShape." });
       return;
     }
+    const userId = (req as express.Request & { auth: Authed }).auth.userId;
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user) {
+      res.status(404).json({ error: "User not found." });
+      return;
+    }
+    if (!canGenerateCoverLetter(user)) {
+      res.status(403).json({
+        error: "You've used all free cover letter generations. Upgrade to Pro for unlimited letters.",
+        code: "FREE_CREDITS_EXHAUSTED",
+        freeCoverLetterGenerationsRemaining: 0,
+        freeCoverLetterLimit: FREE_COVER_LETTER_LIMIT,
+      });
+      return;
+    }
+
     const variationSeed = `${req.body.job.pageUrl}|${randomBytes(8).toString("hex")}`;
     const out = await generateCoverLetterWithOpenAI(req.body, { variationSeed });
-    res.json(out);
+
+    let entitlements = serializeEntitlements(user);
+    if (!hasPaidSubscription(user.subscriptionStatus)) {
+      const updated = await prisma.user.update({
+        where: { id: userId },
+        data: { freeCoverLetterGenerationsUsed: { increment: 1 } },
+      });
+      entitlements = serializeEntitlements(updated);
+    }
+
+    res.json({ ...out, ...entitlements });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Generation failed";
     const status = msg.includes("OPENAI_API_KEY") ? 503 : 500;
@@ -912,7 +938,7 @@ function isUpdateApplicationBody(body: unknown): body is UpdateApplicationInput 
   return Boolean(body && typeof body === "object");
 }
 
-app.get("/api/applications", authMiddleware, requirePaidMiddleware, async (req, res) => {
+app.get("/api/applications", authMiddleware, async (req, res) => {
   try {
     const userId = (req as express.Request & { auth: Authed }).auth.userId;
     const rows = await prisma.jobApplication.findMany({
@@ -928,7 +954,7 @@ app.get("/api/applications", authMiddleware, requirePaidMiddleware, async (req, 
   }
 });
 
-app.get("/api/applications/by-url", authMiddleware, requirePaidMiddleware, async (req, res) => {
+app.get("/api/applications/by-url", authMiddleware, async (req, res) => {
   try {
     const userId = (req as express.Request & { auth: Authed }).auth.userId;
     const jobUrl = normalizeJobUrl(typeof req.query.url === "string" ? req.query.url : "");
@@ -950,7 +976,7 @@ app.get("/api/applications/by-url", authMiddleware, requirePaidMiddleware, async
   }
 });
 
-app.get("/api/applications/:id", authMiddleware, requirePaidMiddleware, async (req, res) => {
+app.get("/api/applications/:id", authMiddleware, async (req, res) => {
   try {
     const userId = (req as express.Request & { auth: Authed }).auth.userId;
     const id = req.params.id;
@@ -970,7 +996,7 @@ app.get("/api/applications/:id", authMiddleware, requirePaidMiddleware, async (r
   }
 });
 
-app.post("/api/applications", authMiddleware, requirePaidMiddleware, async (req, res) => {
+app.post("/api/applications", authMiddleware, async (req, res) => {
   const authed = (req as express.Request & { auth: Authed }).auth;
   try {
     const parsed = parseCreateApplicationBody(req.body);
@@ -983,21 +1009,37 @@ app.post("/api/applications", authMiddleware, requirePaidMiddleware, async (req,
       return;
     }
 
+    const user = await prisma.user.findUnique({ where: { id: authed.userId } });
+    if (!user) {
+      res.status(404).json({ error: "User not found." });
+      return;
+    }
+    const isPaid = hasPaidSubscription(user.subscriptionStatus);
+
     console.info("[POST /api/applications] save request", {
       userId: authed.userId,
       jobUrl: parsed.input.jobUrl,
       company: parsed.input.company,
       title: parsed.input.title,
       source: parsed.input.source,
+      isPaid,
     });
 
-    const { application, alreadySaved } = await createJobApplication(prisma, authed.userId, parsed.input);
-    runPreparationPipeline(prisma, application.id);
+    const { application, alreadySaved } = await createJobApplication(prisma, authed.userId, parsed.input, {
+      forFreeTier: !isPaid,
+    });
+    if (isPaid) {
+      runPreparationPipeline(prisma, application.id);
+    }
 
     res.status(alreadySaved ? 200 : 201).json({
       application,
       alreadySaved,
-      message: alreadySaved ? "Job already saved — re-preparing application materials." : undefined,
+      message: alreadySaved
+        ? isPaid
+          ? "Job already saved — re-preparing application materials."
+          : "Job already saved."
+        : undefined,
     });
   } catch (e) {
     logApplicationRouteError("POST /api/applications", e, {
@@ -1008,7 +1050,7 @@ app.post("/api/applications", authMiddleware, requirePaidMiddleware, async (req,
   }
 });
 
-app.patch("/api/applications/:id", authMiddleware, requirePaidMiddleware, async (req, res) => {
+app.patch("/api/applications/:id", authMiddleware, async (req, res) => {
   try {
     if (!isUpdateApplicationBody(req.body)) {
       res.status(400).json({ error: "Invalid body." });
@@ -1031,7 +1073,7 @@ app.patch("/api/applications/:id", authMiddleware, requirePaidMiddleware, async 
   }
 });
 
-app.delete("/api/applications/:id", authMiddleware, requirePaidMiddleware, async (req, res) => {
+app.delete("/api/applications/:id", authMiddleware, async (req, res) => {
   try {
     const userId = (req as express.Request & { auth: Authed }).auth.userId;
     const removed = await deleteJobApplication(prisma, userId, req.params.id);

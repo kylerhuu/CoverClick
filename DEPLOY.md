@@ -91,13 +91,21 @@ Use your host’s secrets manager or env injection instead of committing `.env`.
 
 ### Bake the API URL
 
-Create **`.env`** in the **repo root** (not `server/`):
+The repo includes a committed **`.env.production`** at the root with the public production API URL:
+
+```bash
+VITE_COVERCLICK_API_ORIGIN=https://coverclick-production.up.railway.app
+```
+
+This value is **not a secret** — it is baked into the extension bundle and visible in network requests. Only server credentials (`server/.env`) must stay private.
+
+For a different API host, edit `.env.production` before building, or override locally with a gitignored **`.env`** / **`.env.local`**:
 
 ```bash
 VITE_COVERCLICK_API_ORIGIN=https://YOUR_API_HOST
 ```
 
-Optional: `VITE_USE_MOCK=false`
+Optional: `VITE_USE_MOCK=true` in `.env` for local UI-only dev (never use in store builds).
 
 ### Build and zip
 

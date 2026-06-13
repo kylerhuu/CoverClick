@@ -4,5 +4,6 @@ dist
 *.log
 .env
 .env.local
-.env.production
+# Root .env.production is committed (public VITE_COVERCLICK_API_ORIGIN only).
+# Server secrets stay in server/.env (never commit).
 coverclick-extension.zip

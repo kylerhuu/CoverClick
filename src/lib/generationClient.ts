@@ -106,7 +106,7 @@ export async function requestCoverLetterGeneration(settings: AppSettings, body: 
 
   const token = settings.authToken?.trim();
   if (!token) {
-    throw new Error("Sign in with Google in the CoverClick side panel (and an active subscription) to generate letters.");
+    throw new Error("Sign in with Google in the CoverClick side panel to generate letters.");
   }
   const base = normalizeApiOrigin(settings.apiBaseUrl);
   if (!base) {
@@ -134,13 +134,18 @@ export async function requestCoverLetterGeneration(settings: AppSettings, body: 
 
   if (!res.ok) {
     let msg = await res.text().catch(() => "");
+    let code: string | undefined;
     try {
-      const j = JSON.parse(msg) as { error?: string };
+      const j = JSON.parse(msg) as { error?: string; code?: string };
       if (typeof j.error === "string" && j.error.trim()) msg = j.error.trim();
+      if (typeof j.code === "string" && j.code.trim()) code = j.code.trim();
     } catch {
       // keep text
     }
-    throw new Error(msg || `Generation failed (${res.status})`);
+    const err = new Error(msg || `Generation failed (${res.status})`) as Error & { status?: number; code?: string };
+    err.status = res.status;
+    err.code = code;
+    throw err;
   }
 
   const json: unknown = await res.json();
