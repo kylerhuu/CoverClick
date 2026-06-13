@@ -2,6 +2,8 @@ import { useState } from "react";
 import type { JobApplication } from "../../lib/types";
 import { formatRelativeDate } from "../../lib/jobSource";
 import {
+  detailHeroFitLine,
+  detailHeroResumeLine,
   detailHeroStatusLabel,
   getPreparedAssetItems,
 } from "../applicationDisplay";
@@ -11,8 +13,9 @@ import { cn } from "../../lib/classNames";
 import {
   ccAboutRoleSurface,
   ccBtnGhost,
-  ccBtnPrimary,
   ccBtnSecondarySm,
+  ccDetailHeroFit,
+  ccDetailHeroResume,
   ccDetailPrimaryCta,
   ccDetailStatusPillApplied,
   ccDetailStatusPillPreparing,
@@ -57,6 +60,8 @@ export function ApplicationDetailPanel({
   const isPreparing = application.status === "PREPARING";
   const isReady = application.status === "READY_TO_APPLY";
   const preparedItems = getPreparedAssetItems(application);
+  const fitLine = detailHeroFitLine(application);
+  const resumeLine = detailHeroResumeLine(application);
   const showMarkApplied =
     application.status !== "APPLIED" && application.status !== "INTERVIEWING" && application.status !== "OFFER";
   const primaryCtaLabel = isReady ? "Continue Application" : "View Materials";
@@ -64,13 +69,13 @@ export function ApplicationDetailPanel({
   const descriptionLong = description.length > 220;
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-5 px-4 py-4">
+    <div className="flex min-h-0 flex-1 flex-col gap-3 px-4 py-3">
       <button type="button" className={cn(ccBtnGhost, "self-start px-0")} onClick={onBack}>
         ← Back to Application Hub
       </button>
 
-      <div className="flex min-h-0 flex-1 flex-col gap-5">
-        <div className="space-y-3">
+      <div className="flex min-h-0 flex-1 flex-col gap-3">
+        <div className="space-y-2">
           <span className={detailStatusPillClass(application)}>
             {detailHeroStatusLabel(application)}
           </span>
@@ -78,23 +83,25 @@ export function ApplicationDetailPanel({
           <div>
             <h2 className={ccOpportunityTitle}>{application.title || "Untitled role"}</h2>
             <p className={ccOpportunityCompany}>{application.company || "Unknown company"}</p>
-            {application.source ? (
-              <p className={ccOpportunitySource}>{application.source}</p>
+            {fitLine ? <p className={cn(ccDetailHeroFit, "mt-1.5")}>{fitLine}</p> : null}
+            {resumeLine ? <p className={cn(ccDetailHeroResume, "mt-0.5")}>{resumeLine}</p> : null}
+            {application.source && !isReady ? (
+              <p className={cn(ccOpportunitySource, "mt-1")}>{application.source}</p>
+            ) : null}
+            {isReady && preparedItems.length > 0 ? (
+              <p className={cn(ccDetailTransitionLine, "mt-2")}>Prepared by CoverClick</p>
             ) : null}
           </div>
 
           {isReady && preparedItems.length > 0 ? (
-            <>
-              <p className={ccDetailTransitionLine}>Prepared by CoverClick</p>
-              <PreparedAssets application={application} />
-            </>
+            <PreparedAssets application={application} />
           ) : null}
 
           {isPreparing ? (
             <PreparationProgress
               steps={application.preparationSteps}
               error={application.preparationError}
-              className="rounded-2xl border border-indigo-200/60 bg-indigo-50/40 p-3.5"
+              className="rounded-xl border border-indigo-200/50 bg-indigo-50/30 p-3"
             />
           ) : null}
 
@@ -103,14 +110,15 @@ export function ApplicationDetailPanel({
           ) : null}
         </div>
 
-        <div className="mt-auto space-y-2.5">
+        <div className="space-y-2">
           {!isPreparing ? (
-            <button
-              type="button"
-              className={isReady ? ccDetailPrimaryCta : cn(ccBtnPrimary, "w-full rounded-xl py-3")}
-              onClick={onViewMaterials}
-            >
-              {primaryCtaLabel}
+            <button type="button" className={ccDetailPrimaryCta} onClick={onViewMaterials}>
+              <span className="text-[14px] font-semibold">{primaryCtaLabel}</span>
+              {isReady ? (
+                <span className="mt-0.5 text-[11px] font-normal text-indigo-100/90">
+                  Review, edit, and submit your application
+                </span>
+              ) : null}
             </button>
           ) : null}
           <div className="grid grid-cols-2 gap-2">

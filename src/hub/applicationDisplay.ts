@@ -223,52 +223,67 @@ export function hubListRelativeTime(app: JobApplication): string | null {
   return relative ? `Saved ${relative.toLowerCase()}` : null;
 }
 
-/** One muted metadata line for hub cards — resume and/or fit only. */
+/** One muted metadata line for hub cards — fit first, then resume. */
 export function hubListMetadataLine(app: JobApplication): string {
   if (app.status === "PREPARING" || app.status === "SAVED") return "";
   const parts: string[] = [];
+  if (app.fitScore != null) parts.push(`${app.fitScore}% fit`);
   const resume = app.resumeVariantName?.trim();
   if (resume) parts.push(resume);
-  if (app.fitScore != null) parts.push(`${app.fitScore}% fit`);
   return parts.join(" · ");
+}
+
+/** Hub card status line (sentence case, not pill). */
+export function hubListStatusLine(app: JobApplication): string {
+  switch (app.status) {
+    case "READY_TO_APPLY":
+      return "Ready to apply";
+    case "PREPARING":
+      return "Preparing";
+    case "SAVED":
+      return "Saved";
+    case "APPLIED":
+      return "Applied";
+    case "INTERVIEWING":
+      return "Interviewing";
+    case "OFFER":
+      return "Offer";
+    default:
+      return hubListStatusLabel(app);
+  }
+}
+
+/** Detail hero — fit match line. */
+export function detailHeroFitLine(app: JobApplication): string | null {
+  if (app.fitScore == null) return null;
+  return `${app.fitScore}% Match`;
+}
+
+/** Detail hero — resume line. */
+export function detailHeroResumeLine(app: JobApplication): string | null {
+  const name = app.resumeVariantName?.trim();
+  if (!name) return app.resumeVariantId ? "Resume selected" : null;
+  return `Resume: ${name}`;
 }
 
 export type PreparedAssetItem = {
   id: string;
-  title: string;
-  subtitle: string;
-  icon: "materials" | "resume" | "fit";
+  iconLabel: string;
+  assetName: string;
 };
 
-/** Visual prepared-asset tiles for detail briefing. */
+/** Asset tiles for detail briefing — objects, not completed tasks. */
 export function getPreparedAssetItems(app: JobApplication): PreparedAssetItem[] {
   const items: PreparedAssetItem[] = [];
   if (app.coverLetterDraft) {
-    items.push({
-      id: "materials",
-      title: "Materials prepared",
-      subtitle: "Cover letter and assets ready",
-      icon: "materials",
-    });
+    items.push({ id: "materials", iconLabel: "CL", assetName: "Cover Letter" });
   }
   const resume = app.resumeVariantName?.trim();
   if (resume || app.resumeVariantId) {
-    items.push({
-      id: "resume",
-      title: "Resume selected",
-      subtitle: resume || "Resume variant selected",
-      icon: "resume",
-    });
+    items.push({ id: "resume", iconLabel: "CV", assetName: "Resume" });
   }
   if (app.fitScore != null) {
-    const tone = fitScoreTone(app);
-    const qualifier = tone === "strong" ? " · Strong fit" : tone === "moderate" ? " · Good fit" : "";
-    items.push({
-      id: "fit",
-      title: "Fit score generated",
-      subtitle: `${app.fitScore}% match${qualifier}`,
-      icon: "fit",
-    });
+    items.push({ id: "fit", iconLabel: "FT", assetName: `${app.fitScore}% Match` });
   }
   return items;
 }

@@ -2,7 +2,7 @@ import type { JobApplication } from "../../lib/types";
 import {
   hubListMetadataLine,
   hubListProgressLine,
-  hubListStatusLabel,
+  hubListStatusLine,
 } from "../applicationDisplay";
 import { cn } from "../../lib/classNames";
 import {
@@ -11,14 +11,14 @@ import {
   ccHubCardPreparing,
   ccHubCardReady,
   ccHubListArrow,
-  ccHubListArrowReady,
   ccHubListCard,
   ccHubListCardSelected,
   ccHubListMetadata,
   ccHubListProgress,
-  ccHubStatusPillApplied,
-  ccHubStatusPillPreparing,
-  ccHubStatusPillReady,
+  ccHubListStatusApplied,
+  ccHubListStatusPreparing,
+  ccHubListStatusReady,
+  ccOpportunityTitle,
 } from "../../ui/ccUi";
 
 type Props = {
@@ -39,39 +39,24 @@ function hubCardVariantClass(application: JobApplication): string {
   }
 }
 
-function statusPillClass(application: JobApplication): string {
+function hubStatusLineClass(application: JobApplication): string {
   switch (application.status) {
     case "READY_TO_APPLY":
-      return ccHubStatusPillReady;
+      return ccHubListStatusReady;
     case "PREPARING":
     case "SAVED":
-      return ccHubStatusPillPreparing;
+      return ccHubListStatusPreparing;
     default:
-      return ccHubStatusPillApplied;
-  }
-}
-
-function statusPillLabel(application: JobApplication): string {
-  switch (application.status) {
-    case "READY_TO_APPLY":
-      return "Ready to apply";
-    case "PREPARING":
-      return "Preparing";
-    case "SAVED":
-      return "Saved";
-    case "APPLIED":
-      return "Applied";
-    default:
-      return hubListStatusLabel(application);
+      return ccHubListStatusApplied;
   }
 }
 
 export function ApplicationListRow({ application, selected, onClick }: Props) {
-  const isReady = application.status === "READY_TO_APPLY";
   const isPreparing = application.status === "PREPARING" || application.status === "SAVED";
   const progressLine = hubListProgressLine(application);
   const metadata = hubListMetadataLine(application);
-  const showArrow = !isPreparing;
+  const statusLine = hubListStatusLine(application);
+  const showArrow = application.status !== "PREPARING";
 
   return (
     <button
@@ -85,38 +70,35 @@ export function ApplicationListRow({ application, selected, onClick }: Props) {
       )}
     >
       <div className="min-w-0 flex-1">
-        <div className="flex items-center justify-between gap-2">
-          <span className={statusPillClass(application)}>{statusPillLabel(application)}</span>
-          {showArrow ? (
-            <span className={isReady ? ccHubListArrowReady : ccHubListArrow} aria-hidden>
-              →
-            </span>
-          ) : null}
-        </div>
-
         <p
           className={cn(
-            "mt-2 truncate leading-snug text-slate-900",
-            selected ? "text-[14px] font-bold" : "text-[14px] font-semibold",
+            "truncate leading-snug",
+            ccOpportunityTitle,
+            "text-[15px]",
+            selected && "font-extrabold",
           )}
         >
           {application.title || "Untitled role"}
         </p>
-        <p className="mt-0.5 truncate text-[12px] font-medium text-slate-500">
+        <p className="truncate text-[12px] font-medium text-slate-500">
           {application.company || "Unknown company"}
         </p>
-
+        <p className={cn("mt-1 truncate", hubStatusLineClass(application))}>{statusLine}</p>
         {metadata ? <p className={ccHubListMetadata}>{metadata}</p> : null}
-
         {application.status === "PREPARING" && progressLine ? (
           <p className={ccHubListProgress}>
             <span className="cc-spinner h-2.5 w-2.5 shrink-0 border-[1.5px]" aria-hidden />
             <span className="truncate">{progressLine}</span>
           </p>
         ) : isPreparing && application.status === "SAVED" ? (
-          <p className={cn(ccHubListMetadata, "text-amber-700/80")}>Preparing materials…</p>
+          <p className={cn(ccHubListMetadata, "text-amber-700/90")}>Preparing materials…</p>
         ) : null}
       </div>
+      {showArrow ? (
+        <span className={ccHubListArrow} aria-hidden>
+          →
+        </span>
+      ) : null}
     </button>
   );
 }

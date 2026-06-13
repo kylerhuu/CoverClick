@@ -6,13 +6,13 @@ import { jobSourceFromUrl } from "../../lib/jobSource";
 import { cn } from "../../lib/classNames";
 import {
   ccAboutRoleSurface,
-  ccBtnApply,
   ccBtnDecisionSecondary,
   ccFocusRing,
-  ccHeroTitle,
   ccMetadataLabel,
   ccMuted,
   ccOpportunityCompany,
+  ccOpportunityTitle,
+  ccPrimaryCtaLg,
   ccTertiaryText,
 } from "../../ui/ccUi";
 import { ResumeVariantSelector } from "./ResumeVariantSelector";
@@ -78,8 +78,8 @@ export function CurrentJobSection({
   const descriptionLong = (job?.descriptionText?.trim().length ?? 0) > 180;
 
   return (
-    <div className="space-y-5">
-      <section className="space-y-4">
+    <div className="space-y-3">
+      <section className="space-y-3">
         <div className="flex items-center justify-between gap-3 text-[12px] text-slate-500">
           <span className="inline-flex min-w-0 items-center gap-2">
             {detection === "scanning" ? (
@@ -105,7 +105,7 @@ export function CurrentJobSection({
         </div>
 
         <div>
-          <h1 className={ccHeroTitle}>
+          <h1 className={ccOpportunityTitle}>
             {scrapeBusy ? "Reading posting…" : job?.jobTitle?.trim() || "Open a job posting"}
           </h1>
           {job?.companyName?.trim() ? (
@@ -127,10 +127,10 @@ export function CurrentJobSection({
           onSelect={onSelectResumeVariant}
         />
 
-        <div className="space-y-2.5">
-          <button type="button" className={cn(ccBtnApply, "w-full")} disabled={!canAct} onClick={onApplyNow}>
-            <span className="block text-[15px] font-semibold">Apply now</span>
-            <span className="mt-0.5 block text-[11px] font-normal text-indigo-100/90">
+        <div className="space-y-2">
+          <button type="button" className={ccPrimaryCtaLg} disabled={!canAct} onClick={onApplyNow}>
+            <span className="text-[14px] font-semibold">Apply now</span>
+            <span className="mt-0.5 text-[11px] font-normal text-indigo-100/90">
               Generate your cover letter, review, and download
             </span>
           </button>
@@ -140,10 +140,8 @@ export function CurrentJobSection({
             disabled={!canAct || saveBusy}
             onClick={onSaveForLater}
           >
-            <span className="block text-[13px] font-semibold">
-              {saveBusy ? "Saving…" : "Save for later"}
-            </span>
-            <span className="mt-0.5 block text-[11px] font-medium text-slate-500">
+            <span className="text-[13px] font-semibold">{saveBusy ? "Saving…" : "Save for later"}</span>
+            <span className="mt-0.5 text-[11px] font-medium text-slate-500">
               Save to Application Hub and prepare in the background
             </span>
           </button>
