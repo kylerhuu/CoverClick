@@ -5,23 +5,31 @@ type Props = {
 };
 
 export function HubSummaryChips({ saved, ready, preparing }: Props) {
+  const parts: string[] = [];
+  if (ready > 0) {
+    parts.push(`${ready} ready to apply`);
+  }
+  if (preparing > 0) {
+    parts.push(`${preparing} preparing`);
+  }
+  if (parts.length === 0 && saved > 0) {
+    parts.push(`${saved} saved`);
+  }
+
+  if (parts.length === 0) return null;
+
   return (
     <p className="text-[12px] text-slate-500">
-      <span>
-        Saved <span className="font-medium text-slate-700">{saved}</span>
-      </span>
-      <span className="mx-1.5 text-slate-300" aria-hidden>
-        ·
-      </span>
-      <span>
-        Ready <span className="font-medium text-slate-700">{ready}</span>
-      </span>
-      <span className="mx-1.5 text-slate-300" aria-hidden>
-        ·
-      </span>
-      <span>
-        Preparing <span className="font-medium text-slate-700">{preparing}</span>
-      </span>
+      {parts.map((part, index) => (
+        <span key={part}>
+          {index > 0 ? (
+            <span className="mx-1.5 text-slate-300" aria-hidden>
+              ·
+            </span>
+          ) : null}
+          <span className="font-medium text-slate-600">{part}</span>
+        </span>
+      ))}
     </p>
   );
 }

@@ -18,7 +18,7 @@ import { ApplicationListRow } from "../../hub/components/ApplicationListRow";
 import { HubSummaryChips } from "../../hub/components/HubSummaryChips";
 import { WorkspaceApp } from "../../workspace/WorkspaceApp";
 import { cn } from "../../lib/classNames";
-import { ccHubListSurface, ccHubSectionHeader, ccPagePadding, ccPageTitle } from "../../ui/ccUi";
+import { ccHubListCardGap, ccHubListSurface, ccHubSectionHeader, ccPagePadding, ccPageTitle } from "../../ui/ccUi";
 
 export type HubSubview = "list" | "detail" | "materials";
 
@@ -190,7 +190,7 @@ export function SidePanelHubView({
                   {hubSectionTitle(section.status)} ({section.applications.length})
                 </span>
               </h3>
-              <div className="space-y-1.5 pb-2.5">
+              <div className={cn(ccHubListCardGap, "pb-3")}>
                 {section.applications.map((app) => (
                   <ApplicationListRow
                     key={app.id}

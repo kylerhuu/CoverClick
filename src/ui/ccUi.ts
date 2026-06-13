@@ -110,21 +110,48 @@ export const ccSurfaceQuiet = cn("rounded-xl bg-white/70 ring-1 ring-slate-200/4
 /** Tinted canvas behind grouped hub cards. */
 export const ccHubListSurface = "bg-slate-100/45";
 
-/** Compact hub surface card — tactile, selectable object (not a flat row). */
+/** Compact hub surface card — tactile queue object (Linear / issue-row feel). */
 export const ccHubListCard = cn(
-  "group flex w-full cursor-pointer items-start gap-2.5 rounded-[9px] border border-slate-200/85 bg-white px-3 py-2.5 text-left",
-  "transition-[box-shadow,border-color,background-color] duration-150",
-  "hover:border-slate-300 hover:shadow-[0_2px_8px_rgba(15,23,42,0.05)]",
-  "active:border-slate-300/90 active:shadow-[0_1px_3px_rgba(15,23,42,0.04)]",
+  "group relative flex w-full cursor-pointer items-start gap-2.5 rounded-[11px] border border-slate-200 bg-white px-3.5 py-3 text-left",
+  "transition-[box-shadow,border-color,transform] duration-150",
+  "hover:border-slate-300 hover:shadow-[0_3px_10px_rgba(15,23,42,0.06)]",
+  "active:scale-[0.998] active:shadow-[0_1px_4px_rgba(15,23,42,0.04)]",
 );
 
 export const ccHubListCardSelected = cn(
-  "border-indigo-300/90 bg-indigo-50/40 shadow-[0_1px_4px_rgba(79,70,229,0.07)]",
-  "hover:border-indigo-400/80 hover:bg-indigo-50/55 hover:shadow-[0_3px_10px_rgba(79,70,229,0.09)]",
-  "active:bg-indigo-50/50",
+  "border-indigo-300 bg-indigo-50/35 shadow-[0_1px_4px_rgba(79,70,229,0.07)]",
+  "hover:border-indigo-400/90 hover:bg-indigo-50/50 hover:shadow-[0_3px_12px_rgba(79,70,229,0.1)]",
 );
 
-export const ccHubSectionHeader = "flex items-center gap-2 px-0.5 pb-1.5 pt-3.5 text-[11px] font-semibold text-slate-500 first:pt-2";
+export const ccHubCardReady = "border-l-[3px] border-l-emerald-500 pl-[calc(0.875rem-1px)]";
+
+export const ccHubCardPreparing = "border-l-[3px] border-l-amber-400 pl-[calc(0.875rem-1px)]";
+
+export const ccHubCardApplied = "";
+
+export const ccHubListStatusReady = "text-[11px] font-bold uppercase tracking-wide text-emerald-700";
+
+export const ccHubListStatusPreparing = "text-[11px] font-semibold text-amber-800";
+
+export const ccHubListStatusMuted = "text-[11px] font-medium text-slate-400";
+
+export const ccHubListProgress = "mt-0.5 flex items-center gap-1.5 text-[11px] font-medium text-indigo-600";
+
+export const ccHubListArrow = cn(
+  "shrink-0 text-[14px] font-medium leading-none text-slate-300 transition-colors duration-150",
+  "group-hover:text-slate-500",
+);
+
+export const ccHubSectionHeader = "flex items-center gap-2 px-0.5 pb-2 pt-3.5 text-[11px] font-semibold text-slate-500 first:pt-2";
+
+export const ccHubListCardGap = "space-y-3.5";
+
+/** Detail command center — hero readiness status. */
+export const ccDetailHeroStatus = "text-[12px] font-bold uppercase tracking-wide";
+
+export const ccDetailReadinessBlock = "space-y-2 rounded-xl border border-emerald-200/70 bg-emerald-50/40 px-3.5 py-3";
+
+export const ccDetailReadinessLine = "flex items-start gap-2 text-[12px] font-medium text-emerald-900";
 
 /** @deprecated Use ccHubListCard — kept for any legacy imports. */
 export const ccHubListRow = ccHubListCard;

@@ -1,5 +1,6 @@
 import type { JobApplication, JobApplicationStatus } from "../lib/types";
 import { jobApplicationStatusLabel } from "../lib/types";
+import { formatRelativeDate } from "../lib/jobSource";
 
 /** Sort priority: READY_TO_APPLY → PREPARING → APPLIED → ARCHIVED (and related statuses). */
 const STATUS_SORT_PRIORITY: Record<JobApplicationStatus, number> = {
@@ -167,7 +168,130 @@ export function statusListTextClass(status: JobApplicationStatus): string {
   }
 }
 
-/** Dot-separated metadata for hub list rows. */
+/** Uppercase status label for hub list cards. */
+export function hubListStatusLabel(app: JobApplication): string {
+  switch (app.status) {
+    case "READY_TO_APPLY":
+      return "Ready to apply";
+    case "PREPARING":
+      return "Preparing materials…";
+    case "SAVED":
+      return "Saved";
+    case "APPLIED":
+      return "Applied";
+    case "INTERVIEWING":
+      return "Interviewing";
+    case "OFFER":
+      return "Offer";
+    case "REJECTED":
+      return "Rejected";
+    case "ARCHIVED":
+      return "Archived";
+    default:
+      return jobApplicationStatusLabel(app.status);
+  }
+}
+
+/** Single active progress line for preparing hub list cards. */
+export function hubListProgressLine(app: JobApplication): string | null {
+  if (app.status !== "PREPARING") return null;
+  const steps = app.preparationSteps ?? {
+    jobSaved: false,
+    fitAnalyzed: false,
+    coverLetterDrafted: false,
+    resumeSuggestionsGenerated: false,
+  };
+  const order: { key: keyof typeof steps; label: string }[] = [
+    { key: "jobSaved", label: "Saving job" },
+    { key: "fitAnalyzed", label: "Calculating fit score" },
+    { key: "coverLetterDrafted", label: "Generating cover letter" },
+    { key: "resumeSuggestionsGenerated", label: "Tailoring resume" },
+  ];
+  for (let i = 0; i < order.length; i++) {
+    const { key, label } = order[i];
+    const done = steps[key];
+    const prevDone = i === 0 || steps[order[i - 1].key];
+    if (!done && prevDone) return label;
+  }
+  return "Generating application assets";
+}
+
+/** Optional relative time for ready hub list cards. */
+export function hubListRelativeTime(app: JobApplication): string | null {
+  if (app.status !== "READY_TO_APPLY") return null;
+  const relative = formatRelativeDate(app.dateSaved);
+  return relative ? `Saved ${relative.toLowerCase()}` : null;
+}
+
+export type DetailReadinessLine = {
+  label: string;
+};
+
+/** Readiness checklist lines for the detail command center (ready jobs only). */
+export function detailReadinessLines(app: JobApplication): DetailReadinessLine[] {
+  if (app.status !== "READY_TO_APPLY") return [];
+  const lines: DetailReadinessLine[] = [];
+  if (app.coverLetterDraft) {
+    lines.push({ label: "Materials prepared" });
+  }
+  const resume = app.resumeVariantName?.trim();
+  if (resume) {
+    lines.push({ label: `Resume selected · ${resume}` });
+  } else if (app.resumeVariantId) {
+    lines.push({ label: "Resume selected" });
+  }
+  if (app.fitScore != null) {
+    lines.push({ label: `Fit score generated · ${app.fitScore}%` });
+  }
+  if (lines.length === 0) {
+    lines.push({ label: "Materials prepared" });
+  }
+  return lines;
+}
+
+/** Hero status label for detail view. */
+export function detailHeroStatusLabel(app: JobApplication): string {
+  switch (app.status) {
+    case "READY_TO_APPLY":
+      return "Ready to apply";
+    case "PREPARING":
+      return "Preparing";
+    case "APPLIED":
+      return "Applied";
+    case "INTERVIEWING":
+      return "Interviewing";
+    case "OFFER":
+      return "Offer";
+    case "REJECTED":
+      return "Rejected";
+    case "ARCHIVED":
+      return "Archived";
+    case "SAVED":
+      return "Saved";
+    default:
+      return jobApplicationStatusLabel(app.status);
+  }
+}
+
+export function detailHeroStatusClass(status: JobApplicationStatus): string {
+  switch (status) {
+    case "READY_TO_APPLY":
+      return "text-emerald-700";
+    case "PREPARING":
+    case "SAVED":
+      return "text-amber-800";
+    case "APPLIED":
+    case "INTERVIEWING":
+    case "OFFER":
+      return "text-sky-700";
+    case "REJECTED":
+      return "text-rose-700";
+    default:
+      return "text-slate-500";
+  }
+}
+
+/** @deprecated Hub list uses status rows; metadata lives in detail view. */
 export function hubListMetadataLine(app: JobApplication): string {
   const parts: string[] = [];
   const letter = coverLetterStatus(app);
@@ -189,7 +313,7 @@ export function hubListMetadataLine(app: JobApplication): string {
 export function hubSectionTitle(status: JobApplicationStatus): string {
   switch (status) {
     case "READY_TO_APPLY":
-      return "Ready";
+      return "Ready to apply";
     case "PREPARING":
       return "Preparing";
     case "SAVED":
