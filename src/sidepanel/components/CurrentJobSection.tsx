@@ -60,6 +60,7 @@ type Props = {
   onSaveForLater: () => void;
   currentTabSaved?: JobApplication | null;
   preparingInBackground?: boolean;
+  profileReady?: boolean;
 };
 
 export function CurrentJobSection({
@@ -75,12 +76,13 @@ export function CurrentJobSection({
   onSaveForLater,
   currentTabSaved,
   preparingInBackground,
+  profileReady = true,
 }: Props) {
   const [descriptionExpanded, setDescriptionExpanded] = useState(false);
   const source = job?.pageUrl ? jobSourceFromUrl(job.pageUrl) : "";
   const detection = detectionState(scrapeBusy, scrapeError, job);
   const hasResume = resumeVariants.length > 0;
-  const canAct = Boolean(job?.pageUrl) && !scrapeBusy && hasResume;
+  const canAct = Boolean(job?.pageUrl) && !scrapeBusy && hasResume && profileReady;
   const hasDescription = Boolean(job?.descriptionText?.trim());
   const descriptionLong = (job?.descriptionText?.trim().length ?? 0) > 180;
   const activeResume = resumeVariants.find((v) => v.id === activeResumeVariantId) ?? resumeVariants[0];
@@ -189,6 +191,11 @@ export function CurrentJobSection({
         )}
 
         <div className="space-y-2">
+          {!profileReady ? (
+            <p className="text-[11px] leading-snug text-amber-800">
+              Complete your profile setup above before generating a cover letter.
+            </p>
+          ) : null}
           <button type="button" className={ccPrimaryCtaLg} disabled={!canAct} onClick={onApplyNow}>
             <div className="text-left">
               <span className="text-[14px] font-semibold">Apply Now</span>

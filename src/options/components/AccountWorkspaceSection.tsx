@@ -17,6 +17,7 @@ type Props = {
   setShowApiAdvanced: Dispatch<SetStateAction<boolean>>;
   serverSyncMsg: string | null;
   onSignOut: () => void | Promise<void>;
+  onDeleteAccount: () => void | Promise<void>;
   onOpenCheckout: () => void | Promise<void>;
   onOpenBillingPortal: () => void | Promise<void>;
 };
@@ -32,6 +33,7 @@ export function AccountWorkspaceSection({
   setShowApiAdvanced,
   serverSyncMsg,
   onSignOut,
+  onDeleteAccount,
   onOpenCheckout,
   onOpenBillingPortal,
 }: Props) {
@@ -67,6 +69,7 @@ export function AccountWorkspaceSection({
         setProfile={setProfile}
         serverFeaturesEnabled={serverFeaturesEnabled}
         onSignOut={onSignOut}
+        onDeleteAccount={onDeleteAccount}
         onOpenCheckout={onOpenCheckout}
         onOpenBillingPortal={onOpenBillingPortal}
         embedded

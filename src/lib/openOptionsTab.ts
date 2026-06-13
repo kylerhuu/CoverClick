@@ -1,6 +1,6 @@
 const OPTIONS_TAB_KEY = "coverclick_options_tab";
 
-export type OptionsDeepLinkTab = "resumes" | "applications";
+export type OptionsDeepLinkTab = "profile" | "import" | "resumes" | "applications";
 
 export async function requestOptionsTab(tab: OptionsDeepLinkTab): Promise<void> {
   await chrome.storage.local.set({ [OPTIONS_TAB_KEY]: tab });
@@ -9,7 +9,7 @@ export async function requestOptionsTab(tab: OptionsDeepLinkTab): Promise<void> 
 
 export function readRequestedOptionsTab(data: Record<string, unknown>): OptionsDeepLinkTab | null {
   const raw = data[OPTIONS_TAB_KEY];
-  if (raw === "resumes" || raw === "applications") return raw;
+  if (raw === "profile" || raw === "import" || raw === "resumes" || raw === "applications") return raw;
   return null;
 }
 

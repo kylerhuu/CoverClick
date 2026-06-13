@@ -8,7 +8,12 @@ import type {
   StructuredResume,
   UserProfile,
 } from "./types";
-import { DEFAULT_GENERATION_PREFS, DEFAULT_SETTINGS, EMPTY_PROFILE, EMPTY_STRUCTURED_RESUME } from "./types";
+import {
+  DEFAULT_GENERATION_PREFS,
+  DEFAULT_SETTINGS,
+  EMPTY_PROFILE,
+  EMPTY_STRUCTURED_RESUME,
+} from "./types";
 import { parseStructuredLetter } from "./generationNormalize";
 import { STORAGE_KEYS } from "./storageKeys";
 import { hasBuiltInApiOrigin, resolveApiBaseUrl, VITE_COVERCLICK_API_ORIGIN } from "./apiOrigin";
@@ -287,6 +292,32 @@ export async function saveCachedLetter(cache: CachedLetter): Promise<void> {
 /** Clears the last generated letter cache (call on sign-out to avoid showing another account’s letter). */
 export async function clearCachedLetter(): Promise<void> {
   await chrome.storage.local.remove(LETTER_CACHE_KEY);
+}
+
+/**
+ * Wipes locally stored profile, resumes, applications, and auth session.
+ * Keeps API connection settings (and mock flag) so the extension can sign in again.
+ */
+export async function clearLocalUserData(): Promise<AppSettings> {
+  await chrome.storage.local.remove([
+    PROFILE_KEY,
+    PREFS_KEY,
+    LETTER_CACHE_KEY,
+    STORAGE_KEYS.resumeStudio,
+    STORAGE_KEYS.resumeStudioLayout,
+    STORAGE_KEYS.resumeLibrary,
+    STORAGE_KEYS.applications,
+    "coverclick_options_tab",
+  ]);
+  const s = await loadSettings();
+  const next: AppSettings = {
+    ...s,
+    authToken: undefined,
+    authEmail: undefined,
+  };
+  await saveSettings(next);
+  await saveProfile({ ...EMPTY_PROFILE });
+  return next;
 }
 
 export function normalizeStructuredResume(raw: unknown): StructuredResume {

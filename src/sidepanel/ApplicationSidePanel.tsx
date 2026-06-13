@@ -15,10 +15,12 @@ import {
 } from "../lib/resumeLibrary";
 import { applyScrapedCompanyDefaults } from "../lib/jobCompanyScrape";
 import { requestJobContextFromActiveTab } from "../lib/tabScrape";
-import { STORAGE_KEYS, loadSettings } from "../lib/storage";
+import { STORAGE_KEYS, loadProfile, loadSettings } from "../lib/storage";
+import { isProfileReadyForGeneration } from "../lib/profileReadiness";
 import { WorkspaceApp } from "../workspace/WorkspaceApp";
 import { cn } from "../lib/classNames";
 import { CurrentJobSection } from "./components/CurrentJobSection";
+import { ProfileSetupGuide } from "./components/ProfileSetupGuide";
 import { SidePanelHeader } from "./components/SidePanelHeader";
 import { SidePanelHubView, type HubSubview } from "./components/SidePanelHubView";
 import { SidePanelModeNav, type SidePanelMode } from "./components/SidePanelModeNav";
@@ -43,7 +45,13 @@ export function ApplicationSidePanel() {
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saveNotice, setSaveNotice] = useState<string | null>(null);
   const [settings, setSettings] = useState({ useMock: true, authToken: "", apiBaseUrl: "" });
+  const [profileReady, setProfileReady] = useState(false);
   const pollAbortRef = useRef<AbortController | null>(null);
+
+  const refreshProfileReady = useCallback(async () => {
+    const profile = await loadProfile();
+    setProfileReady(isProfileReadyForGeneration(profile));
+  }, []);
 
   const refreshResumeLibrary = useCallback(async () => {
     const library = await loadResumeLibrary();
@@ -88,6 +96,16 @@ export function ApplicationSidePanel() {
     );
     setCurrentTabSaved(existing);
   }, [job?.pageUrl, settings]);
+
+  useEffect(() => {
+    void refreshProfileReady();
+    const onStorage = (changes: Record<string, chrome.storage.StorageChange>, area: string) => {
+      if (area !== "local") return;
+      if (changes[STORAGE_KEYS.profile]) void refreshProfileReady();
+    };
+    chrome.storage.onChanged.addListener(onStorage);
+    return () => chrome.storage.onChanged.removeListener(onStorage);
+  }, [refreshProfileReady]);
 
   useEffect(() => {
     void loadSettings().then((s) =>
@@ -224,6 +242,11 @@ export function ApplicationSidePanel() {
 
   const activeResumeVariantId = resumeLibrary?.activeVariantId ?? "";
 
+  const handleApplyNow = useCallback(() => {
+    if (!profileReady) return;
+    setScanSubview("apply");
+  }, [profileReady]);
+
   return (
     <div className={cn("flex h-screen min-h-[360px] w-full min-w-0 flex-col overflow-hidden text-slate-900 antialiased", ccBgApp)}>
       <SidePanelHeader />
@@ -264,6 +287,7 @@ export function ApplicationSidePanel() {
         ) : (
           <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
             <div className={ccPagePadding}>
+              <ProfileSetupGuide className="mb-3" />
               <CurrentJobSection
                 job={job}
                 scrapeBusy={scrapeBusy}
@@ -273,7 +297,8 @@ export function ApplicationSidePanel() {
                 activeResumeVariantId={activeResumeVariantId}
                 onSelectResumeVariant={(id) => void handleSelectResumeVariant(id)}
                 onRescan={() => void refreshScrape()}
-                onApplyNow={() => setScanSubview("apply")}
+                onApplyNow={handleApplyNow}
+                profileReady={profileReady}
                 onSaveForLater={() => void handleSaveForLater()}
                 currentTabSaved={currentTabSaved}
                 preparingInBackground={preparingCurrentTab}

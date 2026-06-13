@@ -12,9 +12,10 @@ import type {
   StructuredCoverLetter,
   UserProfile,
 } from "../lib/types";
+import { EMPTY_PROFILE, EMPTY_STRUCTURED_RESUME } from "../lib/types";
 import { applicationToJobContext, tailoringToOptimizePreview } from "../hub/applicationContext";
 import { pollApplicationUntilReady } from "../lib/applicationsApi";
-import { EMPTY_PROFILE, EMPTY_STRUCTURED_RESUME } from "../lib/types";
+import { isProfileReadyForGeneration } from "../lib/profileReadiness";
 import { generateCoverLetter, resolveStructuredLetter } from "../lib/api";
 import { downloadResumeDocx } from "../lib/exportResumeDocx";
 import { downloadResumePdf } from "../lib/exportResumePdf";
@@ -559,6 +560,11 @@ function withStableResumeIds(resume: StructuredResume): StructuredResume {
 
   const runGeneration = useCallback(async () => {
     if (!job) return;
+    const profileNow = profileRef.current;
+    if (!isProfileReadyForGeneration(profileNow)) {
+      setError("Set up your profile first — import your resume and review Profile in Options.");
+      return;
+    }
     setGenBusy(true);
     setError(null);
     setStatus(null);

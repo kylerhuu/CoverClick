@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import type { AppSettings, DefaultTone, UserProfile } from "../lib/types";
+import { ProfileSetupGuide } from "../sidepanel/components/ProfileSetupGuide";
 import { DEFAULT_SETTINGS, EMPTY_PROFILE } from "../lib/types";
 import { cn } from "../lib/classNames";
 import { compactProfileArrays } from "../lib/profileArrays";
@@ -75,6 +76,8 @@ export function OptionsPage() {
       const hash = window.location.hash.replace(/^#/, "").split("?")[0];
       if (hash === "applications") setMainTab("applications");
       if (hash === "resumes") setMainTab("resumes");
+      if (hash === "profile") setMainTab("profile");
+      if (hash === "import") setMainTab("import");
     };
     applyHash();
     window.addEventListener("hashchange", applyHash);
@@ -87,6 +90,8 @@ export function OptionsPage() {
       const tab = readRequestedOptionsTab(data);
       if (tab === "resumes") setMainTab("resumes");
       if (tab === "applications") setMainTab("applications");
+      if (tab === "profile") setMainTab("profile");
+      if (tab === "import") setMainTab("import");
       if (tab) await clearRequestedOptionsTab();
     })();
   }, []);
@@ -302,13 +307,20 @@ export function OptionsPage() {
         ) : null}
 
         {mainTab === "profile" ? (
-          <ProfileWorkspaceSection
-            profile={profile}
-            setProfile={setProfile}
-            settings={settings}
-            tones={tones}
-            onNavigateImport={() => setMainTab("import")}
-          />
+          <>
+            <ProfileSetupGuide
+              className="mt-4"
+              onOpenImport={() => setMainTab("import")}
+              onOpenProfile={() => setMainTab("profile")}
+            />
+            <ProfileWorkspaceSection
+              profile={profile}
+              setProfile={setProfile}
+              settings={settings}
+              tones={tones}
+              onNavigateImport={() => setMainTab("import")}
+            />
+          </>
         ) : null}
 
         {mainTab === "resumes" ? (
@@ -332,20 +344,32 @@ export function OptionsPage() {
               await gate.signOut();
               setSettings(await loadSettings());
             }}
+            onDeleteAccount={async () => {
+              await gate.deleteAccount();
+              setProfile({ ...EMPTY_PROFILE });
+              setSettings(await loadSettings());
+            }}
             onOpenCheckout={() => void gate.openStripeCheckout()}
             onOpenBillingPortal={() => void gate.openCustomerPortal()}
           />
         ) : null}
 
         {mainTab === "import" ? (
-          <ResumeImportSection
-            hydrated={hydrated}
-            settings={settings}
-            profile={profile}
-            setProfile={setProfile}
-            serverFeaturesEnabled={gate.phase === "paid"}
-            onNavigateToTab={setMainTab}
-          />
+          <>
+            <ProfileSetupGuide
+              className="mt-4"
+              onOpenImport={() => setMainTab("import")}
+              onOpenProfile={() => setMainTab("profile")}
+            />
+            <ResumeImportSection
+              hydrated={hydrated}
+              settings={settings}
+              profile={profile}
+              setProfile={setProfile}
+              serverFeaturesEnabled={gate.phase === "paid"}
+              onNavigateToTab={setMainTab}
+            />
+          </>
         ) : null}
       </div>
       <OptionsBuildFootnote />

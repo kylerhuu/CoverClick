@@ -624,6 +624,30 @@ app.get("/api/me", authMiddleware, async (req, res) => {
   }
 });
 
+/** Permanently delete the signed-in account and all server-side data (profile, applications, etc.). */
+app.delete("/api/me", authMiddleware, async (req, res) => {
+  try {
+    const userId = (req as express.Request & { auth: Authed }).auth.userId;
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user) {
+      res.status(404).json({ error: "User not found." });
+      return;
+    }
+    if (stripe && user.stripeSubscriptionId) {
+      try {
+        await stripe.subscriptions.cancel(user.stripeSubscriptionId);
+      } catch (e) {
+        console.warn("[DELETE /api/me] Stripe subscription cancel failed:", e);
+      }
+    }
+    await prisma.user.delete({ where: { id: userId } });
+    res.json({ ok: true });
+  } catch (e) {
+    console.error("[DELETE /api/me]", e);
+    res.status(500).json({ error: publicApiError(e) });
+  }
+});
+
 /**
  * Pull subscription state from Stripe for this user’s customer and mirror it into the DB.
  * Use after checkout when webhooks are delayed or misconfigured (e.g. live vs test webhook secret).

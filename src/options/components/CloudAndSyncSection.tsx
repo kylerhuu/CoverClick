@@ -15,6 +15,7 @@ type Props = {
   hydrated: boolean;
   serverFeaturesEnabled: boolean;
   onSignOut: () => void | Promise<void>;
+  onDeleteAccount: () => void | Promise<void>;
   onOpenCheckout: () => void | Promise<void>;
   onOpenBillingPortal: () => void | Promise<void>;
   /** When true, renders as cards inside Account workspace (no page header). */
@@ -28,6 +29,7 @@ export function CloudAndSyncSection({
   hydrated,
   serverFeaturesEnabled,
   onSignOut,
+  onDeleteAccount,
   onOpenCheckout,
   onOpenBillingPortal,
   embedded = false,
@@ -35,6 +37,8 @@ export function CloudAndSyncSection({
   const [accountBusy, setAccountBusy] = useState(false);
   const [accountMsg, setAccountMsg] = useState<string | null>(null);
   const [lastSyncedLabel] = useState("Autosave enabled");
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState("");
 
   const base = settings.apiBaseUrl.trim();
   const token = settings.authToken?.trim();
@@ -46,6 +50,26 @@ export function CloudAndSyncSection({
     await onSignOut();
     setAccountMsg("Signed out.");
   }, [onSignOut]);
+
+  const accountEmail = settings.authEmail?.trim() ?? "";
+  const deleteEmailMatches =
+    accountEmail.length > 0 && deleteConfirm.trim().toLowerCase() === accountEmail.toLowerCase();
+
+  const onConfirmDelete = useCallback(async () => {
+    if (!deleteEmailMatches) return;
+    setAccountBusy(true);
+    setAccountMsg(null);
+    try {
+      await onDeleteAccount();
+      setDeleteOpen(false);
+      setDeleteConfirm("");
+      setAccountMsg("Your account and local data were deleted.");
+    } catch (e) {
+      setAccountMsg(e instanceof Error ? e.message : "Could not delete account");
+    } finally {
+      setAccountBusy(false);
+    }
+  }, [deleteEmailMatches, onDeleteAccount]);
 
   const onPull = useCallback(async () => {
     if (!canNetwork || !token) return;
@@ -203,11 +227,78 @@ export function CloudAndSyncSection({
     </WorkspaceCard>
   );
 
+  const dangerCard = (
+    <WorkspaceCard className="border-red-100/90">
+      <p className="text-[11px] font-semibold uppercase tracking-wide text-red-700/80">Danger zone</p>
+      <p className="mt-1 text-[14px] font-semibold text-slate-900">Delete account</p>
+      <p className="mt-1 text-[12px] leading-relaxed text-slate-600">
+        Permanently remove your account, email, cloud profile, saved applications, and local extension data. Active
+        subscriptions are cancelled. This cannot be undone.
+      </p>
+      {!deleteOpen ? (
+        <button
+          type="button"
+          className={cn(
+            "mt-3 rounded-lg border border-red-200 bg-red-50/50 px-3 py-1.5 text-[12px] font-semibold text-red-800 hover:bg-red-50",
+            "disabled:pointer-events-none disabled:opacity-45",
+          )}
+          disabled={!token || accountBusy}
+          onClick={() => {
+            setDeleteOpen(true);
+            setDeleteConfirm("");
+            setAccountMsg(null);
+          }}
+        >
+          Delete my account…
+        </button>
+      ) : (
+        <div className="mt-3 space-y-2 rounded-lg border border-red-100 bg-red-50/30 px-3 py-3">
+          <p className="text-[12px] text-slate-700">
+            Type <span className="font-semibold text-slate-900">{accountEmail || "your email"}</span> to confirm.
+          </p>
+          <input
+            type="email"
+            className="w-full rounded-lg border border-red-200/80 bg-white px-3 py-2 text-[13px] text-slate-900"
+            value={deleteConfirm}
+            autoComplete="off"
+            placeholder={accountEmail || "you@example.com"}
+            onChange={(e) => setDeleteConfirm(e.target.value)}
+          />
+          <div className="flex flex-wrap gap-2 pt-1">
+            <button
+              type="button"
+              className={cn(
+                "rounded-lg bg-red-700 px-3 py-1.5 text-[12px] font-semibold text-white hover:bg-red-800",
+                "disabled:pointer-events-none disabled:opacity-45",
+              )}
+              disabled={!deleteEmailMatches || accountBusy}
+              onClick={() => void onConfirmDelete()}
+            >
+              {accountBusy ? "Deleting…" : "Permanently delete"}
+            </button>
+            <button
+              type="button"
+              className={ccBtnGhost}
+              disabled={accountBusy}
+              onClick={() => {
+                setDeleteOpen(false);
+                setDeleteConfirm("");
+              }}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+    </WorkspaceCard>
+  );
+
   if (embedded) {
     return (
       <div className="space-y-4">
         <WorkspaceSection title="Cloud & billing">{syncCard}</WorkspaceSection>
         {billingCard}
+        <WorkspaceSection title="Privacy">{dangerCard}</WorkspaceSection>
       </div>
     );
   }
@@ -225,6 +316,7 @@ export function CloudAndSyncSection({
       </header>
       {syncCard}
       {billingCard}
+      {dangerCard}
     </div>
   );
 }

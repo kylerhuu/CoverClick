@@ -92,6 +92,15 @@ export async function apiGetMe(apiBaseUrl: string, token: string): Promise<Accou
   return res.json() as Promise<AccountMeResponse>;
 }
 
+/** Permanently delete the signed-in account and all server-side data. */
+export async function apiDeleteAccount(apiBaseUrl: string, token: string): Promise<void> {
+  const res = await apiFetch(apiUrl(apiBaseUrl, "/api/me"), {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  await requireOk(res);
+}
+
 /** Reconcile subscription from Stripe API (helps when webhooks use the wrong secret or are delayed). */
 export async function apiSyncSubscription(apiBaseUrl: string, token: string): Promise<AccountMeResponse> {
   const res = await apiFetch(apiUrl(apiBaseUrl, "/api/billing/sync-subscription"), {

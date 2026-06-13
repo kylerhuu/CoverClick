@@ -4,11 +4,12 @@ import {
   ApiHttpError,
   apiCreateCheckoutSession,
   apiCreatePortalSession,
+  apiDeleteAccount,
   apiGetMe,
   apiSyncSubscription,
 } from "../lib/backendApi";
 import { signInWithGoogleChrome } from "../lib/googleChromeAuth";
-import { STORAGE_KEYS, clearCachedLetter, loadSettings, saveSettings } from "../lib/storage";
+import { STORAGE_KEYS, clearCachedLetter, clearLocalUserData, loadSettings, saveSettings } from "../lib/storage";
 
 export type AccessPhase =
   | "loading"
@@ -119,6 +120,32 @@ export function useAccessGate() {
     setPhase(s.useMock ? "mock" : "signed_out");
   }, []);
 
+  const deleteAccount = useCallback(async () => {
+    const s = await loadSettings();
+    const t = s.authToken?.trim();
+    const base = s.apiBaseUrl.trim();
+    if (!base) {
+      throw new Error("No API server URL configured.");
+    }
+    if (!t) {
+      throw new Error("You’re not signed in.");
+    }
+    setAuthBusy(true);
+    setAuthError(null);
+    try {
+      await apiDeleteAccount(base, t);
+      await clearLocalUserData();
+      setMe(null);
+      setPhase(s.useMock ? "mock" : "signed_out");
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Could not delete account";
+      setAuthError(msg);
+      throw e;
+    } finally {
+      setAuthBusy(false);
+    }
+  }, []);
+
   const openStripeCheckout = useCallback(async () => {
     const s = await loadSettings();
     const t = s.authToken?.trim();
@@ -183,6 +210,7 @@ export function useAccessGate() {
     refresh,
     signInWithGoogle,
     signOut,
+    deleteAccount,
     openStripeCheckout,
     openCustomerPortal,
   };
