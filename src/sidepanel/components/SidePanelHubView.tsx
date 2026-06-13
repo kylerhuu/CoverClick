@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { JobApplication } from "../../lib/types";
 import {
   formatApplicationApiError,
@@ -8,6 +8,7 @@ import {
 } from "../../lib/applicationsApi";
 import { loadSettings } from "../../lib/storage";
 import {
+  filterApplicationsByHubSearch,
   groupApplicationsForHubList,
   hubSectionDotClass,
   hubSectionTitle,
@@ -18,7 +19,14 @@ import { ApplicationListRow } from "../../hub/components/ApplicationListRow";
 import { HubSummaryChips } from "../../hub/components/HubSummaryChips";
 import { WorkspaceApp } from "../../workspace/WorkspaceApp";
 import { cn } from "../../lib/classNames";
-import { ccHubListCardGap, ccHubSectionHeader, ccPagePadding, ccPageTitle } from "../../ui/ccUi";
+import {
+  ccFocusRing,
+  ccHubListCardGap,
+  ccHubSearchInput,
+  ccHubSectionHeader,
+  ccPagePadding,
+  ccPageTitle,
+} from "../../ui/ccUi";
 
 export type HubSubview = "list" | "detail" | "materials";
 
@@ -42,6 +50,7 @@ export function SidePanelHubView({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [markAppliedBusy, setMarkAppliedBusy] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
   const [settings, setSettings] = useState({ useMock: true, authToken: "", apiBaseUrl: "" });
 
   const refresh = useCallback(async () => {
@@ -140,8 +149,13 @@ export function SidePanelHubView({
     );
   }
 
-  const sections = groupApplicationsForHubList(applications);
+  const filteredApplications = useMemo(
+    () => filterApplicationsByHubSearch(applications, searchQuery),
+    [applications, searchQuery],
+  );
+  const sections = groupApplicationsForHubList(filteredApplications);
   const summary = hubSummaryCounts(applications);
+  const hasSearchQuery = searchQuery.trim().length > 0;
 
   const openApplication = (app: JobApplication) => {
     onSelectedIdChange(app.id);
@@ -159,6 +173,41 @@ export function SidePanelHubView({
         </div>
       ) : null}
 
+      {applications.length > 0 ? (
+        <div className="relative mt-2.5">
+          <svg
+            className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
+            viewBox="0 0 16 16"
+            fill="none"
+            aria-hidden="true"
+          >
+            <circle cx="7" cy="7" r="4.5" stroke="currentColor" strokeWidth="1.4" />
+            <path d="M10.5 10.5L13 13" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+          </svg>
+          <input
+            type="search"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search by title or company"
+            aria-label="Search applications by title or company"
+            className={cn(ccHubSearchInput, hasSearchQuery && "pr-14")}
+          />
+          {hasSearchQuery ? (
+            <button
+              type="button"
+              className={cn(
+                "absolute right-2 top-1/2 -translate-y-1/2 rounded-md px-1.5 py-0.5 text-[11px] font-medium text-slate-500 hover:text-slate-800",
+                ccFocusRing,
+              )}
+              onClick={() => setSearchQuery("")}
+              aria-label="Clear search"
+            >
+              Clear
+            </button>
+          ) : null}
+        </div>
+      ) : null}
+
       {error ? (
         <p className="mt-4 text-[12px] font-medium text-red-700">{error}</p>
       ) : null}
@@ -171,6 +220,10 @@ export function SidePanelHubView({
       ) : applications.length === 0 ? (
         <p className="py-10 text-center text-[12px] leading-relaxed text-slate-500">
           No saved jobs yet. Switch to Current job and choose Save for later.
+        </p>
+      ) : filteredApplications.length === 0 ? (
+        <p className="py-10 text-center text-[12px] leading-relaxed text-slate-500">
+          No jobs match &ldquo;{searchQuery.trim()}&rdquo;. Try a different title or company.
         </p>
       ) : (
         <div className="mt-2 -mx-4 flex min-h-0 flex-1 flex-col overflow-y-auto px-4 pb-3">

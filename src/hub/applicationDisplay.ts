@@ -457,3 +457,19 @@ export function groupApplicationsForHubList(apps: JobApplication[]): HubListSect
   }
   return sections;
 }
+
+/** Match hub search against job title or company (case-insensitive). */
+export function applicationMatchesHubSearch(app: JobApplication, query: string): boolean {
+  const q = query.trim().toLowerCase();
+  if (!q) return true;
+  const title = (app.title || "").toLowerCase();
+  const company = (app.company || "").toLowerCase();
+  return title.includes(q) || company.includes(q);
+}
+
+/** Filter applications for hub list search. */
+export function filterApplicationsByHubSearch(apps: JobApplication[], query: string): JobApplication[] {
+  const q = query.trim();
+  if (!q) return apps;
+  return apps.filter((app) => applicationMatchesHubSearch(app, q));
+}

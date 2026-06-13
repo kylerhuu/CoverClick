@@ -296,6 +296,13 @@ export const ccCountBadge = cn(
   "ml-1.5 inline-flex min-w-[1.125rem] items-center justify-center rounded-full bg-indigo-100 px-1.5 py-0.5 text-[9px] font-bold text-[#5B4CF0]",
 );
 
+export const ccHubSearchInput = cn(
+  "w-full rounded-xl border border-slate-200/90 bg-white px-3 py-2 pl-9 text-[13px] text-slate-900 shadow-[0_1px_3px_rgba(15,23,42,0.04)]",
+  "placeholder:text-slate-400",
+  "focus:border-[#5B4CF0]/40 focus:outline-none focus:ring-2 focus:ring-[#5B4CF0]/15",
+  ccFocusRing,
+);
+
 export const ccWorkspaceToolbar = cn(
   "flex shrink-0 items-center justify-between gap-3 border-b border-slate-100/80 bg-[#F5F7FB]/95 px-3 py-1.5 backdrop-blur-sm",
 );
