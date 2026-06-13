@@ -1,8 +1,11 @@
 import { cn } from "../lib/classNames";
 
+/** App shell background — near-white, not gray. */
+export const ccBgApp = "bg-[#FAFBFF]";
+
 /** Shared focus ring for extension surfaces (light backgrounds). */
 export const ccFocusRing = cn(
-  "focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/35 focus-visible:ring-offset-2 focus-visible:ring-offset-[#f4f6f9]",
+  "focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/35 focus-visible:ring-offset-2 focus-visible:ring-offset-[#FAFBFF]",
 );
 
 /** Cross-screen page padding. */
@@ -33,8 +36,16 @@ export const ccBtnPrimary = cn(
 
 /** Primary Apply CTA — solid indigo, supporting copy stack. */
 export const ccBtnApply = cn(
-  "inline-flex flex-col items-center justify-center rounded-lg px-4 py-3.5 text-white",
-  "bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700",
+  "inline-flex flex-col items-center justify-center rounded-xl px-4 py-3.5 text-white",
+  "bg-[#6366F1] shadow-[0_8px_24px_rgba(99,102,241,0.28)] hover:bg-indigo-500 hover:shadow-[0_10px_28px_rgba(99,102,241,0.34)] active:bg-indigo-700",
+  "disabled:pointer-events-none disabled:opacity-45 disabled:shadow-none",
+  ccFocusRing,
+);
+
+/** Secondary decision action — Save for later, etc. */
+export const ccBtnDecisionSecondary = cn(
+  "inline-flex w-full flex-col items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-3 text-slate-800",
+  "hover:border-indigo-200 hover:bg-indigo-50/30",
   "disabled:pointer-events-none disabled:opacity-45",
   ccFocusRing,
 );
@@ -108,45 +119,53 @@ export const ccHairline = "h-px w-full bg-slate-100";
 export const ccSurfaceQuiet = cn("rounded-xl bg-white/70 ring-1 ring-slate-200/40 shadow-[0_1px_2px_rgba(15,23,42,0.04)]");
 
 /** Tinted canvas behind grouped hub cards. */
-export const ccHubListSurface = "bg-slate-100/45";
+export const ccHubListSurface = "bg-indigo-50/20";
 
 /** Compact hub surface card — tactile queue object (Linear / issue-row feel). */
 export const ccHubListCard = cn(
-  "group relative flex w-full cursor-pointer items-start gap-2.5 rounded-[11px] border border-slate-200 bg-white px-3.5 py-3 text-left",
-  "transition-[box-shadow,border-color,transform] duration-150",
+  "group relative flex w-full cursor-pointer items-start gap-2.5 rounded-2xl border border-slate-200 bg-white px-3.5 py-3 text-left",
+  "transition-all duration-180",
   "hover:border-slate-300 hover:shadow-[0_3px_10px_rgba(15,23,42,0.06)]",
   "active:scale-[0.998] active:shadow-[0_1px_4px_rgba(15,23,42,0.04)]",
 );
 
 export const ccHubListCardSelected = cn(
   "border-indigo-300 bg-indigo-50/35 shadow-[0_1px_4px_rgba(79,70,229,0.07)]",
-  "hover:border-indigo-400/90 hover:bg-indigo-50/50 hover:shadow-[0_3px_12px_rgba(79,70,229,0.1)]",
+  "hover:border-indigo-400/90 hover:bg-indigo-50/50 hover:shadow-[0_10px_25px_rgba(99,102,241,0.18)]",
 );
 
 export const ccHubCardReady = cn(
-  "border-l-[3px] border-l-indigo-500 pl-[calc(0.875rem-1px)]",
-  "hover:-translate-y-0.5 hover:border-indigo-200 hover:shadow-[0_6px_20px_rgba(79,70,229,0.16)]",
+  "border-l-[3px] border-l-[#34D399] pl-[calc(0.875rem-1px)]",
+  "hover:-translate-y-0.5 hover:border-indigo-300 hover:shadow-[0_10px_25px_rgba(99,102,241,0.18)]",
 );
 
-export const ccHubCardPreparing = "border-l-[3px] border-l-amber-400 pl-[calc(0.875rem-1px)]";
+export const ccHubCardPreparing = "border-l-[3px] border-l-[#F59E0B] pl-[calc(0.875rem-1px)]";
 
 export const ccHubCardApplied = "border-l-[3px] border-l-slate-300 pl-[calc(0.875rem-1px)]";
 
-export const ccHubListStatusReady = "text-[11px] font-bold uppercase tracking-wide text-indigo-700";
+export const ccHubStatusPillReady = cn(
+  "inline-flex items-center rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-emerald-800 ring-1 ring-emerald-200/80",
+);
 
-export const ccHubListStatusPreparing = "text-[11px] font-semibold text-amber-800";
+export const ccHubStatusPillPreparing = cn(
+  "inline-flex items-center rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-800 ring-1 ring-amber-200/80",
+);
 
-export const ccHubListStatusMuted = "text-[11px] font-medium text-slate-400";
+export const ccHubStatusPillApplied = cn(
+  "inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-slate-600 ring-1 ring-slate-200/80",
+);
 
-export const ccHubListProgress = "mt-0.5 flex items-center gap-1.5 text-[11px] font-medium text-indigo-600";
+export const ccHubListMetadata = "mt-1 truncate text-[11px] text-slate-400";
+
+export const ccHubListProgress = "mt-1 flex items-center gap-1.5 text-[11px] font-medium text-indigo-600";
 
 export const ccHubListArrow = cn(
-  "shrink-0 text-[14px] font-medium leading-none text-slate-300 transition-colors duration-150",
+  "shrink-0 text-[15px] font-semibold leading-none text-slate-300 transition-colors duration-180",
   "group-hover:text-slate-500",
 );
 
 export const ccHubListArrowReady = cn(
-  "shrink-0 text-[14px] font-medium leading-none text-indigo-400 transition-colors duration-150",
+  "shrink-0 text-[15px] font-semibold leading-none text-indigo-500 transition-colors duration-180",
   "group-hover:text-indigo-600",
 );
 
@@ -154,17 +173,43 @@ export const ccHubSectionHeader = "flex items-center gap-2 px-0.5 pb-2 pt-3.5 te
 
 export const ccHubListCardGap = "space-y-3.5";
 
-/** Detail command center — hero readiness status. */
-export const ccDetailHeroStatus = "text-[12px] font-bold uppercase tracking-wide";
+export const ccDetailStatusPillReady = ccHubStatusPillReady;
 
-/** Detail mission briefing — flat checklist, no card wrapper. */
-export const ccDetailReadinessList = "space-y-2.5";
+export const ccDetailStatusPillPreparing = ccHubStatusPillPreparing;
 
-export const ccDetailReadinessLine = "flex items-start gap-2.5 text-[13px] font-medium text-slate-700";
+export const ccDetailStatusPillApplied = ccHubStatusPillApplied;
+
+export const ccOpportunityTitle = "text-[18px] font-bold leading-snug tracking-tight text-slate-900";
+
+export const ccOpportunityCompany = "mt-1 text-[14px] font-semibold text-indigo-700";
+
+export const ccOpportunitySource = "mt-1 text-[11px] font-medium text-slate-500";
+
+/** Transition from job identity → prepared work. */
+export const ccDetailTransitionLine = "text-[12px] font-semibold text-emerald-700";
+
+export const ccPreparedAssetsSectionTitle = "text-[13px] font-semibold text-slate-900";
+
+export const ccPreparedAssetTile = cn(
+  "relative flex gap-3 rounded-xl border border-slate-200/80 bg-white px-3.5 py-3",
+);
+
+export const ccPreparedAssetIcon = cn(
+  "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-indigo-50 text-[15px] text-indigo-600",
+);
+
+export const ccPreparedAssetCheck = cn(
+  "absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-[#34D399] text-[9px] font-bold text-white",
+);
 
 export const ccDetailPrimaryCta = cn(
   ccBtnPrimary,
-  "w-full py-3 text-[14px] shadow-md shadow-indigo-600/20",
+  "w-full rounded-xl py-3.5 text-[14px] shadow-[0_8px_24px_rgba(99,102,241,0.32)] hover:shadow-[0_10px_28px_rgba(99,102,241,0.38)]",
+);
+
+/** About this role — only contained surface on detail/current job. */
+export const ccAboutRoleSurface = cn(
+  "rounded-2xl border border-slate-200/80 bg-white px-4 py-4",
 );
 
 /** @deprecated Use ccHubListCard — kept for any legacy imports. */

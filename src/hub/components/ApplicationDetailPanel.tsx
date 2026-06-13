@@ -1,31 +1,27 @@
+import { useState } from "react";
 import type { JobApplication } from "../../lib/types";
 import { formatRelativeDate } from "../../lib/jobSource";
 import {
-  coverLetterStatus,
-  detailHeroStatusClass,
   detailHeroStatusLabel,
-  detailReadinessLines,
-  fitScoreChipClass,
-  fitScoreLabel,
-  fitScoreTone,
-  letterChipClass,
-  resumeVariantChipClass,
-  resumeVariantChipLabel,
-  statusBadgeLabel,
-  statusPillClass,
+  getPreparedAssetItems,
 } from "../applicationDisplay";
+import { PreparedAssets } from "./PreparedAssets";
 import { PreparationProgress } from "../../sidepanel/components/PreparationProgress";
 import { cn } from "../../lib/classNames";
 import {
+  ccAboutRoleSurface,
   ccBtnGhost,
   ccBtnPrimary,
   ccBtnSecondarySm,
-  ccDetailHeroStatus,
   ccDetailPrimaryCta,
-  ccDetailReadinessLine,
-  ccDetailReadinessList,
-  ccMetaChip,
-  ccStatusPill,
+  ccDetailStatusPillApplied,
+  ccDetailStatusPillPreparing,
+  ccDetailStatusPillReady,
+  ccDetailTransitionLine,
+  ccMetadataLabel,
+  ccOpportunityCompany,
+  ccOpportunitySource,
+  ccOpportunityTitle,
 } from "../../ui/ccUi";
 
 type Props = {
@@ -37,6 +33,18 @@ type Props = {
   markAppliedBusy?: boolean;
 };
 
+function detailStatusPillClass(application: JobApplication): string {
+  switch (application.status) {
+    case "READY_TO_APPLY":
+      return ccDetailStatusPillReady;
+    case "PREPARING":
+    case "SAVED":
+      return ccDetailStatusPillPreparing;
+    default:
+      return ccDetailStatusPillApplied;
+  }
+}
+
 export function ApplicationDetailPanel({
   application,
   onBack,
@@ -45,135 +53,106 @@ export function ApplicationDetailPanel({
   onMarkApplied,
   markAppliedBusy,
 }: Props) {
+  const [descriptionExpanded, setDescriptionExpanded] = useState(false);
   const isPreparing = application.status === "PREPARING";
   const isReady = application.status === "READY_TO_APPLY";
-  const fit = fitScoreLabel(application);
-  const fitTone = fitScoreTone(application);
-  const resumeLabel = resumeVariantChipLabel(application);
-  const readinessLines = detailReadinessLines(application);
+  const preparedItems = getPreparedAssetItems(application);
   const showMarkApplied =
     application.status !== "APPLIED" && application.status !== "INTERVIEWING" && application.status !== "OFFER";
   const primaryCtaLabel = isReady ? "Continue Application" : "View Materials";
+  const description = application.jobDescription?.trim() ?? "";
+  const descriptionLong = description.length > 220;
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-4 p-3">
-      <button type="button" className={cn(ccBtnGhost, "self-start px-1")} onClick={onBack}>
+    <div className="flex min-h-0 flex-1 flex-col gap-5 px-4 py-4">
+      <button type="button" className={cn(ccBtnGhost, "self-start px-0")} onClick={onBack}>
         ← Back to Application Hub
       </button>
 
-      {isReady ? (
-        <div className="flex min-h-0 flex-1 flex-col gap-4">
-          <div className="space-y-3">
-            <p className={cn(ccDetailHeroStatus, detailHeroStatusClass(application.status))}>
-              {detailHeroStatusLabel(application)}
-            </p>
-            <div>
-              <h2 className="text-[18px] font-bold leading-snug tracking-tight text-slate-900">
-                {application.title || "Untitled role"}
-              </h2>
-              <p className="mt-1 text-[14px] font-semibold text-indigo-700">
-                {application.company || "Unknown company"}
-              </p>
-            </div>
+      <div className="flex min-h-0 flex-1 flex-col gap-5">
+        <div className="space-y-3">
+          <span className={detailStatusPillClass(application)}>
+            {detailHeroStatusLabel(application)}
+          </span>
 
-            <ul className={ccDetailReadinessList}>
-              {readinessLines.map((line) => (
-                <li key={line.label} className={ccDetailReadinessLine}>
-                  <span className="shrink-0 text-indigo-500" aria-hidden>
-                    ✓
-                  </span>
-                  <span>{line.label}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          <div className="mt-auto space-y-2">
-            <button type="button" className={ccDetailPrimaryCta} onClick={onViewMaterials}>
-              {primaryCtaLabel}
-            </button>
-            <div className="grid grid-cols-2 gap-2">
-              <button type="button" className={ccBtnSecondarySm} onClick={onOpenJob}>
-                Open Job
-              </button>
-              {showMarkApplied ? (
-                <button type="button" className={ccBtnSecondarySm} disabled={markAppliedBusy} onClick={onMarkApplied}>
-                  {markAppliedBusy ? "Updating…" : "Mark Applied"}
-                </button>
-              ) : (
-                <div />
-              )}
-            </div>
-          </div>
-        </div>
-      ) : (
-        <>
-          <div className="space-y-3">
-            <p className={cn(ccDetailHeroStatus, detailHeroStatusClass(application.status))}>
-              {detailHeroStatusLabel(application)}
-            </p>
-            <div>
-              <h2 className="text-[18px] font-bold leading-snug tracking-tight text-slate-900">
-                {application.title || "Untitled role"}
-              </h2>
-              <p className="mt-1 text-[14px] font-semibold text-indigo-700">
-                {application.company || "Unknown company"}
-              </p>
-              {application.source ? (
-                <p className="mt-1.5 text-[10px] font-medium text-slate-500">{application.source}</p>
-              ) : null}
-              <p className="mt-1 text-[10px] font-medium text-slate-400">
-                Saved {formatRelativeDate(application.dateSaved).toLowerCase()}
-              </p>
-            </div>
-
-            {!isPreparing ? (
-              <div className="flex flex-wrap items-center gap-1.5">
-                <span className={ccStatusPill(statusPillClass(application.status))}>
-                  {statusBadgeLabel(application)}
-                </span>
-                <span className={ccMetaChip(letterChipClass(application))}>{coverLetterStatus(application)}</span>
-                {resumeLabel ? (
-                  <span className={ccMetaChip(resumeVariantChipClass())}>{resumeLabel}</span>
-                ) : null}
-                {fit ? (
-                  <span className={ccMetaChip(fitScoreChipClass(fitTone))}>{fit} fit</span>
-                ) : (
-                  <span className={ccMetaChip(fitScoreChipClass("muted"))}>Fit —</span>
-                )}
-              </div>
+          <div>
+            <h2 className={ccOpportunityTitle}>{application.title || "Untitled role"}</h2>
+            <p className={ccOpportunityCompany}>{application.company || "Unknown company"}</p>
+            {application.source ? (
+              <p className={ccOpportunitySource}>{application.source}</p>
             ) : null}
           </div>
+
+          {isReady && preparedItems.length > 0 ? (
+            <>
+              <p className={ccDetailTransitionLine}>Prepared by CoverClick</p>
+              <PreparedAssets application={application} />
+            </>
+          ) : null}
 
           {isPreparing ? (
             <PreparationProgress
               steps={application.preparationSteps}
               error={application.preparationError}
-              className="rounded-2xl border border-indigo-200/60 bg-indigo-50/50 p-3.5"
+              className="rounded-2xl border border-indigo-200/60 bg-indigo-50/40 p-3.5"
             />
           ) : null}
 
-          <div className="mt-auto flex flex-col gap-2">
-            {!isPreparing ? (
-              <button type="button" className={cn(ccBtnPrimary, "w-full py-2.5")} onClick={onViewMaterials}>
-                {primaryCtaLabel}
+          {!isReady && !isPreparing && preparedItems.length > 0 ? (
+            <PreparedAssets application={application} />
+          ) : null}
+        </div>
+
+        <div className="mt-auto space-y-2.5">
+          {!isPreparing ? (
+            <button
+              type="button"
+              className={isReady ? ccDetailPrimaryCta : cn(ccBtnPrimary, "w-full rounded-xl py-3")}
+              onClick={onViewMaterials}
+            >
+              {primaryCtaLabel}
+            </button>
+          ) : null}
+          <div className="grid grid-cols-2 gap-2">
+            <button type="button" className={ccBtnSecondarySm} onClick={onOpenJob}>
+              Open Job
+            </button>
+            {showMarkApplied && !isPreparing ? (
+              <button type="button" className={ccBtnSecondarySm} disabled={markAppliedBusy} onClick={onMarkApplied}>
+                {markAppliedBusy ? "Updating…" : "Mark Applied"}
+              </button>
+            ) : (
+              <div />
+            )}
+          </div>
+        </div>
+
+        {description ? (
+          <section className={ccAboutRoleSurface}>
+            <p className={ccMetadataLabel}>About this role</p>
+            <p
+              className={cn(
+                "mt-2 whitespace-pre-wrap text-[13px] leading-relaxed text-slate-600",
+                !descriptionExpanded && "line-clamp-4",
+              )}
+            >
+              {description}
+            </p>
+            {descriptionLong ? (
+              <button
+                type="button"
+                className="mt-2 text-[12px] font-medium text-indigo-600 hover:text-indigo-800"
+                onClick={() => setDescriptionExpanded((v) => !v)}
+              >
+                {descriptionExpanded ? "Show less" : "View details"}
               </button>
             ) : null}
-            <div className="grid grid-cols-2 gap-2">
-              <button type="button" className={ccBtnSecondarySm} onClick={onOpenJob}>
-                Open Job
-              </button>
-              {showMarkApplied && !isPreparing ? (
-                <button type="button" className={ccBtnSecondarySm} disabled={markAppliedBusy} onClick={onMarkApplied}>
-                  {markAppliedBusy ? "Updating…" : "Mark Applied"}
-                </button>
-              ) : (
-                <div />
-              )}
-            </div>
-          </div>
-        </>
-      )}
+            <p className="mt-2 text-[10px] text-slate-400">
+              Saved {formatRelativeDate(application.dateSaved).toLowerCase()}
+            </p>
+          </section>
+        ) : null}
+      </div>
     </div>
   );
 }

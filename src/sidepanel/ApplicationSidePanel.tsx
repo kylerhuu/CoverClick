@@ -17,11 +17,12 @@ import { applyScrapedCompanyDefaults } from "../lib/jobCompanyScrape";
 import { requestJobContextFromActiveTab } from "../lib/tabScrape";
 import { STORAGE_KEYS, loadSettings } from "../lib/storage";
 import { WorkspaceApp } from "../workspace/WorkspaceApp";
+import { cn } from "../lib/classNames";
 import { CurrentJobSection } from "./components/CurrentJobSection";
 import { SidePanelHeader } from "./components/SidePanelHeader";
 import { SidePanelHubView, type HubSubview } from "./components/SidePanelHubView";
 import { SidePanelModeNav, type SidePanelMode } from "./components/SidePanelModeNav";
-import { ccPagePadding } from "../ui/ccUi";
+import { ccBgApp, ccPagePadding } from "../ui/ccUi";
 
 export type ScanSubview = "home" | "apply";
 
@@ -224,7 +225,7 @@ export function ApplicationSidePanel() {
   const activeResumeVariantId = resumeLibrary?.activeVariantId ?? "";
 
   return (
-    <div className="flex h-screen min-h-[360px] w-full min-w-0 flex-col overflow-hidden bg-[#f0f2f6] text-slate-900 antialiased">
+    <div className={cn("flex h-screen min-h-[360px] w-full min-w-0 flex-col overflow-hidden text-slate-900 antialiased", ccBgApp)}>
       <SidePanelHeader />
       <SidePanelModeNav
         mode={mode}

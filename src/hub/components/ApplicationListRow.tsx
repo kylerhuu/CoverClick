@@ -1,5 +1,6 @@
 import type { JobApplication } from "../../lib/types";
 import {
+  hubListMetadataLine,
   hubListProgressLine,
   hubListStatusLabel,
 } from "../applicationDisplay";
@@ -13,10 +14,11 @@ import {
   ccHubListArrowReady,
   ccHubListCard,
   ccHubListCardSelected,
+  ccHubListMetadata,
   ccHubListProgress,
-  ccHubListStatusMuted,
-  ccHubListStatusPreparing,
-  ccHubListStatusReady,
+  ccHubStatusPillApplied,
+  ccHubStatusPillPreparing,
+  ccHubStatusPillReady,
 } from "../../ui/ccUi";
 
 type Props = {
@@ -37,23 +39,38 @@ function hubCardVariantClass(application: JobApplication): string {
   }
 }
 
-function hubStatusRowClass(application: JobApplication): string {
+function statusPillClass(application: JobApplication): string {
   switch (application.status) {
     case "READY_TO_APPLY":
-      return ccHubListStatusReady;
+      return ccHubStatusPillReady;
     case "PREPARING":
     case "SAVED":
-      return ccHubListStatusPreparing;
+      return ccHubStatusPillPreparing;
     default:
-      return ccHubListStatusMuted;
+      return ccHubStatusPillApplied;
+  }
+}
+
+function statusPillLabel(application: JobApplication): string {
+  switch (application.status) {
+    case "READY_TO_APPLY":
+      return "Ready to apply";
+    case "PREPARING":
+      return "Preparing";
+    case "SAVED":
+      return "Saved";
+    case "APPLIED":
+      return "Applied";
+    default:
+      return hubListStatusLabel(application);
   }
 }
 
 export function ApplicationListRow({ application, selected, onClick }: Props) {
   const isReady = application.status === "READY_TO_APPLY";
   const isPreparing = application.status === "PREPARING" || application.status === "SAVED";
-  const statusLabel = hubListStatusLabel(application);
   const progressLine = hubListProgressLine(application);
+  const metadata = hubListMetadataLine(application);
   const showArrow = !isPreparing;
 
   return (
@@ -68,9 +85,18 @@ export function ApplicationListRow({ application, selected, onClick }: Props) {
       )}
     >
       <div className="min-w-0 flex-1">
+        <div className="flex items-center justify-between gap-2">
+          <span className={statusPillClass(application)}>{statusPillLabel(application)}</span>
+          {showArrow ? (
+            <span className={isReady ? ccHubListArrowReady : ccHubListArrow} aria-hidden>
+              →
+            </span>
+          ) : null}
+        </div>
+
         <p
           className={cn(
-            "truncate leading-snug text-slate-900",
+            "mt-2 truncate leading-snug text-slate-900",
             selected ? "text-[14px] font-bold" : "text-[14px] font-semibold",
           )}
         >
@@ -80,34 +106,16 @@ export function ApplicationListRow({ application, selected, onClick }: Props) {
           {application.company || "Unknown company"}
         </p>
 
-        {isPreparing ? (
-          <div className="mt-2">
-            <p className={hubStatusRowClass(application)}>{statusLabel}</p>
-            {application.status === "PREPARING" && progressLine ? (
-              <p className={ccHubListProgress}>
-                <span className="cc-spinner h-2.5 w-2.5 shrink-0 border-[1.5px]" aria-hidden />
-                <span className="truncate">{progressLine}</span>
-              </p>
-            ) : null}
-          </div>
-        ) : (
-          <div className="mt-2 flex items-center justify-between gap-2">
-            <p
-              className={cn(
-                "truncate",
-                application.status === "READY_TO_APPLY" && "uppercase",
-                hubStatusRowClass(application),
-              )}
-            >
-              {statusLabel}
-            </p>
-            {showArrow ? (
-              <span className={isReady ? ccHubListArrowReady : ccHubListArrow} aria-hidden>
-                →
-              </span>
-            ) : null}
-          </div>
-        )}
+        {metadata ? <p className={ccHubListMetadata}>{metadata}</p> : null}
+
+        {application.status === "PREPARING" && progressLine ? (
+          <p className={ccHubListProgress}>
+            <span className="cc-spinner h-2.5 w-2.5 shrink-0 border-[1.5px]" aria-hidden />
+            <span className="truncate">{progressLine}</span>
+          </p>
+        ) : isPreparing && application.status === "SAVED" ? (
+          <p className={cn(ccHubListMetadata, "text-amber-700/80")}>Preparing materials…</p>
+        ) : null}
       </div>
     </button>
   );

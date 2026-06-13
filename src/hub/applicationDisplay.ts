@@ -223,11 +223,61 @@ export function hubListRelativeTime(app: JobApplication): string | null {
   return relative ? `Saved ${relative.toLowerCase()}` : null;
 }
 
+/** One muted metadata line for hub cards — resume and/or fit only. */
+export function hubListMetadataLine(app: JobApplication): string {
+  if (app.status === "PREPARING" || app.status === "SAVED") return "";
+  const parts: string[] = [];
+  const resume = app.resumeVariantName?.trim();
+  if (resume) parts.push(resume);
+  if (app.fitScore != null) parts.push(`${app.fitScore}% fit`);
+  return parts.join(" · ");
+}
+
+export type PreparedAssetItem = {
+  id: string;
+  title: string;
+  subtitle: string;
+  icon: "materials" | "resume" | "fit";
+};
+
+/** Visual prepared-asset tiles for detail briefing. */
+export function getPreparedAssetItems(app: JobApplication): PreparedAssetItem[] {
+  const items: PreparedAssetItem[] = [];
+  if (app.coverLetterDraft) {
+    items.push({
+      id: "materials",
+      title: "Materials prepared",
+      subtitle: "Cover letter and assets ready",
+      icon: "materials",
+    });
+  }
+  const resume = app.resumeVariantName?.trim();
+  if (resume || app.resumeVariantId) {
+    items.push({
+      id: "resume",
+      title: "Resume selected",
+      subtitle: resume || "Resume variant selected",
+      icon: "resume",
+    });
+  }
+  if (app.fitScore != null) {
+    const tone = fitScoreTone(app);
+    const qualifier = tone === "strong" ? " · Strong fit" : tone === "moderate" ? " · Good fit" : "";
+    items.push({
+      id: "fit",
+      title: "Fit score generated",
+      subtitle: `${app.fitScore}% match${qualifier}`,
+      icon: "fit",
+    });
+  }
+  return items;
+}
+
 export type DetailReadinessLine = {
   label: string;
 };
 
-/** Readiness checklist lines for the detail command center (ready jobs only). */
+/** @deprecated Use getPreparedAssetItems for detail briefing. */
 export function detailReadinessLines(app: JobApplication): DetailReadinessLine[] {
   if (app.status !== "READY_TO_APPLY") return [];
   const lines: DetailReadinessLine[] = [];
@@ -273,7 +323,7 @@ export function detailHeroStatusLabel(app: JobApplication): string {
 export function detailHeroStatusClass(status: JobApplicationStatus): string {
   switch (status) {
     case "READY_TO_APPLY":
-      return "text-indigo-700";
+      return "text-emerald-700";
     case "PREPARING":
     case "SAVED":
       return "text-amber-800";
@@ -286,24 +336,6 @@ export function detailHeroStatusClass(status: JobApplicationStatus): string {
     default:
       return "text-slate-500";
   }
-}
-
-/** @deprecated Hub list uses status rows; metadata lives in detail view. */
-export function hubListMetadataLine(app: JobApplication): string {
-  const parts: string[] = [];
-  const letter = coverLetterStatus(app);
-  if (app.status === "PREPARING") {
-    parts.push(letter === "Generating…" ? "Generating…" : letter);
-    parts.push(app.fitScore != null ? `${app.fitScore}% fit` : "Fit pending");
-  } else {
-    if (letter && letter !== "None") parts.push(letter);
-    const resume = app.resumeVariantName?.trim();
-    if (resume) parts.push(resume);
-    const fit = fitScoreLabel(app);
-    if (fit) parts.push(`${fit} fit`);
-    else if (app.status === "READY_TO_APPLY") parts.push("Fit pending");
-  }
-  return parts.join(" · ");
 }
 
 /** Short section title for grouped hub inbox lists. */
@@ -333,7 +365,7 @@ export function hubSectionTitle(status: JobApplicationStatus): string {
 export function hubSectionDotClass(status: JobApplicationStatus): string {
   switch (status) {
     case "READY_TO_APPLY":
-      return "bg-indigo-500";
+      return "bg-[#34D399]";
     case "PREPARING":
     case "SAVED":
       return "bg-amber-400";
