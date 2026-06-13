@@ -19,6 +19,7 @@ import { hasPaidSubscription, subscriptionStatusFromStripe } from "./access.js";
 import {
   computeApplicationStats,
   createJobApplication,
+  deleteJobApplication,
   normalizeJobUrl,
   parseCreateApplicationBody,
   runPreparationPipeline,
@@ -1001,7 +1002,6 @@ app.post("/api/applications", authMiddleware, requirePaidMiddleware, async (req,
   } catch (e) {
     logApplicationRouteError("POST /api/applications", e, {
       userId: authed?.userId,
-      body: req.body,
     });
     const mapped = applicationRouteError(e);
     res.status(mapped.status).json({ error: mapped.error || "Could not save job." });
@@ -1023,6 +1023,25 @@ app.patch("/api/applications/:id", authMiddleware, requirePaidMiddleware, async 
     res.json({ application });
   } catch (e) {
     logApplicationRouteError("PATCH /api/applications/:id", e, {
+      userId: (req as express.Request & { auth?: Authed }).auth?.userId,
+      id: req.params.id,
+    });
+    const mapped = applicationRouteError(e);
+    res.status(mapped.status).json({ error: mapped.error });
+  }
+});
+
+app.delete("/api/applications/:id", authMiddleware, requirePaidMiddleware, async (req, res) => {
+  try {
+    const userId = (req as express.Request & { auth: Authed }).auth.userId;
+    const removed = await deleteJobApplication(prisma, userId, req.params.id);
+    if (!removed) {
+      res.status(404).json({ error: "Application not found." });
+      return;
+    }
+    res.json({ ok: true });
+  } catch (e) {
+    logApplicationRouteError("DELETE /api/applications/:id", e, {
       userId: (req as express.Request & { auth?: Authed }).auth?.userId,
       id: req.params.id,
     });

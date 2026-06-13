@@ -9,7 +9,7 @@
     "dev:content": "vite build --watch --config vite.content.config.ts",
     "build": "vite build",
     "build:content": "vite build --config vite.content.config.ts",
-    "store:zip": "npm run build && rm -f coverclick-extension.zip && cd dist && zip -r ../coverclick-extension.zip .",
+    "store:zip": "npm run build && rm -f coverclick-extension.zip && cd dist && zip -r ../coverclick-extension.zip . -x '*.map'",
     "typecheck": "tsc --noEmit",
     "test:company-platform": "tsx --test src/content/extract/companyPlatform.node.test.mjs src/content/extract/strategies/handshakeAboutEmployerText.node.test.mjs src/content/extract/handshakeAboutEmployer.merge.node.test.mjs src/content/extract/strategies/linkedinJobDetail.node.test.mjs src/content/extract/strategies/linkedinJobDetail.root.node.test.mjs src/content/extract/strategies/linkedinExtraction.node.test.mjs src/lib/jobCompanyScrape.node.test.mjs",
     "server:dev": "npm run dev --prefix server",

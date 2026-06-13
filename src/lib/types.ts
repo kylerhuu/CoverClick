@@ -476,6 +476,7 @@ export const KANBAN_COLUMNS: JobApplicationStatus[] = [
   "INTERVIEWING",
   "OFFER",
   "REJECTED",
+  "ARCHIVED",
 ];
 
 export function jobApplicationStatusLabel(status: JobApplicationStatus): string {

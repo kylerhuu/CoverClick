@@ -4,4 +4,5 @@ dist
 *.log
 .env
 .env.local
+.env.production
 coverclick-extension.zip

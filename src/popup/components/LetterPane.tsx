@@ -286,10 +286,16 @@ export function LetterPane({
       {mode === "preview" ? (
         <div className={ccLetterPreviewCanvas}>
           <CognitiveLoader open={genBusy} headline="Drafting your cover letter" lines={GEN_LINES} />
-          <div className="flex min-h-full justify-center px-6 py-12 sm:px-10 md:px-14 lg:px-20">
-            <div className={ccLetterPreviewPaper}>
-              <LetterDocument variant="preview" letter={letter} />
+          <div className="flex min-h-full flex-col justify-center px-6 py-12 sm:px-10 md:px-14 lg:px-20">
+            <div className="flex min-h-full justify-center">
+              <div className={ccLetterPreviewPaper}>
+                <LetterDocument variant="preview" letter={letter} />
+              </div>
             </div>
+            <p className="mx-auto mt-6 max-w-md text-center text-[10px] leading-relaxed text-slate-400">
+              AI-generated draft — review and edit before submitting. CoverClick does not guarantee interview or offer
+              outcomes.
+            </p>
           </div>
         </div>
       ) : (

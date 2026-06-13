@@ -8,7 +8,9 @@ type Props = {
   onOpenJob: (url: string) => void;
   onViewMaterials: (app: JobApplication) => void;
   onStatusChange: (id: string, status: JobApplicationStatus) => void;
+  onRemove?: (id: string) => void;
   statusBusy?: boolean;
+  removeBusy?: boolean;
 };
 
 export function ApplicationJobCard({
@@ -16,7 +18,9 @@ export function ApplicationJobCard({
   onOpenJob,
   onViewMaterials,
   onStatusChange,
+  onRemove,
   statusBusy,
+  removeBusy,
 }: Props) {
   return (
     <article className={cn(ccSurfaceQuiet, "flex flex-col gap-2.5 border border-slate-200/80 p-3 shadow-sm transition-all duration-200 hover:border-[#5B4CF0]/25 hover:shadow-md")}>
@@ -66,6 +70,27 @@ export function ApplicationJobCard({
           ))}
         </select>
       </label>
+
+      {onRemove ? (
+        <button
+          type="button"
+          className="self-start text-[11px] font-medium text-red-600 hover:text-red-700 disabled:opacity-50"
+          disabled={removeBusy || statusBusy}
+          onClick={() => {
+            const title = application.title || "this job";
+            const company = application.company || "Unknown company";
+            if (
+              window.confirm(
+                `Remove "${title}" at ${company} from your Application Hub? This cannot be undone.`,
+              )
+            ) {
+              onRemove(application.id);
+            }
+          }}
+        >
+          {removeBusy ? "Removing…" : "Remove from Hub"}
+        </button>
+      ) : null}
     </article>
   );
 }

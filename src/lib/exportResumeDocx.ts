@@ -84,7 +84,7 @@ export async function downloadResumeDocx(
   const sections = model.sections;
   const toHalfPt = (pt: number) => Math.round(pt * 2);
   if (import.meta.env.DEV) {
-    console.debug("[resume-export] formatting version: resume-template-v2", { target: "docx" });
+    console.debug("[resume-export] formatting version: resume-template-v2");
   }
   const children: Paragraph[] = [];
 

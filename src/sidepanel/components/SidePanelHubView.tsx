@@ -5,6 +5,7 @@ import {
   getApplication,
   listApplications,
   updateApplication,
+  deleteApplication,
 } from "../../lib/applicationsApi";
 import { loadSettings } from "../../lib/storage";
 import {
@@ -50,6 +51,7 @@ export function SidePanelHubView({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [markAppliedBusy, setMarkAppliedBusy] = useState(false);
+  const [removeBusy, setRemoveBusy] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [settings, setSettings] = useState({ useMock: true, authToken: "", apiBaseUrl: "" });
 
@@ -124,6 +126,28 @@ export function SidePanelHubView({
     }
   }, [selectedId, settings, onSubviewChange]);
 
+  const handleRemove = useCallback(async () => {
+    if (!selectedApplication) return;
+    setRemoveBusy(true);
+    setError(null);
+    try {
+      await deleteApplication(
+        settings.apiBaseUrl,
+        settings.authToken,
+        settings.useMock,
+        selectedApplication.id,
+      );
+      setApplications((prev) => prev.filter((a) => a.id !== selectedApplication.id));
+      onSelectedIdChange(null);
+      setSelectedApplication(null);
+      onSubviewChange("list");
+    } catch (e) {
+      setError(formatApplicationApiError(e));
+    } finally {
+      setRemoveBusy(false);
+    }
+  }, [selectedApplication, settings, onSelectedIdChange, onSubviewChange]);
+
   const filteredApplications = useMemo(
     () => filterApplicationsByHubSearch(applications, searchQuery),
     [applications, searchQuery],
@@ -158,7 +182,9 @@ export function SidePanelHubView({
         onOpenJob={() => void chrome.tabs.create({ url: selectedApplication.jobUrl })}
         onViewMaterials={() => void openMaterials()}
         onMarkApplied={() => void handleMarkApplied()}
+        onRemove={() => void handleRemove()}
         markAppliedBusy={markAppliedBusy}
+        removeBusy={removeBusy}
       />
     );
   }
