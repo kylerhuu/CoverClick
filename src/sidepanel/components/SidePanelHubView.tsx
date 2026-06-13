@@ -12,7 +12,8 @@ import { ApplicationDetailPanel } from "../../hub/components/ApplicationDetailPa
 import { ApplicationListRow } from "../../hub/components/ApplicationListRow";
 import { HubSummaryChips } from "../../hub/components/HubSummaryChips";
 import { WorkspaceApp } from "../../workspace/WorkspaceApp";
-import { ccPageTitle } from "../../ui/ccUi";
+import { cn } from "../../lib/classNames";
+import { ccPagePadding, ccPageTitle } from "../../ui/ccUi";
 
 export type HubSubview = "list" | "detail" | "materials";
 
@@ -138,7 +139,7 @@ export function SidePanelHubView({
   const summary = hubSummaryCounts(applications);
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col px-4 py-5">
+    <div className={cn("flex min-h-0 flex-1 flex-col", ccPagePadding)}>
       <h2 className={ccPageTitle}>Application Hub</h2>
 
       {applications.length > 0 ? (

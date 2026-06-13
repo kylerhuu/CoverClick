@@ -1,7 +1,7 @@
 import type { ResumeVariant } from "../../lib/resumeLibrary";
 import { requestOptionsTab } from "../../lib/openOptionsTab";
 import { cn } from "../../lib/classNames";
-import { ccEyebrow, ccFocusRing } from "../../ui/ccUi";
+import { ccEyebrow, ccFocusRing, ccMetadataLabel, ccMetadataValue } from "../../ui/ccUi";
 
 type Props = {
   variants: ResumeVariant[];
@@ -15,34 +15,32 @@ export function ResumeVariantSelector({ variants, activeId, onSelect, variant = 
 
   if (variant === "compact") {
     if (variants.length === 0) {
-      return (
-        <p className="text-[12px] text-slate-500">No saved resume — add one in Profile.</p>
-      );
+      return <p className="text-[12px] text-slate-500">No saved resume — add one in Profile.</p>;
     }
 
     return (
-      <div className="flex items-start justify-between gap-4">
-        <div className="min-w-0">
-          <p className="text-[11px] font-medium text-slate-400">Resume version</p>
-          <p className="mt-0.5 truncate text-[14px] font-medium text-slate-900">{active?.name ?? "General"}</p>
+      <div>
+        <p className={ccMetadataLabel}>Resume version</p>
+        <div className="mt-0.5 flex items-center justify-between gap-3">
+          <p className={cn(ccMetadataValue, "min-w-0 truncate")}>{active?.name ?? "General"}</p>
+          {variants.length > 1 ? (
+            <div className="relative shrink-0">
+              <span className="text-[12px] font-medium text-indigo-600">Change</span>
+              <select
+                className="absolute inset-0 cursor-pointer opacity-0"
+                value={active?.id ?? ""}
+                onChange={(e) => onSelect(e.target.value)}
+                aria-label="Change resume version"
+              >
+                {variants.map((v) => (
+                  <option key={v.id} value={v.id}>
+                    {v.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          ) : null}
         </div>
-        {variants.length > 1 ? (
-          <div className="relative shrink-0 pt-0.5">
-            <span className="text-[12px] font-medium text-indigo-600">Change</span>
-            <select
-              className="absolute inset-0 cursor-pointer opacity-0"
-              value={active?.id ?? ""}
-              onChange={(e) => onSelect(e.target.value)}
-              aria-label="Change resume version"
-            >
-              {variants.map((v) => (
-                <option key={v.id} value={v.id}>
-                  {v.name}
-                </option>
-              ))}
-            </select>
-          </div>
-        ) : null}
       </div>
     );
   }

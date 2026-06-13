@@ -49,6 +49,12 @@ import { getActiveVariant, setActiveVariant } from "../lib/resumeLibrary";
 import { normalizeEducationItem } from "../lib/resumeEducation";
 import { buildDefaultExportBasename, buildDefaultResumeExportBasename } from "../lib/utils";
 import { cn } from "../lib/classNames";
+import {
+  ccTextLink,
+  ccHeroSubtitle,
+  ccHeroTitle,
+  ccTertiaryText,
+} from "../ui/ccUi";
 import { apiGenerateResumeSummary, apiOptimizeResumeForJob, ApiHttpError } from "../lib/backendApi";
 import { JobPane } from "../popup/components/JobPane";
 import { LetterPane } from "../popup/components/LetterPane";
@@ -60,34 +66,6 @@ import { SPLIT_STACK_MAX_WIDTH, type WorkspaceTab, panelDensityFromWidth } from 
 export type WorkspaceMode = "capture" | "application" | "library";
 
 const RESUME_AUTOSAVE_MS = 600;
-
-function WorkspaceBrandMark({ className }: { className?: string }) {
-  const [iconFailed, setIconFailed] = useState(false);
-  const src =
-    typeof chrome !== "undefined" && chrome.runtime?.id != null
-      ? chrome.runtime.getURL("icons/coverclick-icon.png")
-      : "";
-  if (iconFailed || !src) {
-    return (
-      <div
-        className={cn(
-          "flex items-center justify-center bg-gradient-to-br from-indigo-400 to-sky-400 text-[12px] font-black tracking-tight text-white",
-          className,
-        )}
-      >
-        CC
-      </div>
-    );
-  }
-  return (
-    <img
-      src={src}
-      alt=""
-      className={cn("object-cover", className)}
-      onError={() => setIconFailed(true)}
-    />
-  );
-}
 
 export function WorkspaceApp({
   mode = "capture",
@@ -936,60 +914,43 @@ function withStableResumeIds(resume: StructuredResume): StructuredResume {
       onPdf={() => void onPdf()}
       profile={profile}
       job={job}
+      exportBasename={exportBasename}
+      onExportBasenameChange={onExportBasenameChange}
       docEditEpoch={docEditEpoch}
     />
   );
 
+  const workspaceTitle = isLibraryMode
+    ? resumeVariantName
+    : job?.jobTitle?.trim() || applicationRecord?.title?.trim() || "Untitled role";
+  const workspaceCompany = isLibraryMode
+    ? ""
+    : job?.companyName?.trim() || applicationRecord?.company?.trim() || "";
+  const workspaceResumeLine = isLibraryMode ? null : `Resume: ${resumeVariantName}`;
+
   return (
     <div className={cn("flex h-screen min-h-[360px] w-full min-w-0 flex-col overflow-hidden bg-[#f0f2f6] text-slate-900 antialiased")}>
-      <header
-        className={cn(
-          "flex shrink-0 items-center justify-between gap-3 border-b border-white/10 px-3 py-2",
-          "bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white shadow-[0_4px_20px_rgba(15,23,42,0.28)]",
-        )}
-      >
-        <div className="flex min-w-0 items-center gap-2.5">
+      <header className="shrink-0 border-b border-slate-100 bg-white px-4 py-3">
+        <div className="flex min-w-0 items-start gap-3">
           {onBackToLibrary ? (
-            <button
-              type="button"
-              onClick={handleBackToLibrary}
-              className="shrink-0 rounded-lg border border-white/15 bg-white/10 px-2 py-1 text-[11px] font-semibold text-white hover:bg-white/15"
-            >
+            <button type="button" onClick={handleBackToLibrary} className={cn(ccTextLink, "shrink-0 pt-0.5")}>
               ← Saved Resumes
             </button>
           ) : onBackToCapture ? (
-            <button
-              type="button"
-              onClick={handleBackToCapture}
-              className="shrink-0 rounded-lg border border-white/15 bg-white/10 px-2 py-1 text-[11px] font-semibold text-white hover:bg-white/15"
-            >
+            <button type="button" onClick={handleBackToCapture} className={cn(ccTextLink, "shrink-0 pt-0.5")}>
               ← Back
             </button>
           ) : null}
-          <WorkspaceBrandMark className="h-8 w-8 shrink-0 rounded-xl shadow-lg shadow-indigo-950/40" />
-          <div className="min-w-0">
-            <h1 className="text-[14px] font-bold tracking-tight">CoverClick</h1>
-            <p className="truncate text-[10px] font-medium text-indigo-100/80">
-              {isLibraryMode
-                ? `Saved Resumes · ${resumeVariantName}`
-                : isApplicationMode
-                  ? "Saved application · edit & export"
-                  : "From this tab · edit & export"}
-            </p>
+          <div className="min-w-0 flex-1">
+            <h1 className={cn(ccHeroTitle, "truncate")}>{workspaceTitle}</h1>
+            {workspaceCompany ? (
+              <p className={cn(ccHeroSubtitle, "mt-0.5 truncate")}>{workspaceCompany}</p>
+            ) : null}
+            {workspaceResumeLine ? (
+              <p className={cn(ccTertiaryText, "mt-1 truncate")}>{workspaceResumeLine}</p>
+            ) : null}
           </div>
         </div>
-        {isApplicationMode && applicationRecord?.company ? (
-          <span
-            className="max-w-[42%] shrink-0 truncate rounded-full border border-white/15 bg-white/10 px-2.5 py-1 text-[10px] font-semibold text-white"
-            title={applicationRecord.company}
-          >
-            {applicationRecord.company}
-          </span>
-        ) : (
-          <span className="hidden shrink-0 rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-indigo-100/90 sm:inline">
-            Beta
-          </span>
-        )}
       </header>
 
       <WorkspaceToolbar
@@ -999,8 +960,6 @@ function withStableResumeIds(resume: StructuredResume): StructuredResume {
         resumeOnlyMode={isLibraryMode}
         workspaceTab={workspaceTab}
         onWorkspaceTabChange={setWorkspaceTab}
-        exportBasename={exportBasename}
-        onExportBasenameChange={onExportBasenameChange}
         onOpenProfile={openProfile}
       />
 

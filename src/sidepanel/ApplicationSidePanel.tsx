@@ -21,6 +21,7 @@ import { CurrentJobSection } from "./components/CurrentJobSection";
 import { SidePanelHeader } from "./components/SidePanelHeader";
 import { SidePanelHubView, type HubSubview } from "./components/SidePanelHubView";
 import { SidePanelModeNav, type SidePanelMode } from "./components/SidePanelModeNav";
+import { ccPagePadding } from "../ui/ccUi";
 
 export type ScanSubview = "home" | "apply";
 
@@ -261,7 +262,7 @@ export function ApplicationSidePanel() {
           />
         ) : (
           <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
-            <div className="px-4 py-5">
+            <div className={ccPagePadding}>
               <CurrentJobSection
                 job={job}
                 scrapeBusy={scrapeBusy}

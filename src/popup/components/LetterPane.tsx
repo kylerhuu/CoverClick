@@ -9,7 +9,7 @@ import type {
   UserProfile,
 } from "../../lib/types";
 import { cn } from "../../lib/classNames";
-import { ccBtnPrimary, ccBtnSecondary, ccFocusRing, ccSegmentTab, ccSegmentTrack } from "../../ui/ccUi";
+import { ccBtnPrimary, ccBtnTextSecondary, ccFocusRing, ccTextLink } from "../../ui/ccUi";
 import {
   canonicalPlainFromStructured,
   structuredFromCanonicalPlain,
@@ -51,6 +51,8 @@ type Props = {
   onPdf: () => void;
   profile: UserProfile;
   job: JobContext | null;
+  exportBasename: string;
+  onExportBasenameChange: (value: string) => void;
   /** Bump when the letter should reload from structured (new job scrape or new generation). */
   docEditEpoch: number;
 };
@@ -81,6 +83,8 @@ export function LetterPane({
   onPdf,
   profile,
   job,
+  exportBasename,
+  onExportBasenameChange,
   docEditEpoch,
 }: Props) {
   const jobCtx = job ?? FALLBACK_JOB;
@@ -88,15 +92,15 @@ export function LetterPane({
   const letterEditable = !genBusy && !pdfBusy;
 
   const [mode, setMode] = useState<LetterPaneMode>("preview");
-  const [editPlain, setEditPlain] = useState(() => canonicalPlainFromStructured(letter));
+  const [advancedOpen, setAdvancedOpen] = useState(false);
   const [exportMenuOpen, setExportMenuOpen] = useState(false);
+  const [editPlain, setEditPlain] = useState(() => canonicalPlainFromStructured(letter));
   const exportMenuRef = useRef<HTMLDivElement>(null);
   const debRef = useRef<number>();
   const prevGenBusy = useRef(genBusy);
 
   useEffect(() => {
     setEditPlain(canonicalPlainFromStructured(letter));
-    // Intentionally only `docEditEpoch`: job scrape / generation bumps this; do not tie to `letter` or debounced saves reset the textarea mid-edit.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [docEditEpoch]);
 
@@ -145,7 +149,7 @@ export function LetterPane({
   };
 
   return (
-    <div className="flex min-h-0 min-w-0 flex-1 flex-col bg-gradient-to-br from-slate-100/90 via-white to-slate-50/80">
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col bg-[#f0f2f6]">
       <div
         className="pointer-events-none fixed left-[-14000px] top-0 z-0 overflow-visible"
         aria-hidden
@@ -153,148 +157,157 @@ export function LetterPane({
         <LetterDocument variant="export" letter={letter} />
       </div>
 
-      <GenerationControls
-        tone={tone}
-        emphasis={emphasis}
-        length={length}
-        responseShape={responseShape}
-        onChange={onPrefsChange}
-      />
-
-      <div className="shrink-0 border-b border-slate-200/70 bg-white/80">
-        <div className="flex flex-wrap items-center gap-2 px-3 py-2.5 sm:px-4">
+      <div className="shrink-0 border-b border-slate-100 bg-white px-4 py-2.5">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
           <button
             type="button"
-            className={cn(ccBtnPrimary, "px-3 py-1.5 text-[11px]")}
+            className={cn(ccBtnPrimary, "px-4 py-2")}
             onClick={onGenerate}
             disabled={genBusy || pdfBusy || !job}
           >
             {genBusy ? "Drafting…" : "Generate"}
           </button>
-          <button
-            type="button"
-            className={cn(ccBtnSecondary, "px-3 py-1.5 text-[11px]")}
-            onClick={onRegenerate}
-            disabled={genBusy || pdfBusy || !job}
-          >
-            Regenerate
-          </button>
-          <button
-            type="button"
-            className={cn(ccBtnSecondary, "px-3 py-1.5 text-[11px]")}
-            onClick={onCopy}
-            disabled={!hasLetter || genBusy || pdfBusy}
-          >
-            Copy
-          </button>
-          <div className="relative" ref={exportMenuRef}>
+
+          <div className="flex flex-wrap items-center gap-2 text-[12px]">
             <button
               type="button"
-              title="Export letter"
-              aria-expanded={exportMenuOpen}
-              aria-haspopup="menu"
-              className={cn(
-                "inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-slate-200/90 bg-white text-slate-700 shadow-sm",
-                "hover:border-indigo-200 hover:bg-indigo-50/40 hover:text-indigo-950",
-                "disabled:pointer-events-none disabled:opacity-40",
-                ccFocusRing,
-              )}
+              className={ccTextLink}
+              onClick={onCopy}
               disabled={!hasLetter || genBusy || pdfBusy}
-              onClick={() => setExportMenuOpen((o) => !o)}
             >
-              <span className="sr-only">Export</span>
-              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-              </svg>
+              Copy
             </button>
-            {exportMenuOpen ? (
-              <div
-                className="absolute left-0 top-[calc(100%+6px)] z-20 min-w-[9.5rem] overflow-hidden rounded-lg border border-slate-200/90 bg-white py-1 shadow-lg ring-1 ring-black/5"
-                role="menu"
+            <span className="text-slate-300" aria-hidden>
+              ·
+            </span>
+            <div className="relative" ref={exportMenuRef}>
+              <button
+                type="button"
+                className={ccTextLink}
+                aria-expanded={exportMenuOpen}
+                aria-haspopup="menu"
+                disabled={!hasLetter || genBusy || pdfBusy}
+                onClick={() => setExportMenuOpen((o) => !o)}
               >
-                <button
-                  type="button"
-                  role="menuitem"
-                  className="flex w-full items-center px-3 py-2 text-left text-[11px] font-semibold text-slate-800 hover:bg-indigo-50/80"
-                  onClick={() => {
-                    setExportMenuOpen(false);
-                    onPdf();
-                  }}
+                Export
+              </button>
+              {exportMenuOpen ? (
+                <div
+                  className="absolute left-0 top-[calc(100%+4px)] z-20 min-w-[8rem] overflow-hidden rounded-lg border border-slate-200/90 bg-white py-1 shadow-md"
+                  role="menu"
                 >
-                  PDF
-                </button>
-                <button
-                  type="button"
-                  role="menuitem"
-                  className="flex w-full items-center px-3 py-2 text-left text-[11px] font-semibold text-slate-800 hover:bg-indigo-50/80"
-                  onClick={() => {
-                    setExportMenuOpen(false);
-                    onDocx();
-                  }}
-                >
-                  DOCX
-                </button>
-              </div>
-            ) : null}
+                  <button
+                    type="button"
+                    role="menuitem"
+                    className="flex w-full items-center px-3 py-2 text-left text-[12px] font-medium text-slate-700 hover:bg-slate-50"
+                    onClick={() => {
+                      setExportMenuOpen(false);
+                      onPdf();
+                    }}
+                  >
+                    PDF
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    className="flex w-full items-center px-3 py-2 text-left text-[12px] font-medium text-slate-700 hover:bg-slate-50"
+                    onClick={() => {
+                      setExportMenuOpen(false);
+                      onDocx();
+                    }}
+                  >
+                    DOCX
+                  </button>
+                </div>
+              ) : null}
+            </div>
+            <span className="text-slate-300" aria-hidden>
+              ·
+            </span>
+            <button
+              type="button"
+              className={ccTextLink}
+              aria-expanded={advancedOpen}
+              onClick={() => setAdvancedOpen((o) => !o)}
+            >
+              Advanced{advancedOpen ? "" : "…"}
+            </button>
           </div>
+
           {status && !pdfBusy ? (
-            <span className="ml-auto text-[10px] font-semibold tabular-nums text-emerald-600">{status}</span>
+            <span className="ml-auto text-[11px] font-medium text-emerald-600">{status}</span>
           ) : null}
         </div>
+
+        {advancedOpen ? (
+          <div className="mt-3 border-t border-slate-100 pt-3">
+            <GenerationControls
+              tone={tone}
+              emphasis={emphasis}
+              length={length}
+              responseShape={responseShape}
+              onChange={onPrefsChange}
+              exportBasename={exportBasename}
+              onExportBasenameChange={onExportBasenameChange}
+            />
+            <button
+              type="button"
+              className={cn(ccBtnTextSecondary, "mt-3 text-[12px]")}
+              onClick={onRegenerate}
+              disabled={genBusy || pdfBusy || !job}
+            >
+              Regenerate letter
+            </button>
+          </div>
+        ) : null}
+
         {pdfBusy ? (
-          <div className="border-t border-indigo-100/90 bg-gradient-to-r from-indigo-50/90 to-sky-50/60 px-4 py-2.5">
-            <div className="cc-pdf-bar mb-1.5">
-              <span />
-            </div>
-            <p className="text-[10px] font-semibold text-indigo-950">Rendering #letter-container to PDF…</p>
+          <div className="mt-2 flex items-center gap-2 text-[11px] text-slate-600">
+            <span className="cc-spinner h-3.5 w-3.5 border-2" aria-hidden />
+            Rendering PDF…
           </div>
         ) : null}
       </div>
 
-      <div className="flex shrink-0 items-center justify-between gap-2 border-b border-slate-200/60 bg-white/90 px-3 py-1.5 sm:px-4">
-        <div className={cn(ccSegmentTrack)} role="tablist" aria-label="Letter view">
+      <div className="relative min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-auto">
+        <div className="sticky top-0 z-10 flex items-center justify-end gap-2 border-b border-slate-100/80 bg-[#f0f2f6]/95 px-4 py-1.5 backdrop-blur-sm">
           <button
             type="button"
-            role="tab"
-            aria-selected={mode === "preview"}
-            className={cn("px-2.5 py-1.5 text-[11px]", ccSegmentTab(mode === "preview"), ccFocusRing)}
+            className={cn(
+              "text-[11px] font-medium",
+              mode === "preview" ? "text-slate-900" : "text-slate-400 hover:text-slate-600",
+              ccFocusRing,
+            )}
             onClick={() => setLetterMode("preview")}
           >
             Preview
           </button>
+          <span className="text-slate-300" aria-hidden>
+            ·
+          </span>
           <button
             type="button"
-            role="tab"
-            aria-selected={mode === "edit"}
-            className={cn("px-2.5 py-1.5 text-[11px]", ccSegmentTab(mode === "edit"), ccFocusRing)}
+            className={cn(
+              "text-[11px] font-medium",
+              mode === "edit" ? "text-slate-900" : "text-slate-400 hover:text-slate-600",
+              ccFocusRing,
+            )}
             onClick={() => setLetterMode("edit")}
           >
             Edit
           </button>
         </div>
-        <p className="hidden max-w-[200px] text-right text-[10px] leading-snug text-slate-400 sm:block">
-          {mode === "edit" ? "Plain text · syncs to exports" : "Print-style layout"}
-        </p>
-      </div>
 
-      <div className="relative min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-auto bg-gradient-to-b from-slate-200/30 via-slate-50/80 to-slate-200/25">
         <CognitiveLoader open={genBusy} headline="Drafting your cover letter" lines={GEN_LINES} />
         {mode === "preview" ? (
-          /*
-           * US Letter is 8.5in wide — wider than a split side panel. Horizontal scroll + start alignment keeps
-           * the sender block (top-left of the page) in view; centering would clip the left margin and address.
-           */
-          <div className="flex justify-start px-3 py-10 sm:px-6">
-            <div className="letter-doc-preview-mount shadow-[0_12px_40px_rgba(15,23,42,0.1)] ring-1 ring-slate-300/50">
+          <div className="flex justify-start px-4 py-8 sm:px-6">
+            <div className="letter-doc-preview-mount shadow-[0_8px_30px_rgba(15,23,42,0.08)] ring-1 ring-slate-200/80">
               <LetterDocument variant="preview" letter={letter} />
             </div>
           </div>
         ) : (
           <LetterContinuousEditor value={editPlain} onChange={onEditPlainChange} disabled={!letterEditable} />
         )}
-        <p className="pointer-events-none px-4 pb-5 pt-2 text-center text-[10px] font-medium text-slate-400">
-          {profile.fullName.trim() ? profile.fullName : "Add your name in Profile"} · {job?.companyName?.trim() || "Company"}
-        </p>
       </div>
     </div>
   );

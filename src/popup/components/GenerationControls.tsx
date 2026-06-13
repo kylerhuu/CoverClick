@@ -1,5 +1,6 @@
 import type { DefaultTone, Emphasis, LetterLength, ResponseShapePreference } from "../../lib/types";
 import { cn } from "../../lib/classNames";
+import { ccMetadataLabel } from "../../ui/ccUi";
 
 type Props = {
   tone: DefaultTone;
@@ -12,6 +13,8 @@ type Props = {
     length: LetterLength;
     responseShape: ResponseShapePreference;
   }) => void;
+  exportBasename?: string;
+  onExportBasenameChange?: (value: string) => void;
 };
 
 const tones: { value: DefaultTone; label: string }[] = [
@@ -44,87 +47,103 @@ const shapes: { value: ResponseShapePreference; label: string }[] = [
 ];
 
 const selectClass = cn(
-  "max-w-full min-w-0 flex-1 rounded-lg border border-slate-200/90 bg-white py-1.5 pl-2 pr-7",
-  "text-[11px] font-medium text-slate-800 shadow-sm",
-  "focus:border-indigo-300 focus:outline-none focus:ring-2 focus:ring-indigo-500/20",
+  "w-full min-w-0 rounded-md border border-slate-200/80 bg-white py-1.5 pl-2 pr-7",
+  "text-[11px] font-medium text-slate-700",
+  "focus:border-indigo-300 focus:outline-none focus:ring-1 focus:ring-indigo-500/20",
 );
 
-export function GenerationControls({ tone, emphasis, length, responseShape, onChange }: Props) {
+export function GenerationControls({
+  tone,
+  emphasis,
+  length,
+  responseShape,
+  onChange,
+  exportBasename,
+  onExportBasenameChange,
+}: Props) {
   return (
-    <section className="min-w-0 border-b border-slate-200/70 bg-gradient-to-b from-white to-slate-50/80 px-3 py-2.5 sm:px-4">
-      <div className="mb-2 flex items-center justify-between gap-2">
-        <span className="cc-label text-indigo-600/90">Draft settings</span>
-        <span className="text-[9px] font-medium uppercase tracking-wider text-slate-400">Model</span>
-      </div>
-      <div className="flex flex-wrap gap-2">
-        <label className="flex min-w-[104px] flex-1">
-          <span className="sr-only">Tone</span>
-          <select
-            className={selectClass}
-            value={tone}
-            aria-label="Tone"
-            onChange={(e) => onChange({ tone: e.target.value as DefaultTone, emphasis, length, responseShape })}
-          >
-            {tones.map((t) => (
-              <option key={t.value} value={t.value}>
-                {t.label}
-              </option>
-            ))}
-          </select>
+    <div className="grid gap-3 sm:grid-cols-2">
+      <label className="block min-w-0">
+        <span className={ccMetadataLabel}>Tone</span>
+        <select
+          className={cn(selectClass, "mt-1")}
+          value={tone}
+          aria-label="Tone"
+          onChange={(e) => onChange({ tone: e.target.value as DefaultTone, emphasis, length, responseShape })}
+        >
+          {tones.map((t) => (
+            <option key={t.value} value={t.value}>
+              {t.label}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label className="block min-w-0">
+        <span className={ccMetadataLabel}>Emphasis</span>
+        <select
+          className={cn(selectClass, "mt-1")}
+          value={emphasis}
+          aria-label="Emphasis"
+          onChange={(e) => onChange({ tone, emphasis: e.target.value as Emphasis, length, responseShape })}
+        >
+          {emphases.map((t) => (
+            <option key={t.value} value={t.value}>
+              {t.label}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label className="block min-w-0">
+        <span className={ccMetadataLabel}>Length</span>
+        <select
+          className={cn(selectClass, "mt-1")}
+          value={length}
+          aria-label="Length"
+          onChange={(e) => onChange({ tone, emphasis, length: e.target.value as LetterLength, responseShape })}
+        >
+          {lengths.map((t) => (
+            <option key={t.value} value={t.value}>
+              {t.label}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label className="block min-w-0">
+        <span className={ccMetadataLabel}>Format</span>
+        <select
+          className={cn(selectClass, "mt-1")}
+          value={responseShape}
+          aria-label="Response shape for API"
+          onChange={(e) =>
+            onChange({
+              tone,
+              emphasis,
+              length,
+              responseShape: e.target.value as ResponseShapePreference,
+            })
+          }
+        >
+          {shapes.map((t) => (
+            <option key={t.value} value={t.value}>
+              {t.label}
+            </option>
+          ))}
+        </select>
+      </label>
+      {exportBasename != null && onExportBasenameChange ? (
+        <label className="block min-w-0 sm:col-span-2">
+          <span className={ccMetadataLabel}>Export file name</span>
+          <input
+            type="text"
+            value={exportBasename}
+            onChange={(e) => onExportBasenameChange(e.target.value)}
+            spellCheck={false}
+            autoComplete="off"
+            className={cn(selectClass, "mt-1")}
+            placeholder="Name_Role_Company_CoverLetter"
+          />
         </label>
-        <label className="flex min-w-[104px] flex-1">
-          <span className="sr-only">Emphasis</span>
-          <select
-            className={selectClass}
-            value={emphasis}
-            aria-label="Emphasis"
-            onChange={(e) => onChange({ tone, emphasis: e.target.value as Emphasis, length, responseShape })}
-          >
-            {emphases.map((t) => (
-              <option key={t.value} value={t.value}>
-                {t.label}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="flex w-[92px] shrink-0">
-          <span className="sr-only">Length</span>
-          <select
-            className={selectClass}
-            value={length}
-            aria-label="Length"
-            onChange={(e) => onChange({ tone, emphasis, length: e.target.value as LetterLength, responseShape })}
-          >
-            {lengths.map((t) => (
-              <option key={t.value} value={t.value}>
-                {t.label}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="flex min-w-[92px] shrink-0">
-          <span className="sr-only">API shape</span>
-          <select
-            className={selectClass}
-            value={responseShape}
-            aria-label="Response shape for API"
-            onChange={(e) =>
-              onChange({
-                tone,
-                emphasis,
-                length,
-                responseShape: e.target.value as ResponseShapePreference,
-              })
-            }
-          >
-            {shapes.map((t) => (
-              <option key={t.value} value={t.value}>
-                {t.label}
-              </option>
-            ))}
-          </select>
-        </label>
-      </div>
-    </section>
+      ) : null}
+    </div>
   );
 }

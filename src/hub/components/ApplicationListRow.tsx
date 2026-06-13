@@ -8,6 +8,22 @@ import {
 import { cn } from "../../lib/classNames";
 import { ccFocusRing, ccHubListRow, ccHubListRowSelected } from "../../ui/ccUi";
 
+function statusDotClass(status: JobApplication["status"]): string {
+  switch (status) {
+    case "READY_TO_APPLY":
+      return "bg-emerald-500";
+    case "PREPARING":
+    case "SAVED":
+      return "bg-amber-400";
+    case "APPLIED":
+    case "INTERVIEWING":
+    case "OFFER":
+      return "bg-sky-500";
+    default:
+      return "bg-slate-300";
+  }
+}
+
 type Props = {
   application: JobApplication;
   selected?: boolean;
@@ -31,18 +47,7 @@ export function ApplicationListRow({ application, selected, onClick }: Props) {
     >
       <p className={cn("text-[10px] font-semibold uppercase tracking-wide", statusListTextClass(application.status))}>
         <span
-          className={cn(
-            "mr-1.5 inline-block h-1.5 w-1.5 rounded-full align-middle",
-            application.status === "READY_TO_APPLY"
-              ? "bg-emerald-500"
-              : application.status === "PREPARING" || application.status === "SAVED"
-                ? "bg-amber-400"
-                : application.status === "APPLIED" ||
-                    application.status === "INTERVIEWING" ||
-                    application.status === "OFFER"
-                  ? "bg-sky-500"
-                  : "bg-slate-300",
-          )}
+          className={cn("mr-1.5 inline-block h-1.5 w-1.5 rounded-full align-middle", statusDotClass(application.status))}
           aria-hidden
         />
         {statusBadgeLabel(application)}

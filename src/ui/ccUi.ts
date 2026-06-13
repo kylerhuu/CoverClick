@@ -5,6 +5,25 @@ export const ccFocusRing = cn(
   "focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/35 focus-visible:ring-offset-2 focus-visible:ring-offset-[#f4f6f9]",
 );
 
+/** Cross-screen page padding. */
+export const ccPagePadding = "px-4 py-5";
+
+export const ccHeroTitle = "text-[20px] font-semibold leading-tight tracking-tight text-slate-900";
+
+export const ccHeroSubtitle = "text-[14px] font-medium text-slate-600";
+
+export const ccMetadataLabel = "text-[11px] font-medium text-slate-400";
+
+export const ccMetadataValue = "text-[14px] font-medium text-slate-900";
+
+export const ccTertiaryText = "text-[12px] text-slate-400";
+
+export const ccTextLink = cn(
+  "text-[12px] font-medium text-slate-500 hover:text-slate-800",
+  "disabled:pointer-events-none disabled:opacity-40",
+  ccFocusRing,
+);
+
 export const ccBtnPrimary = cn(
   "inline-flex items-center justify-center gap-2 rounded-lg px-3.5 py-2 text-[13px] font-semibold text-white",
   "bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700",
@@ -63,17 +82,17 @@ export const ccBtnDangerOutlineSm = cn(
   ccFocusRing,
 );
 
-/** Segmented control track (tabs). */
+/** Segmented control track — aligned with side panel tabs. */
 export const ccSegmentTrack = cn(
-  "inline-flex rounded-lg border border-slate-200/80 bg-slate-100/80 p-0.5 shadow-[inset_0_1px_2px_rgba(15,23,42,0.06)]",
+  "inline-flex rounded-lg bg-slate-100/70 p-0.5",
 );
 
 export function ccSegmentTab(active: boolean): string {
   return cn(
-    "rounded-md px-3 py-1.5 text-[12px] font-semibold transition-colors duration-150",
+    "rounded-md px-3 py-1.5 text-[12px] font-medium transition-colors duration-150",
     active
-      ? "bg-white text-slate-900 shadow-sm ring-1 ring-slate-200/70"
-      : "text-slate-500 hover:text-slate-800",
+      ? "bg-white text-slate-900 shadow-sm"
+      : "text-slate-500 hover:text-slate-700",
   );
 }
 
@@ -83,17 +102,19 @@ export const ccSectionTitle = "text-[15px] font-semibold tracking-tight text-sla
 
 export const ccMuted = "text-[13px] leading-relaxed text-slate-600";
 
-export const ccHairline = "h-px w-full bg-gradient-to-r from-transparent via-slate-200/90 to-transparent";
+export const ccHairline = "h-px w-full bg-slate-100";
 
 /** Quiet surface: no heavy card border. */
 export const ccSurfaceQuiet = cn("rounded-xl bg-white/70 ring-1 ring-slate-200/40 shadow-[0_1px_2px_rgba(15,23,42,0.04)]");
 
 /** Dense hub list row — borderless, divider-separated. */
 export const ccHubListRow = cn(
-  "px-1 py-2.5 transition-colors duration-100 hover:bg-slate-50/90",
+  "border-l-[3px] border-l-transparent px-2 py-2.5 transition-colors duration-100 hover:bg-slate-50",
 );
 
-export const ccHubListRowSelected = cn("bg-indigo-50/40 hover:bg-indigo-50/50");
+export const ccHubListRowSelected = cn(
+  "border-l-indigo-500 bg-indigo-50/60 hover:bg-indigo-50/70",
+);
 
 /** Premium hub list card — clickable row with depth. */
 export const ccHubCard = cn(
