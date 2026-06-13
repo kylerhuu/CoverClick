@@ -8,6 +8,7 @@ import { ApiHttpError, apiFetch, apiUrl, readApiErrorBody, requireOk } from "./b
 import { normalizeJobUrl } from "./jobSource";
 import {
   mockCreateApplication,
+  mockDeleteApplication,
   mockGetApplication,
   mockGetApplicationByUrl,
   mockListApplications,
@@ -119,6 +120,14 @@ export async function apiUpdateApplication(
   return data.application;
 }
 
+export async function apiDeleteApplication(apiBaseUrl: string, token: string, id: string): Promise<void> {
+  const res = await apiFetch(apiUrl(apiBaseUrl, `/api/applications/${id}`), {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  await requireOk(res);
+}
+
 export async function listApplications(
   apiBaseUrl: string,
   token: string | undefined,
@@ -179,6 +188,20 @@ export async function updateApplication(
     return updated;
   }
   return apiUpdateApplication(apiBaseUrl, token, id, body);
+}
+
+export async function deleteApplication(
+  apiBaseUrl: string,
+  token: string | undefined,
+  useMock: boolean,
+  id: string,
+): Promise<void> {
+  if (useMock || !token?.trim() || !apiBaseUrl.trim()) {
+    const removed = await mockDeleteApplication(id);
+    if (!removed) throw new Error("Application not found.");
+    return;
+  }
+  return apiDeleteApplication(apiBaseUrl, token, id);
 }
 
 export async function pollApplicationUntilReady(

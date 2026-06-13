@@ -35,7 +35,9 @@ type Props = {
   onOpenJob: () => void;
   onViewMaterials: () => void;
   onMarkApplied: () => void;
+  onRemove?: () => void;
   markAppliedBusy?: boolean;
+  removeBusy?: boolean;
 };
 
 function detailStatusPillClass(application: JobApplication): string {
@@ -56,8 +58,11 @@ export function ApplicationDetailPanel({
   onOpenJob,
   onViewMaterials,
   onMarkApplied,
+  onRemove,
   markAppliedBusy,
+  removeBusy,
 }: Props) {
+  const [confirmRemove, setConfirmRemove] = useState(false);
   const [descriptionExpanded, setDescriptionExpanded] = useState(false);
   const isPreparing = application.status === "PREPARING";
   const isReady = application.status === "READY_TO_APPLY";
@@ -192,6 +197,45 @@ export function ApplicationDetailPanel({
               Saved {formatRelativeDate(application.dateSaved).toLowerCase()}
             </p>
           </section>
+        ) : null}
+
+        {onRemove ? (
+          <div className="mt-auto border-t border-slate-100 pt-3">
+            {!confirmRemove ? (
+              <button
+                type="button"
+                className="text-[12px] font-medium text-red-600 hover:text-red-700 disabled:opacity-50"
+                disabled={removeBusy}
+                onClick={() => setConfirmRemove(true)}
+              >
+                Remove from Hub
+              </button>
+            ) : (
+              <div className="rounded-lg border border-red-200/80 bg-red-50/70 px-3 py-2.5">
+                <p className="text-[12px] font-medium text-red-900">
+                  Remove this job from your Application Hub? This cannot be undone.
+                </p>
+                <div className="mt-2 flex gap-2">
+                  <button
+                    type="button"
+                    className={cn(ccBtnSecondarySm, "border-red-200 text-red-700 hover:bg-red-100")}
+                    disabled={removeBusy}
+                    onClick={() => void onRemove()}
+                  >
+                    {removeBusy ? "Removing…" : "Yes, remove"}
+                  </button>
+                  <button
+                    type="button"
+                    className={ccBtnSecondarySm}
+                    disabled={removeBusy}
+                    onClick={() => setConfirmRemove(false)}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
         ) : null}
       </div>
     </div>

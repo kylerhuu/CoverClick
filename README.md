@@ -1,6 +1,6 @@
 # CoverClick (Chrome MV3)
 
-CoverClick reads the job posting in your active tab, combines it with a saved profile you control, and generates a tailored cover letter via your backend (or a built-in mock mode for local UI testing). Export a polished `.docx` or PDF preview in one click.
+CoverClick reads the job posting in your active tab, combines it with a saved profile you control, and generates a tailored cover letter via your backend (or a built-in mock mode for local UI testing). Export cover letters as PDF from the workspace; resume versions support PDF and DOCX export.
 
 This repo includes a **small Node + Express + PostgreSQL (Prisma) + OpenAI** server under `server/` so you can keep **API keys on the server**, store **user profiles in a database**, and optionally **parse resumes into profile fields** with the model.
 

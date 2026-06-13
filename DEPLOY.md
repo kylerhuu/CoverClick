@@ -53,7 +53,7 @@ Use your host’s secrets manager or env injection instead of committing `.env`.
 
 ### Health check
 
-`GET https://your-api.example.com/api/health` returns `{ ok, hasOpenAI, hasGoogleOAuth, hasStripe }` for monitoring.
+`GET https://your-api.example.com/api/health` returns `{ "ok": true }` for monitoring.
 
 ---
 

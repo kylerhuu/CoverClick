@@ -236,6 +236,7 @@ export async function loadSettings(): Promise<AppSettings> {
   const envMock = import.meta.env.VITE_USE_MOCK;
   if (envMock === "true") return { ...base, useMock: true };
   if (envMock === "false") return { ...base, useMock: false };
+  if (import.meta.env.PROD && hasBuiltInApiOrigin()) return { ...base, useMock: false };
   return base;
 }
 

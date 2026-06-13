@@ -8,7 +8,9 @@ type Props = {
   onOpenJob: (url: string) => void;
   onViewMaterials: (app: JobApplication) => void;
   onStatusChange: (id: string, status: JobApplicationStatus) => void;
+  onRemove?: (id: string) => void;
   statusBusyId?: string | null;
+  removeBusyId?: string | null;
 };
 
 export function ApplicationKanban({
@@ -16,7 +18,9 @@ export function ApplicationKanban({
   onOpenJob,
   onViewMaterials,
   onStatusChange,
+  onRemove,
   statusBusyId,
+  removeBusyId,
 }: Props) {
   return (
     <div className="overflow-x-auto pb-2">
@@ -47,7 +51,9 @@ export function ApplicationKanban({
                       onOpenJob={onOpenJob}
                       onViewMaterials={onViewMaterials}
                       onStatusChange={onStatusChange}
+                      onRemove={onRemove}
                       statusBusy={statusBusyId === app.id}
+                      removeBusy={removeBusyId === app.id}
                     />
                   ))
                 )}

@@ -150,7 +150,7 @@ export function ConnectionSettings({
         </div>
       ) : null}
 
-      {!embedded ? (
+      {!import.meta.env.PROD && !embedded ? (
         <div className="border-t border-slate-200/60 pt-4">
           <button
             type="button"
@@ -194,7 +194,7 @@ export function ConnectionSettings({
             </div>
           ) : null}
         </div>
-      ) : (
+      ) : !import.meta.env.PROD && embedded ? (
         <div className="mt-4 space-y-3 border-t border-slate-100 pt-4">
           <Field
             label="API base URL"
@@ -217,7 +217,7 @@ export function ConnectionSettings({
             />
           </Field>
         </div>
-      )}
+      ) : null}
     </>
   );
 

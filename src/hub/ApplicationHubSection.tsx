@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ApplicationStats, JobApplication, JobApplicationStatus } from "../lib/types";
-import { listApplications, updateApplication } from "../lib/applicationsApi";
+import { listApplications, updateApplication, deleteApplication } from "../lib/applicationsApi";
 import { loadSettings } from "../lib/storage";
 import { filterApplicationsByHubSearch, hubSummaryCounts } from "./applicationDisplay";
 import { ApplicationKanban } from "./components/ApplicationKanban";
@@ -17,6 +17,7 @@ export function ApplicationHubSection() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [statusBusyId, setStatusBusyId] = useState<string | null>(null);
+  const [removeBusyId, setRemoveBusyId] = useState<string | null>(null);
   const [materialsApp, setMaterialsApp] = useState<JobApplication | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [settings, setSettings] = useState({ useMock: true, authToken: "", apiBaseUrl: "" });
@@ -71,6 +72,24 @@ export function ApplicationHubSection() {
       }
     },
     [settings],
+  );
+
+  const handleRemove = useCallback(
+    async (id: string) => {
+      setRemoveBusyId(id);
+      try {
+        await deleteApplication(settings.apiBaseUrl, settings.authToken, settings.useMock, id);
+        setApplications((prev) => prev.filter((a) => a.id !== id));
+        if (materialsApp?.id === id) setMaterialsApp(null);
+        const data = await listApplications(settings.apiBaseUrl, settings.authToken, settings.useMock);
+        setStats(data.stats);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Could not remove job.");
+      } finally {
+        setRemoveBusyId(null);
+      }
+    },
+    [settings, materialsApp?.id],
   );
 
   const openJob = useCallback((url: string) => {
@@ -167,7 +186,9 @@ export function ApplicationHubSection() {
             onOpenJob={openJob}
             onViewMaterials={viewMaterials}
             onStatusChange={(id, status) => void handleStatusChange(id, status)}
+            onRemove={(id) => void handleRemove(id)}
             statusBusyId={statusBusyId}
+            removeBusyId={removeBusyId}
           />
         </>
       )}

@@ -336,6 +336,17 @@ async function executePreparationPipeline(prisma: PrismaClient, applicationId: s
   });
 }
 
+export async function deleteJobApplication(
+  prisma: PrismaClient,
+  userId: string,
+  id: string,
+): Promise<boolean> {
+  const existing = await prisma.jobApplication.findFirst({ where: { id, userId } });
+  if (!existing) return false;
+  await prisma.jobApplication.delete({ where: { id } });
+  return true;
+}
+
 export type UpdateApplicationInput = {
   status?: JobApplicationStatus;
   notes?: string;

@@ -72,31 +72,33 @@ export function AccountWorkspaceSection({
         embedded
       />
 
-      <WorkspaceSection title="Advanced settings" description="Server connection and developer options.">
-        <WorkspaceCard className="p-0 overflow-hidden">
-          <button
-            type="button"
-            className={cn(ccBtnGhost, "flex w-full items-center justify-between px-4 py-3 text-left text-[13px] font-semibold text-slate-800")}
-            aria-expanded={showApiAdvanced}
-            onClick={() => setShowApiAdvanced((v) => !v)}
-          >
-            <span>Server & connection</span>
-            <span className="text-slate-400">{showApiAdvanced ? "▾" : "▸"}</span>
-          </button>
-          {showApiAdvanced ? (
-            <div className="border-t border-slate-100 px-4 pb-4 pt-2">
-              <ConnectionSettings
-                settings={settings}
-                setSettings={setSettings}
-                showApiAdvanced={showApiAdvanced}
-                setShowApiAdvanced={setShowApiAdvanced}
-                serverSyncMsg={serverSyncMsg}
-                embedded
-              />
-            </div>
-          ) : null}
-        </WorkspaceCard>
-      </WorkspaceSection>
+      {!import.meta.env.PROD ? (
+        <WorkspaceSection title="Advanced settings" description="Server connection and developer options.">
+          <WorkspaceCard className="p-0 overflow-hidden">
+            <button
+              type="button"
+              className={cn(ccBtnGhost, "flex w-full items-center justify-between px-4 py-3 text-left text-[13px] font-semibold text-slate-800")}
+              aria-expanded={showApiAdvanced}
+              onClick={() => setShowApiAdvanced((v) => !v)}
+            >
+              <span>Server & connection</span>
+              <span className="text-slate-400">{showApiAdvanced ? "▾" : "▸"}</span>
+            </button>
+            {showApiAdvanced ? (
+              <div className="border-t border-slate-100 px-4 pb-4 pt-2">
+                <ConnectionSettings
+                  settings={settings}
+                  setSettings={setSettings}
+                  showApiAdvanced={showApiAdvanced}
+                  setShowApiAdvanced={setShowApiAdvanced}
+                  serverSyncMsg={serverSyncMsg}
+                  embedded
+                />
+              </div>
+            ) : null}
+          </WorkspaceCard>
+        </WorkspaceSection>
+      ) : null}
     </div>
   );
 }

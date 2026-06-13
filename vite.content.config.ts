@@ -11,7 +11,7 @@ export default defineConfig({
     outDir: "dist",
     emptyOutDir: false,
     copyPublicDir: false,
-    sourcemap: true,
+    sourcemap: false,
     lib: {
       entry: resolve(__dirname, "src/content/scrape.ts"),
       name: "CoverClickContent",

@@ -195,3 +195,11 @@ export async function mockUpdateApplication(id: string, patch: UpdateApplication
   await writeStore(apps);
   return next;
 }
+
+export async function mockDeleteApplication(id: string): Promise<boolean> {
+  const apps = await readStore();
+  const next = apps.filter((a) => a.id !== id);
+  if (next.length === apps.length) return false;
+  await writeStore(next);
+  return true;
+}
