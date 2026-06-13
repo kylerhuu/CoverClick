@@ -25,7 +25,7 @@
     "open_in_tab": true
   },
   "permissions": ["activeTab", "identity", "storage", "scripting", "tabs", "sidePanel"],
-  "host_permissions": ["https://coverclick-production.up.railway.app/*"],
+  "host_permissions": ["https://*/*"],
   "background": {
     "service_worker": "background.js",
     "type": "module"

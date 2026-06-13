@@ -115,15 +115,17 @@ npm run build
 npm run store:zip   # produces coverclick-extension.zip from dist/
 ```
 
-### Tighten permissions (recommended)
+### Host permissions
 
-In `manifest.json`, replace broad `host_permissions` with your API origin only, for example:
+CoverClick injects a reader script on job pages (LinkedIn, Handshake, Greenhouse, etc.) via `chrome.scripting`. That requires:
 
 ```json
-"host_permissions": ["https://YOUR_API_HOST/*"]
+"host_permissions": ["https://*/*"]
 ```
 
-Add other hosts only if the extension must `fetch()` them.
+Do **not** limit `host_permissions` to the API host only — scraping will fail with “Extension manifest must request permission to access this host.” The API URL is public and reached via `fetch` from extension pages under the same HTTPS permission.
+
+For Chrome Web Store review, describe this as: read job posting content on pages the user is viewing when they open CoverClick or click Re-scan.
 
 ### Publishing
 
