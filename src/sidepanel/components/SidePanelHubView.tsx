@@ -12,7 +12,7 @@ import { ApplicationDetailPanel } from "../../hub/components/ApplicationDetailPa
 import { ApplicationListRow } from "../../hub/components/ApplicationListRow";
 import { HubSummaryChips } from "../../hub/components/HubSummaryChips";
 import { WorkspaceApp } from "../../workspace/WorkspaceApp";
-import { ccEyebrow, ccMuted } from "../../ui/ccUi";
+import { ccPageTitle } from "../../ui/ccUi";
 
 export type HubSubview = "list" | "detail" | "materials";
 
@@ -138,31 +138,30 @@ export function SidePanelHubView({
   const summary = hubSummaryCounts(applications);
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-3 p-3">
-      <div>
-        <p className={ccEyebrow}>Application Hub</p>
-        <p className={ccMuted}>Tap a job to view details and materials.</p>
-      </div>
+    <div className="flex min-h-0 flex-1 flex-col px-4 py-5">
+      <h2 className={ccPageTitle}>Application Hub</h2>
 
       {applications.length > 0 ? (
-        <HubSummaryChips saved={summary.saved} ready={summary.ready} preparing={summary.preparing} />
+        <div className="mt-3">
+          <HubSummaryChips saved={summary.saved} ready={summary.ready} preparing={summary.preparing} />
+        </div>
       ) : null}
 
       {error ? (
-        <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-[11px] font-medium text-red-900">{error}</p>
+        <p className="mt-4 text-[12px] font-medium text-red-700">{error}</p>
       ) : null}
 
       {loading && applications.length === 0 ? (
-        <div className="flex items-center gap-2 py-8 text-[12px] text-slate-500">
-          <span className="cc-spinner h-5 w-5 border-2" aria-hidden />
+        <div className="flex items-center gap-2 py-10 text-[12px] text-slate-500">
+          <span className="cc-spinner h-4 w-4 border-2" aria-hidden />
           Loading saved jobs…
         </div>
       ) : applications.length === 0 ? (
-        <p className="py-8 text-center text-[12px] text-slate-500">
-          No saved jobs yet. Switch to <strong>Current job</strong> and save one.
+        <p className="py-10 text-center text-[12px] leading-relaxed text-slate-500">
+          No saved jobs yet. Switch to Current job and choose Save for later.
         </p>
       ) : (
-        <ul className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto">
+        <ul className="mt-4 flex min-h-0 flex-1 flex-col divide-y divide-slate-100 overflow-y-auto border-t border-slate-100">
           {sortedApplications.map((app) => (
             <li key={app.id}>
               <ApplicationListRow

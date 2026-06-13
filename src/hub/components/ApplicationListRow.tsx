@@ -1,18 +1,12 @@
 import type { JobApplication } from "../../lib/types";
 import { formatRelativeDate } from "../../lib/jobSource";
 import {
-  coverLetterStatus,
-  fitScoreChipClass,
-  fitScoreLabel,
-  fitScoreTone,
-  letterChipClass,
-  resumeVariantChipClass,
-  resumeVariantChipLabel,
+  hubListMetadataLine,
   statusBadgeLabel,
-  statusPillClass,
+  statusListTextClass,
 } from "../applicationDisplay";
 import { cn } from "../../lib/classNames";
-import { ccFocusRing, ccHubCard, ccHubCardSelected, ccMetaChip, ccStatusPill } from "../../ui/ccUi";
+import { ccFocusRing, ccHubListRow, ccHubListRowSelected } from "../../ui/ccUi";
 
 type Props = {
   application: JobApplication;
@@ -21,44 +15,49 @@ type Props = {
 };
 
 export function ApplicationListRow({ application, selected, onClick }: Props) {
-  const fit = fitScoreLabel(application);
-  const fitTone = fitScoreTone(application);
-  const resumeLabel = resumeVariantChipLabel(application);
+  const metadata = hubListMetadataLine(application);
+  const relativeDate = formatRelativeDate(application.dateSaved);
 
   return (
     <button
       type="button"
       onClick={onClick}
-      className={cn("w-full", ccHubCard, selected && ccHubCardSelected, ccFocusRing)}
+      className={cn(
+        "w-full text-left",
+        ccHubListRow,
+        selected && ccHubListRowSelected,
+        ccFocusRing,
+      )}
     >
-      <div className="flex items-start justify-between gap-2">
-        <span className={ccStatusPill(statusPillClass(application.status))}>{statusBadgeLabel(application)}</span>
-        <span className="shrink-0 text-[9px] font-medium text-slate-400">{formatRelativeDate(application.dateSaved)}</span>
-      </div>
+      <p className={cn("text-[10px] font-semibold uppercase tracking-wide", statusListTextClass(application.status))}>
+        <span
+          className={cn(
+            "mr-1.5 inline-block h-1.5 w-1.5 rounded-full align-middle",
+            application.status === "READY_TO_APPLY"
+              ? "bg-emerald-500"
+              : application.status === "PREPARING" || application.status === "SAVED"
+                ? "bg-amber-400"
+                : application.status === "APPLIED" ||
+                    application.status === "INTERVIEWING" ||
+                    application.status === "OFFER"
+                  ? "bg-sky-500"
+                  : "bg-slate-300",
+          )}
+          aria-hidden
+        />
+        {statusBadgeLabel(application)}
+      </p>
 
-      <div className="mt-2.5 min-w-0">
-        <p className="truncate text-[14px] font-bold leading-snug text-slate-900">
-          {application.title || "Untitled role"}
-        </p>
-        <p className="mt-0.5 truncate text-[12px] font-semibold text-indigo-700">
-          {application.company || "Unknown company"}
-        </p>
-        {application.source ? (
-          <p className="mt-1 truncate text-[10px] text-slate-500">{application.source}</p>
-        ) : null}
-      </div>
+      <p className="mt-1 truncate text-[14px] font-semibold leading-snug text-slate-900">
+        {application.title || "Untitled role"}
+      </p>
+      <p className="mt-0.5 truncate text-[12px] font-medium text-slate-500">
+        {application.company || "Unknown company"}
+      </p>
 
-      <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
-        <span className={ccMetaChip(letterChipClass(application))}>{coverLetterStatus(application)}</span>
-        {resumeLabel ? (
-          <span className={ccMetaChip(resumeVariantChipClass())}>{resumeLabel}</span>
-        ) : null}
-        {fit ? (
-          <span className={ccMetaChip(fitScoreChipClass(fitTone))}>{fit} fit</span>
-        ) : (
-          <span className={ccMetaChip(fitScoreChipClass("muted"))}>Fit —</span>
-        )}
-      </div>
+      <p className="mt-1 truncate text-[11px] text-slate-400">
+        {[metadata, relativeDate].filter(Boolean).join(" · ")}
+      </p>
     </button>
   );
 }

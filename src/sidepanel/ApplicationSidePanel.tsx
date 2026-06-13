@@ -233,15 +233,14 @@ export function ApplicationSidePanel() {
       />
 
       {saveNotice && mode === "scan" && scanSubview === "home" ? (
-        <div className="shrink-0 border-b border-indigo-200/80 bg-indigo-50 px-3 py-2 text-[11px] font-medium text-indigo-900">
+        <div className="shrink-0 px-4 py-2 text-[12px] text-slate-600">
+          <span className="mr-2 inline-block h-1.5 w-1.5 rounded-full bg-indigo-500 align-middle" aria-hidden />
           {saveNotice}
         </div>
       ) : null}
 
       {saveError ? (
-        <div className="shrink-0 border-b border-red-200/80 bg-red-50 px-3 py-2 text-[11px] font-medium text-red-900">
-          {saveError}
-        </div>
+        <div className="shrink-0 px-4 py-2 text-[12px] font-medium text-red-700">{saveError}</div>
       ) : null}
 
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
@@ -262,7 +261,7 @@ export function ApplicationSidePanel() {
           />
         ) : (
           <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
-            <div className="p-3">
+            <div className="px-4 py-5">
               <CurrentJobSection
                 job={job}
                 scrapeBusy={scrapeBusy}

@@ -16,38 +16,33 @@ export function ResumeVariantSelector({ variants, activeId, onSelect, variant = 
   if (variant === "compact") {
     if (variants.length === 0) {
       return (
-        <p className="text-[12px] font-medium text-slate-500">No saved resume — add one in Profile.</p>
-      );
-    }
-
-    if (variants.length === 1) {
-      return (
-        <p className="text-[12px] text-slate-600">
-          Resume: <span className="font-semibold text-slate-900">{active?.name ?? "General"}</span>
-        </p>
+        <p className="text-[12px] text-slate-500">No saved resume — add one in Profile.</p>
       );
     }
 
     return (
-      <div className="flex flex-wrap items-center gap-1.5 text-[12px] text-slate-600">
-        <span>Resume:</span>
-        <select
-          className={cn(
-            "min-w-0 max-w-full cursor-pointer border-0 bg-transparent p-0 text-[12px] font-semibold text-slate-900",
-            "underline decoration-indigo-300/80 underline-offset-2",
-            "focus:outline-none focus:ring-0",
-            ccFocusRing,
-          )}
-          value={active?.id ?? ""}
-          onChange={(e) => onSelect(e.target.value)}
-          aria-label="Resume version"
-        >
-          {variants.map((v) => (
-            <option key={v.id} value={v.id}>
-              {v.name}
-            </option>
-          ))}
-        </select>
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0">
+          <p className="text-[11px] font-medium text-slate-400">Resume version</p>
+          <p className="mt-0.5 truncate text-[14px] font-medium text-slate-900">{active?.name ?? "General"}</p>
+        </div>
+        {variants.length > 1 ? (
+          <div className="relative shrink-0 pt-0.5">
+            <span className="text-[12px] font-medium text-indigo-600">Change</span>
+            <select
+              className="absolute inset-0 cursor-pointer opacity-0"
+              value={active?.id ?? ""}
+              onChange={(e) => onSelect(e.target.value)}
+              aria-label="Change resume version"
+            >
+              {variants.map((v) => (
+                <option key={v.id} value={v.id}>
+                  {v.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        ) : null}
       </div>
     );
   }

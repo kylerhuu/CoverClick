@@ -6,15 +6,32 @@ export const ccFocusRing = cn(
 );
 
 export const ccBtnPrimary = cn(
-  "inline-flex items-center justify-center gap-2 rounded-lg px-3.5 py-2 text-[13px] font-semibold text-white shadow-sm",
-  "bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400",
-  "active:translate-y-[0.5px] disabled:pointer-events-none disabled:opacity-45",
+  "inline-flex items-center justify-center gap-2 rounded-lg px-3.5 py-2 text-[13px] font-semibold text-white",
+  "bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700",
+  "disabled:pointer-events-none disabled:opacity-45",
   ccFocusRing,
 );
 
+/** Primary Apply CTA — solid indigo, supporting copy stack. */
+export const ccBtnApply = cn(
+  "inline-flex flex-col items-center justify-center rounded-lg px-4 py-3.5 text-white",
+  "bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700",
+  "disabled:pointer-events-none disabled:opacity-45",
+  ccFocusRing,
+);
+
+/** Secondary text action. */
+export const ccBtnTextSecondary = cn(
+  "inline-flex items-center justify-center text-[13px] font-medium text-slate-600",
+  "hover:text-slate-900 disabled:pointer-events-none disabled:opacity-40",
+  ccFocusRing,
+);
+
+export const ccPageTitle = "text-[15px] font-semibold tracking-tight text-slate-900";
+
 export const ccBtnPrimarySm = cn(
-  "inline-flex items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-[12px] font-semibold text-white shadow-sm",
-  "bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400",
+  "inline-flex items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-[12px] font-semibold text-white",
+  "bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700",
   "disabled:pointer-events-none disabled:opacity-45",
   ccFocusRing,
 );
@@ -71,6 +88,13 @@ export const ccHairline = "h-px w-full bg-gradient-to-r from-transparent via-sla
 /** Quiet surface: no heavy card border. */
 export const ccSurfaceQuiet = cn("rounded-xl bg-white/70 ring-1 ring-slate-200/40 shadow-[0_1px_2px_rgba(15,23,42,0.04)]");
 
+/** Dense hub list row — borderless, divider-separated. */
+export const ccHubListRow = cn(
+  "px-1 py-2.5 transition-colors duration-100 hover:bg-slate-50/90",
+);
+
+export const ccHubListRowSelected = cn("bg-indigo-50/40 hover:bg-indigo-50/50");
+
 /** Premium hub list card — clickable row with depth. */
 export const ccHubCard = cn(
   "rounded-2xl border border-slate-200/70 bg-white px-3.5 py-3 text-left shadow-[0_1px_3px_rgba(15,23,42,0.05)]",
@@ -119,15 +143,15 @@ export const ccProfileChip = cn(
 /** Side panel mode tab — active state with indigo accent. */
 export function ccSidePanelTab(active: boolean): string {
   return cn(
-    "relative min-h-[36px] flex-1 rounded-lg px-3 py-2 text-[12px] font-semibold transition-all duration-150",
+    "relative min-h-[32px] flex-1 rounded-md px-3 py-1.5 text-[12px] font-medium transition-colors duration-150",
     active
-      ? "bg-white text-indigo-950 shadow-sm ring-1 ring-indigo-200/70"
-      : "text-slate-500 hover:bg-white/60 hover:text-slate-800",
+      ? "bg-white text-slate-900 shadow-sm"
+      : "text-slate-500 hover:text-slate-700",
   );
 }
 
 export const ccSidePanelTabTrack = cn(
-  "inline-flex w-full rounded-xl border border-slate-200/70 bg-slate-100/60 p-1 shadow-[inset_0_1px_2px_rgba(15,23,42,0.04)]",
+  "inline-flex w-full rounded-lg bg-slate-100/70 p-0.5",
 );
 
 export const ccCountBadge = cn(

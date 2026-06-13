@@ -12,7 +12,7 @@ type Props = {
 
 export function SidePanelModeNav({ mode, hubCount, preparingOnCurrentTab, onChange }: Props) {
   return (
-    <nav className={cn(ccSidePanelTabTrack, "mx-3 mt-2.5 shrink-0")} role="tablist" aria-label="Side panel mode">
+    <nav className={cn(ccSidePanelTabTrack, "mx-4 mt-3 shrink-0")} role="tablist" aria-label="Side panel mode">
       <button
         type="button"
         role="tab"

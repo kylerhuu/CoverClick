@@ -133,3 +133,54 @@ export function currentJobSavedBannerMessage(app: JobApplication, preparingInBac
   }
   return "Already saved. Re-save to refresh materials, or open Application Hub.";
 }
+
+/** Quiet inline saved-state copy for the Current Job decision screen. */
+export function currentJobSavedInlineMessage(app: JobApplication, preparingInBackground: boolean): string {
+  if (preparingInBackground || app.status === "PREPARING") {
+    return "Saved · preparing materials in background";
+  }
+  if (app.status === "READY_TO_APPLY") {
+    return "Saved · ready in Application Hub";
+  }
+  if (app.status === "APPLIED") {
+    return "Saved · applied";
+  }
+  return "Saved to Application Hub";
+}
+
+/** Colored status label for dense hub list rows (text only, no pill). */
+export function statusListTextClass(status: JobApplicationStatus): string {
+  switch (status) {
+    case "PREPARING":
+    case "SAVED":
+      return "text-amber-700";
+    case "READY_TO_APPLY":
+      return "text-emerald-700";
+    case "APPLIED":
+    case "INTERVIEWING":
+    case "OFFER":
+      return "text-sky-700";
+    case "REJECTED":
+      return "text-rose-700";
+    default:
+      return "text-slate-500";
+  }
+}
+
+/** Dot-separated metadata for hub list rows. */
+export function hubListMetadataLine(app: JobApplication): string {
+  const parts: string[] = [];
+  const letter = coverLetterStatus(app);
+  if (app.status === "PREPARING") {
+    parts.push(letter === "Generating…" ? "Generating…" : letter);
+    parts.push(app.fitScore != null ? `${app.fitScore}% fit` : "Fit pending");
+  } else {
+    if (letter && letter !== "None") parts.push(letter);
+    const resume = app.resumeVariantName?.trim();
+    if (resume) parts.push(resume);
+    const fit = fitScoreLabel(app);
+    if (fit) parts.push(`${fit} fit`);
+    else if (app.status === "READY_TO_APPLY") parts.push("Fit pending");
+  }
+  return parts.join(" · ");
+}

@@ -1,15 +1,10 @@
+import { useState } from "react";
 import type { JobApplication, JobContext } from "../../lib/types";
 import type { ResumeVariant } from "../../lib/resumeLibrary";
-import { currentJobSavedBannerClass, currentJobSavedBannerMessage } from "../../hub/applicationDisplay";
+import { currentJobSavedInlineMessage } from "../../hub/applicationDisplay";
 import { jobSourceFromUrl } from "../../lib/jobSource";
 import { cn } from "../../lib/classNames";
-import {
-  ccBtnGhost,
-  ccBtnPrimary,
-  ccBtnSecondary,
-  ccMetaChip,
-  ccMuted,
-} from "../../ui/ccUi";
+import { ccBtnApply, ccBtnTextSecondary, ccFocusRing, ccMuted } from "../../ui/ccUi";
 import { ResumeVariantSelector } from "./ResumeVariantSelector";
 
 type DetectionState = "scanning" | "detected" | "empty" | "error";
@@ -21,11 +16,11 @@ function detectionState(scrapeBusy: boolean, scrapeError: string | null, job: Jo
   return "empty";
 }
 
-const detectionBarClass: Record<DetectionState, string> = {
-  scanning: "border-amber-300/80 bg-amber-50/90 text-amber-900",
-  detected: "border-emerald-300/70 bg-emerald-50/80 text-emerald-900",
-  empty: "border-slate-200/80 bg-slate-50/90 text-slate-600",
-  error: "border-red-200/90 bg-red-50/90 text-red-900",
+const detectionDotClass: Record<DetectionState, string> = {
+  scanning: "bg-amber-400",
+  detected: "bg-emerald-500",
+  empty: "bg-slate-300",
+  error: "bg-red-500",
 };
 
 const detectionLabel: Record<DetectionState, string> = {
@@ -64,53 +59,34 @@ export function CurrentJobSection({
   currentTabSaved,
   preparingInBackground,
 }: Props) {
+  const [descriptionExpanded, setDescriptionExpanded] = useState(false);
   const source = job?.pageUrl ? jobSourceFromUrl(job.pageUrl) : "";
   const detection = detectionState(scrapeBusy, scrapeError, job);
   const hasResume = resumeVariants.length > 0;
   const canAct = Boolean(job?.pageUrl) && !scrapeBusy && hasResume;
+  const hasDescription = Boolean(job?.descriptionText?.trim());
+  const descriptionLong = (job?.descriptionText?.trim().length ?? 0) > 180;
 
   return (
-    <div className="space-y-4">
-      <div
-        className={cn(
-          "relative overflow-hidden rounded-2xl border border-indigo-200/55 shadow-[0_4px_22px_rgba(79,70,229,0.09)]",
-          "bg-gradient-to-br from-white via-indigo-50/25 to-sky-50/35 ring-1 ring-slate-200/45",
-        )}
-      >
-        <div
-          className="pointer-events-none absolute inset-x-0 top-0 h-0.5 bg-gradient-to-r from-indigo-500/80 via-sky-400/70 to-indigo-500/80"
-          aria-hidden
-        />
-
-        <div
-          className={cn(
-            "flex items-center justify-between gap-2 border-b px-3.5 py-2 text-[10px] font-semibold uppercase tracking-[0.12em]",
-            detectionBarClass[detection],
-          )}
-        >
-          <span className="inline-flex min-w-0 items-center gap-1.5">
+    <div className="space-y-8">
+      <section className="rounded-xl bg-white px-4 py-5 ring-1 ring-slate-200/60">
+        <div className="flex items-center justify-between gap-3 text-[12px] text-slate-500">
+          <span className="inline-flex min-w-0 items-center gap-2">
             {detection === "scanning" ? (
-              <span className="cc-spinner h-3 w-3 border-[1.5px]" aria-hidden />
+              <span className="cc-spinner h-2 w-2 border-[1.5px] border-slate-300 border-t-slate-500" aria-hidden />
             ) : (
-              <span
-                className={cn(
-                  "h-1.5 w-1.5 shrink-0 rounded-full",
-                  detection === "detected" ? "bg-emerald-500" : detection === "error" ? "bg-red-500" : "bg-slate-400",
-                )}
-                aria-hidden
-              />
+              <span className={cn("h-2 w-2 shrink-0 rounded-full", detectionDotClass[detection])} aria-hidden />
             )}
-            <span className="truncate">{detectionLabel[detection]}</span>
-            {source && detection === "detected" ? (
-              <span className="hidden truncate normal-case tracking-normal opacity-75 sm:inline">· {source}</span>
-            ) : null}
+            <span className="truncate">
+              {detectionLabel[detection]}
+              {source && detection === "detected" ? (
+                <span className="text-slate-400"> · {source}</span>
+              ) : null}
+            </span>
           </span>
           <button
             type="button"
-            className={cn(
-              ccBtnGhost,
-              "shrink-0 px-1.5 py-0.5 text-[10px] normal-case tracking-normal opacity-80 hover:opacity-100",
-            )}
+            className={cn("shrink-0 font-medium text-slate-500 hover:text-slate-800", ccFocusRing)}
             disabled={scrapeBusy}
             onClick={onRescan}
           >
@@ -118,81 +94,103 @@ export function CurrentJobSection({
           </button>
         </div>
 
-        <div className="space-y-3 p-3.5">
-          <div>
-            <h2 className="text-[18px] font-bold leading-snug tracking-tight text-slate-900">
-              {scrapeBusy ? "Reading posting…" : job?.jobTitle?.trim() || "Open a job posting"}
-            </h2>
-            {job?.companyName?.trim() ? (
-              <p className="mt-1 text-[14px] font-semibold text-indigo-700">{job.companyName}</p>
-            ) : detection === "empty" && !scrapeBusy ? (
-              <p className="mt-1 text-[13px] font-medium text-slate-500">Navigate to a role, then re-scan</p>
-            ) : null}
-            {source && detection !== "detected" ? (
-              <span className={cn(ccMetaChip("mt-2 bg-indigo-50/80 text-indigo-600 ring-indigo-200/50"))}>{source}</span>
-            ) : null}
-          </div>
-
-          {scrapeError ? (
-            <p className="rounded-xl border border-red-200 bg-red-50/90 px-3 py-2.5 text-[11px] font-medium text-red-900">
-              {scrapeError}
-            </p>
+        <div className="mt-5">
+          <h1 className="text-[22px] font-semibold leading-tight tracking-tight text-slate-900">
+            {scrapeBusy ? "Reading posting…" : job?.jobTitle?.trim() || "Open a job posting"}
+          </h1>
+          {job?.companyName?.trim() ? (
+            <p className="mt-1.5 text-[15px] font-medium text-slate-600">{job.companyName}</p>
+          ) : detection === "empty" && !scrapeBusy ? (
+            <p className="mt-1.5 text-[14px] text-slate-500">Navigate to a role, then re-scan</p>
           ) : null}
-
-          {job?.descriptionText?.trim() ? (
-            <div className="max-h-[120px] overflow-y-auto rounded-xl border border-slate-200/55 bg-white/70 p-3 shadow-[inset_0_1px_2px_rgba(15,23,42,0.04)]">
-              <p className="whitespace-pre-wrap text-[11px] leading-relaxed text-slate-600">
-                {job.descriptionText.trim().slice(0, 600)}
-                {job.descriptionText.length > 600 ? "…" : ""}
-              </p>
-            </div>
-          ) : !scrapeBusy && detection === "empty" ? (
-            <p className={cn(ccMuted, "text-[12px]")}>We will pull title, company, and description from the page you have open.</p>
-          ) : null}
-
-          {currentTabSaved ? (
-            <div
-              className={cn(
-                "rounded-xl border px-3 py-2 text-[11px] font-medium leading-snug",
-                currentJobSavedBannerClass(currentTabSaved),
-              )}
-            >
-              {currentJobSavedBannerMessage(currentTabSaved, Boolean(preparingInBackground))}
-            </div>
+          {source ? (
+            <p className="mt-1 text-[12px] text-slate-400">{source}</p>
           ) : null}
         </div>
-      </div>
 
-      <ResumeVariantSelector
-        variant="compact"
-        variants={resumeVariants}
-        activeId={activeResumeVariantId}
-        onSelect={onSelectResumeVariant}
-      />
+        {scrapeError ? (
+          <p className="mt-4 text-[12px] font-medium text-red-700">{scrapeError}</p>
+        ) : null}
 
-      <div className="space-y-2">
-        <button
-          type="button"
-          className={cn(ccBtnPrimary, "w-full py-3 text-[13px]")}
-          disabled={!canAct}
-          onClick={onApplyNow}
-        >
-          Apply now
-        </button>
-        <button
-          type="button"
-          className={cn(ccBtnSecondary, "w-full py-2.5 text-[12px]")}
-          disabled={!canAct || saveBusy}
-          onClick={onSaveForLater}
-        >
-          {saveBusy ? "Saving…" : "Save for later"}
-        </button>
+        <div className="mt-6">
+          <ResumeVariantSelector
+            variant="compact"
+            variants={resumeVariants}
+            activeId={activeResumeVariantId}
+            onSelect={onSelectResumeVariant}
+          />
+        </div>
+
+        <div className="mt-8 space-y-3">
+          <button
+            type="button"
+            className={cn(ccBtnApply, "w-full")}
+            disabled={!canAct}
+            onClick={onApplyNow}
+          >
+            <span className="block text-[14px] font-semibold">Apply now</span>
+            <span className="mt-0.5 block text-[11px] font-normal text-indigo-100/90">
+              Generate your cover letter, review, and download
+            </span>
+          </button>
+          <button
+            type="button"
+            className={cn(ccBtnTextSecondary, "w-full py-2")}
+            disabled={!canAct || saveBusy}
+            onClick={onSaveForLater}
+          >
+            {saveBusy ? "Saving…" : "Save for later"}
+          </button>
+        </div>
+
+        {currentTabSaved ? (
+          <p className="mt-5 flex items-center gap-2 text-[12px] text-slate-500">
+            <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-500" aria-hidden />
+            {currentJobSavedInlineMessage(currentTabSaved, Boolean(preparingInBackground))}
+          </p>
+        ) : null}
+
         {!hasResume && !scrapeBusy ? (
-          <p className="text-center text-[10px] leading-snug text-slate-500">
+          <p className="mt-4 text-center text-[11px] text-slate-500">
             Add a resume in Profile to apply or save this job.
           </p>
         ) : null}
-      </div>
+      </section>
+
+      {hasDescription ? (
+        <section className="px-1">
+          <p className="text-[12px] font-medium text-slate-500">About this role</p>
+          <div className="relative mt-2">
+            <p
+              className={cn(
+                "whitespace-pre-wrap text-[13px] leading-relaxed text-slate-600",
+                !descriptionExpanded && "line-clamp-3",
+              )}
+            >
+              {job!.descriptionText!.trim()}
+            </p>
+            {!descriptionExpanded && descriptionLong ? (
+              <div
+                className="pointer-events-none absolute inset-x-0 bottom-0 h-8 bg-gradient-to-t from-[#f0f2f6] to-transparent"
+                aria-hidden
+              />
+            ) : null}
+          </div>
+          {descriptionLong ? (
+            <button
+              type="button"
+              className={cn("mt-2 text-[12px] font-medium text-indigo-600 hover:text-indigo-800", ccFocusRing)}
+              onClick={() => setDescriptionExpanded((v) => !v)}
+            >
+              {descriptionExpanded ? "Show less" : "View details"}
+            </button>
+          ) : null}
+        </section>
+      ) : !scrapeBusy && detection === "empty" ? (
+        <p className={cn(ccMuted, "px-1 text-[12px]")}>
+          We will pull title, company, and description from the page you have open.
+        </p>
+      ) : null}
     </div>
   );
 }
