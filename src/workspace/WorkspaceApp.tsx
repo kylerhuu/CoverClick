@@ -16,7 +16,6 @@ import { applicationToJobContext, tailoringToOptimizePreview } from "../hub/appl
 import { pollApplicationUntilReady } from "../lib/applicationsApi";
 import { EMPTY_PROFILE, EMPTY_STRUCTURED_RESUME } from "../lib/types";
 import { generateCoverLetter, resolveStructuredLetter } from "../lib/api";
-import { downloadStructuredCoverLetterDocx } from "../lib/exportDocx";
 import { downloadResumeDocx } from "../lib/exportResumeDocx";
 import { downloadResumePdf } from "../lib/exportResumePdf";
 import {
@@ -616,24 +615,6 @@ function withStableResumeIds(resume: StructuredResume): StructuredResume {
     }
   }, [job?.pageUrl, letter, isApplicationMode, applicationRecord]);
 
-  const onDocx = useCallback(async () => {
-    if (!job) return;
-    try {
-      setError(null);
-      await downloadStructuredCoverLetterDocx({
-        fullName: profile.fullName,
-        companyName: job.companyName,
-        jobTitle: job.jobTitle,
-        letter,
-        fileBaseName: exportBasename,
-      });
-      setStatus("DOCX saved");
-      window.setTimeout(() => setStatus(null), 900);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "DOCX failed");
-    }
-  }, [letter, profile.fullName, job, exportBasename]);
-
   const onPdf = useCallback(async () => {
     if (!job) return;
     setPdfBusy(true);
@@ -934,8 +915,6 @@ function withStableResumeIds(resume: StructuredResume): StructuredResume {
       onCopy={() => void onCopy()}
       onSave={() => void onSaveLetter()}
       onDownload={() => void onPdf()}
-      onDocx={() => void onDocx()}
-      onSwitchToResume={() => setWorkspaceTab("resume")}
       profile={profile}
       job={job}
       exportBasename={exportBasename}

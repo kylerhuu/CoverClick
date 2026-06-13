@@ -58,8 +58,6 @@ type Props = {
   onCopy: () => void;
   onSave: () => void;
   onDownload: () => void;
-  onDocx: () => void;
-  onSwitchToResume?: () => void;
   profile: UserProfile;
   job: JobContext | null;
   exportBasename: string;
@@ -113,8 +111,6 @@ export function LetterPane({
   onCopy,
   onSave,
   onDownload,
-  onDocx,
-  onSwitchToResume,
   profile,
   job,
   exportBasename,
@@ -127,6 +123,7 @@ export function LetterPane({
   const actionsDisabled = !hasLetter || genBusy || pdfBusy || saveBusy;
 
   const [mode, setMode] = useState<LetterPaneMode>("preview");
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [editPlain, setEditPlain] = useState(() => canonicalPlainFromStructured(letter));
   const debRef = useRef<number>();
   const prevGenBusy = useRef(genBusy);
@@ -233,7 +230,19 @@ export function LetterPane({
               disabled={actionsDisabled}
             >
               <DownloadIcon />
-              {pdfBusy ? "Rendering…" : "Download"}
+              {pdfBusy ? "Rendering…" : "Download PDF"}
+            </button>
+            <button
+              type="button"
+              className={cn(
+                ccWorkspaceSecondaryBtn,
+                settingsOpen && "bg-white text-slate-900 shadow-sm ring-1 ring-slate-200/80",
+              )}
+              aria-expanded={settingsOpen}
+              onClick={() => setSettingsOpen((open) => !open)}
+              disabled={genBusy || pdfBusy || saveBusy}
+            >
+              Settings
             </button>
           </div>
 
@@ -242,10 +251,34 @@ export function LetterPane({
           ) : null}
         </div>
 
+        {settingsOpen ? (
+          <div className="mt-3 border-t border-slate-100/60 pt-3">
+            <div className={ccWorkspaceEditPanel}>
+              <GenerationControls
+                tone={tone}
+                emphasis={emphasis}
+                length={length}
+                responseShape={responseShape}
+                onChange={onPrefsChange}
+                exportBasename={exportBasename}
+                onExportBasenameChange={onExportBasenameChange}
+              />
+              <button
+                type="button"
+                className={cn(ccBtnTextSecondary, "mt-3 text-[11px]")}
+                onClick={onRegenerate}
+                disabled={genBusy || pdfBusy || saveBusy || !job}
+              >
+                Regenerate letter
+              </button>
+            </div>
+          </div>
+        ) : null}
+
         {pdfBusy ? (
           <div className="mt-2 flex items-center gap-2 text-[11px] text-slate-600">
             <span className="cc-spinner h-3.5 w-3.5 border-2" aria-hidden />
-            Preparing your download…
+            Preparing your PDF…
           </div>
         ) : null}
       </div>
@@ -260,64 +293,12 @@ export function LetterPane({
           </div>
         </div>
       ) : (
-        <div className={cn(ccLetterPreviewCanvas, "flex flex-col")}>
-          <div className="shrink-0 border-b border-slate-100/60 bg-white/70 px-4 py-2.5 backdrop-blur-sm">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <p className="text-[12px] font-semibold text-slate-800">Edit cover letter</p>
-              <div className="flex flex-wrap items-center gap-2">
-                {onSwitchToResume ? (
-                  <button type="button" className={ccBtnTextSecondary} onClick={onSwitchToResume}>
-                    Edit resume →
-                  </button>
-                ) : null}
-                <button
-                  type="button"
-                  className={cn(ccBtnTextSecondary, "text-[11px]")}
-                  onClick={onRegenerate}
-                  disabled={genBusy || pdfBusy || saveBusy || !job}
-                >
-                  Regenerate
-                </button>
-              </div>
-            </div>
-          </div>
-
-          <div className="min-h-0 flex-1 overflow-y-auto">
-            <LetterContinuousEditor
-              value={editPlain}
-              onChange={onEditPlainChange}
-              disabled={!letterEditable}
-            />
-          </div>
-
-          <div className="shrink-0 border-t border-slate-100/60 bg-[#F5F7FB]/95 px-4 py-3">
-            <div className={ccWorkspaceEditPanel}>
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                Generation settings
-              </p>
-              <div className="mt-3">
-                <GenerationControls
-                  tone={tone}
-                  emphasis={emphasis}
-                  length={length}
-                  responseShape={responseShape}
-                  onChange={onPrefsChange}
-                  exportBasename={exportBasename}
-                  onExportBasenameChange={onExportBasenameChange}
-                />
-              </div>
-              <div className="mt-3 flex flex-wrap items-center gap-3 border-t border-slate-100 pt-3">
-                <button
-                  type="button"
-                  className={cn(ccBtnTextSecondary, "text-[11px]")}
-                  onClick={onDocx}
-                  disabled={actionsDisabled}
-                >
-                  Download DOCX
-                </button>
-              </div>
-            </div>
-          </div>
+        <div className={cn(ccLetterPreviewCanvas, "flex min-h-0 flex-1 flex-col")}>
+          <LetterContinuousEditor
+            value={editPlain}
+            onChange={onEditPlainChange}
+            disabled={!letterEditable}
+          />
         </div>
       )}
     </div>
