@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type MutableRefObject } from "react";
 
 const PAGE_MEASURE_EPSILON_PX = 2;
 import type { StructuredResume } from "../../../lib/types";
@@ -24,6 +24,20 @@ import {
 } from "../../../lib/resumePageMetrics";
 import { cn } from "../../../lib/classNames";
 
+export type ResumePreviewEditableFlushHandle = {
+  flushEditableOverrides: () => void;
+};
+
+function readEditableText(el: HTMLElement): string {
+  const text = el.textContent ?? "";
+  if (!text || text === "\u00a0") return "";
+  return text;
+}
+
+function editableDisplayText(text: string): string {
+  return text || "\u00a0";
+}
+
 type Props = {
   resume: StructuredResume;
   template?: "ats-classic";
@@ -35,8 +49,12 @@ type Props = {
   /** Final-review inline edits (print-preview step). */
   editable?: boolean;
   onFinalOverrideChange?: (key: string, value: string) => void;
+  /** Applies all in-progress contentEditable values in one update. */
+  onFinalOverridesFlush?: (updates: FinalExportOverrides) => void;
   /** Bumps when export layout plan changes (force-fit DOM passes). */
   layoutEpoch?: number;
+  /** Flushes in-progress contentEditable text before save/export. */
+  editableFlushRef?: MutableRefObject<ResumePreviewEditableFlushHandle | null>;
 };
 
 const shellClass = "rounded-xl border border-slate-300/80 bg-slate-200/50 p-3";
@@ -66,6 +84,27 @@ function ResumeTextBlock({
   as?: "p" | "li";
 }) {
   const text = exportDisplayText(overrides, blockKey, fallback);
+  const elRef = useRef<HTMLElement | null>(null);
+  const isFocusedRef = useRef(false);
+  const lastSyncedTextRef = useRef(text);
+
+  useLayoutEffect(() => {
+    if (!editable || !elRef.current) return;
+    if (isFocusedRef.current) return;
+    const display = editableDisplayText(text);
+    if (elRef.current.textContent !== display) {
+      elRef.current.textContent = display;
+    }
+    lastSyncedTextRef.current = text;
+  }, [editable, text, blockKey]);
+
+  const commit = (el: HTMLElement) => {
+    const value = readEditableText(el);
+    if (value === lastSyncedTextRef.current) return;
+    lastSyncedTextRef.current = value;
+    onOverrideChange?.(blockKey, value);
+  };
+
   if (!text && !editable) return null;
   const editCls = editable ? "rounded-sm outline-none focus:ring-2 focus:ring-indigo-300/80" : "";
   const Tag = as;
@@ -78,15 +117,28 @@ function ResumeTextBlock({
   }
   return (
     <Tag
+      ref={(node: HTMLElement | null) => {
+        elRef.current = node;
+      }}
       className={cn(className, editCls)}
       style={style}
       contentEditable
       suppressContentEditableWarning
-      onInput={(e) => onOverrideChange?.(blockKey, e.currentTarget.textContent ?? "")}
-      onBlur={(e) => onOverrideChange?.(blockKey, e.currentTarget.textContent ?? "")}
-    >
-      {text || "\u00a0"}
-    </Tag>
+      data-resume-edit-key={blockKey}
+      onFocus={() => {
+        isFocusedRef.current = true;
+      }}
+      onBlur={(e) => {
+        isFocusedRef.current = false;
+        commit(e.currentTarget);
+      }}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" && !e.shiftKey) {
+          e.preventDefault();
+          e.currentTarget.blur();
+        }
+      }}
+    />
   );
 }
 
@@ -100,7 +152,9 @@ export function ResumePreview({
   onExportPageMeasure,
   editable = false,
   onFinalOverrideChange,
+  onFinalOverridesFlush,
   layoutEpoch = 0,
+  editableFlushRef,
 }: Props) {
   const pageRef = useRef<HTMLDivElement>(null);
   const lastReportedHeightRef = useRef(0);
@@ -117,6 +171,33 @@ export function ResumePreview({
   const typography = model.typography;
   const skillLines = formatSkillRenderLines(r, model.layout.renderPlan);
   const targetPages = renderOptions?.targetPages ?? 1;
+
+  useEffect(() => {
+    if (!editableFlushRef) return;
+    editableFlushRef.current = {
+      flushEditableOverrides: () => {
+        const root = pageRef.current;
+        if (!root) return;
+        const updates: FinalExportOverrides = {};
+        root.querySelectorAll<HTMLElement>("[data-resume-edit-key]").forEach((el) => {
+          const key = el.dataset.resumeEditKey;
+          if (!key) return;
+          updates[key] = readEditableText(el);
+        });
+        if (Object.keys(updates).length === 0) return;
+        if (onFinalOverridesFlush) {
+          onFinalOverridesFlush(updates);
+          return;
+        }
+        for (const [key, value] of Object.entries(updates)) {
+          onFinalOverrideChange?.(key, value);
+        }
+      },
+    };
+    return () => {
+      editableFlushRef.current = null;
+    };
+  }, [editableFlushRef, onFinalOverrideChange, onFinalOverridesFlush]);
 
   useLayoutEffect(() => {
     const el = pageRef.current;

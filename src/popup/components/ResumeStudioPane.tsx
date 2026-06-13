@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 import type {
   ResumeEntryPriority,
   ResumeSectionKey,
@@ -39,7 +40,7 @@ import {
   projectTrimImpact,
 } from "../../lib/resumeTrimSuggestions";
 import { loadResumeStudioLayoutSettings, saveResumeStudioLayoutSettings } from "../../lib/storage";
-import { ResumePreview } from "./resume/ResumePreview";
+import { ResumePreview, type ResumePreviewEditableFlushHandle } from "./resume/ResumePreview";
 
 type Props = {
   resume: StructuredResume;
@@ -178,6 +179,7 @@ export function ResumeStudioPane({
     emptyFinalExportOverrides(),
   );
   const finalExportOverridesRef = useRef<FinalExportOverrides>(emptyFinalExportOverrides());
+  const reviewEditableFlushRef = useRef<ResumePreviewEditableFlushHandle | null>(null);
   const [reviewBaseline, setReviewBaseline] = useState<FinalExportOverrides>(() => emptyFinalExportOverrides());
   const reviewBaselineRef = useRef<FinalExportOverrides>(emptyFinalExportOverrides());
   const [narrowHintDismissed, setNarrowHintDismissed] = useState(
@@ -279,8 +281,7 @@ export function ResumeStudioPane({
   }, []);
 
   const saveReviewEditsToVariant = useCallback(async () => {
-    const active = document.activeElement;
-    if (active instanceof HTMLElement) active.blur();
+    reviewEditableFlushRef.current?.flushEditableOverrides();
     await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
 
     const overrides = finalExportOverridesRef.current;
@@ -293,6 +294,62 @@ export function ResumeStudioPane({
     }
     clearReviewOverrides();
   }, [resume, onResumeChange, onPersistResumeChange, clearReviewOverrides]);
+
+  const handleFinalOverridesFlush = useCallback((updates: FinalExportOverrides) => {
+    flushSync(() => {
+      setFinalExportOverrides((prev) => {
+        const next = { ...prev, ...updates };
+        finalExportOverridesRef.current = next;
+        return next;
+      });
+    });
+  }, []);
+
+  const getReviewExportContext = useCallback(
+    (): ResumeExportContext => ({
+      renderOptions: {
+        ...renderOptions,
+        finalExportOverrides: finalExportOverridesRef.current,
+      },
+    }),
+    [renderOptions],
+  );
+
+  const handleReviewExportDocx = useCallback(
+    (ctx: ResumeExportContext) => {
+      onExportDocx({
+        renderOptions: {
+          ...ctx.renderOptions,
+          finalExportOverrides: finalExportOverridesRef.current,
+        },
+      });
+    },
+    [onExportDocx],
+  );
+
+  const handleReviewExportPdf = useCallback(
+    async (ctx: ResumeExportContext) => {
+      await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+      onExportPdf({
+        renderOptions: {
+          ...ctx.renderOptions,
+          finalExportOverrides: finalExportOverridesRef.current,
+        },
+      });
+    },
+    [onExportPdf],
+  );
+
+  const getReviewOverridesDirty = useCallback(
+    () =>
+      exportOverridesAreDirty(
+        resume,
+        renderOptionsWithoutOverrides,
+        finalExportOverridesRef.current,
+        reviewBaselineRef.current,
+      ),
+    [resume, renderOptionsWithoutOverrides],
+  );
 
   const model = useMemo(() => getResumeRenderModel(resume, renderOptions), [resume, renderOptions]);
   const omittedNotes = model.layout.renderPlan.omittedNotes;
@@ -926,6 +983,7 @@ export function ResumeStudioPane({
         resumeVariantName={resumeVariantName}
         manualEditMode={downloadReviewManualEdit}
         overridesDirty={overridesDirty}
+        getOverridesDirty={getReviewOverridesDirty}
         onEnterManualEdit={() => {
           const baseline = buildReviewExportBaseline(resume, renderOptionsWithoutOverrides);
           reviewBaselineRef.current = baseline;
@@ -941,6 +999,7 @@ export function ResumeStudioPane({
             return next;
           });
         }}
+        onFinalOverridesFlush={handleFinalOverridesFlush}
         onDoneManualEdit={() => setDownloadReviewManualEdit(false)}
         onResetManualEdits={() => {
           const baseline = reviewBaselineRef.current;
@@ -950,8 +1009,10 @@ export function ResumeStudioPane({
         onSaveToResumeVersion={() => void saveReviewEditsToVariant()}
         onExportOnlyClose={() => setDownloadReviewManualEdit(false)}
         onDiscardOverrides={clearReviewOverrides}
-        onExportDocx={onExportDocx}
-        onExportPdf={onExportPdf}
+        onExportDocx={handleReviewExportDocx}
+        onExportPdf={handleReviewExportPdf}
+        getExportContext={getReviewExportContext}
+        editableFlushRef={reviewEditableFlushRef}
       />
     </div>
   );

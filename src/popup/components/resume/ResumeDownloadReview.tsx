@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, type MutableRefObject } from "react";
 import type { StructuredResume } from "../../../lib/types";
 import { cn } from "../../../lib/classNames";
 import {
@@ -8,7 +8,7 @@ import {
   type ResumeRenderOptions,
 } from "../../../lib/resumeRender";
 import { formatPageFitDisplay, healthyPageBand } from "../../../lib/resumePageMetrics";
-import { ResumePreview } from "./ResumePreview";
+import { ResumePreview, type ResumePreviewEditableFlushHandle } from "./ResumePreview";
 
 export type ResumeExportContext = {
   renderOptions: ResumeRenderOptions;
@@ -29,15 +29,19 @@ type Props = {
   resumeVariantName: string;
   manualEditMode: boolean;
   overridesDirty: boolean;
+  getOverridesDirty?: () => boolean;
   onEnterManualEdit: () => void;
   onDoneManualEdit: () => void;
   onResetManualEdits: () => void;
   onFinalOverrideChange: (key: string, value: string) => void;
+  onFinalOverridesFlush?: (updates: FinalExportOverrides) => void;
   onSaveToResumeVersion: () => void | Promise<void>;
   onExportOnlyClose: () => void;
   onDiscardOverrides: () => void;
   onExportDocx: (ctx: ResumeExportContext) => void;
   onExportPdf: (ctx: ResumeExportContext) => void;
+  editableFlushRef?: MutableRefObject<ResumePreviewEditableFlushHandle | null>;
+  getExportContext?: () => ResumeExportContext;
 };
 
 export function ResumeDownloadReview({
@@ -53,25 +57,36 @@ export function ResumeDownloadReview({
   resumeVariantName,
   manualEditMode,
   overridesDirty,
+  getOverridesDirty,
   onEnterManualEdit,
   onDoneManualEdit,
   onResetManualEdits,
   onFinalOverrideChange,
+  onFinalOverridesFlush,
   onSaveToResumeVersion,
   onExportOnlyClose,
   onDiscardOverrides,
   onExportDocx,
   onExportPdf,
+  editableFlushRef,
+  getExportContext,
 }: Props) {
   const [closeChoice, setCloseChoice] = useState<CloseChoice>(null);
   const model = useMemo(() => getResumeRenderModel(resume, renderOptions), [resume, renderOptions]);
   const omittedNotes = model.layout.renderPlan.omittedNotes;
   const pageFit = pagesUsed != null ? formatPageFitDisplay(pagesUsed, targetLength) : null;
   const band = healthyPageBand(targetLength);
-  const exportCtx: ResumeExportContext = { renderOptions };
+  const exportCtx: ResumeExportContext = getExportContext?.() ?? { renderOptions };
+
+  const flushEditableOverrides = () => {
+    editableFlushRef?.current?.flushEditableOverrides();
+  };
+
+  const hasUnsavedOverrides = () => (getOverridesDirty ? getOverridesDirty() : overridesDirty);
 
   const requestClose = () => {
-    if (overridesDirty) {
+    flushEditableOverrides();
+    if (hasUnsavedOverrides()) {
       setCloseChoice("save");
       return;
     }
@@ -81,6 +96,7 @@ export function ResumeDownloadReview({
   const handleCloseChoice = (choice: CloseChoice) => {
     if (!choice) return;
     setCloseChoice(null);
+    flushEditableOverrides();
     if (choice === "save") {
       void (async () => {
         await onSaveToResumeVersion();
@@ -199,14 +215,20 @@ export function ResumeDownloadReview({
               <div className="mt-3 flex flex-wrap gap-2">
                 <button
                   type="button"
-                  onClick={() => void onSaveToResumeVersion()}
+                  onClick={() => {
+                    flushEditableOverrides();
+                    void onSaveToResumeVersion();
+                  }}
                   className="rounded-lg border border-indigo-600 bg-indigo-600 px-3 py-1.5 text-[11px] font-bold text-white disabled:opacity-40"
                 >
                   Save to this resume version
                 </button>
                 <button
                   type="button"
-                  onClick={onDoneManualEdit}
+                  onClick={() => {
+                    flushEditableOverrides();
+                    onDoneManualEdit();
+                  }}
                   className="rounded-lg border border-indigo-500 bg-white px-3 py-1.5 text-[11px] font-bold text-indigo-950"
                 >
                   Done editing
@@ -241,6 +263,8 @@ export function ResumeDownloadReview({
             className="mx-auto"
             editable={manualEditMode}
             onFinalOverrideChange={onFinalOverrideChange}
+            onFinalOverridesFlush={onFinalOverridesFlush}
+            editableFlushRef={editableFlushRef}
           />
         </div>
 
@@ -279,14 +303,20 @@ export function ResumeDownloadReview({
             ) : null}
             <button
               type="button"
-              onClick={() => onExportDocx(exportCtx)}
+              onClick={() => {
+                flushEditableOverrides();
+                onExportDocx(getExportContext?.() ?? exportCtx);
+              }}
               className="rounded-lg border border-indigo-200 bg-indigo-50 px-4 py-2 text-[12px] font-semibold text-indigo-950"
             >
               Download DOCX
             </button>
             <button
               type="button"
-              onClick={() => onExportPdf(exportCtx)}
+              onClick={() => {
+                flushEditableOverrides();
+                void onExportPdf(getExportContext?.() ?? exportCtx);
+              }}
               className="rounded-lg border border-slate-800 bg-slate-900 px-4 py-2 text-[12px] font-semibold text-white"
             >
               Download PDF
