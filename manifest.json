@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "CoverClick",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "One-click tailored cover letters from any job posting.",
   "icons": {
     "16": "icons/coverclick-icon.png",
