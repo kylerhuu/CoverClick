@@ -8,6 +8,7 @@ export const STORAGE_KEYS = {
   resumeStudioLayout: "coverclick_resume_studio_layout",
   resumeLibrary: "coverclick_resume_library",
   applications: "coverclick_applications",
+  onboarding: "coverclick_onboarding",
 } as const;
 
 export type StorageKey = (typeof STORAGE_KEYS)[keyof typeof STORAGE_KEYS];

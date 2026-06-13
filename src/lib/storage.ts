@@ -307,6 +307,7 @@ export async function clearLocalUserData(): Promise<AppSettings> {
     STORAGE_KEYS.resumeStudioLayout,
     STORAGE_KEYS.resumeLibrary,
     STORAGE_KEYS.applications,
+    STORAGE_KEYS.onboarding,
     "coverclick_options_tab",
   ]);
   const s = await loadSettings();

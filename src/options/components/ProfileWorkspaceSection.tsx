@@ -27,9 +27,19 @@ type Props = {
   settings: AppSettings;
   tones: { value: DefaultTone; label: string }[];
   onNavigateImport: () => void;
+  onRelaunchTour?: () => void;
+  showRelaunchTour?: boolean;
 };
 
-export function ProfileWorkspaceSection({ profile, setProfile, settings, tones, onNavigateImport }: Props) {
+export function ProfileWorkspaceSection({
+  profile,
+  setProfile,
+  settings,
+  tones,
+  onNavigateImport,
+  onRelaunchTour,
+  showRelaunchTour = false,
+}: Props) {
   const [resumeCount, setResumeCount] = useState(0);
   const [applicationCount, setApplicationCount] = useState(0);
   const [avgMatch, setAvgMatch] = useState<number | null>(null);
@@ -123,6 +133,15 @@ export function ProfileWorkspaceSection({ profile, setProfile, settings, tones, 
         actionLabel="Import resume"
         onAction={onNavigateImport}
       />
+      {showRelaunchTour && onRelaunchTour ? (
+        <button
+          type="button"
+          className="text-[12px] font-semibold text-[#5B4CF0] hover:text-[#4f46e5]"
+          onClick={() => onRelaunchTour()}
+        >
+          Replay product tour
+        </button>
+      ) : null}
       {settings.useMock ? (
         <p className="text-[11px] text-amber-900/90">
           {import.meta.env.PROD
@@ -132,7 +151,8 @@ export function ProfileWorkspaceSection({ profile, setProfile, settings, tones, 
       ) : null}
 
       <WorkspaceSection title="Personal information" description="Basics the model uses in every application.">
-        <WorkspaceCard>
+        <div data-onboarding-target="profile-fields">
+          <WorkspaceCard>
           <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2">
             <Field label="Full name">
               <input
@@ -189,6 +209,7 @@ export function ProfileWorkspaceSection({ profile, setProfile, settings, tones, 
             </Field>
           </div>
         </WorkspaceCard>
+        </div>
       </WorkspaceSection>
 
       <WorkspaceSection title="Skills" description="Short phrases your cover letters can lean on.">

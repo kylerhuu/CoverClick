@@ -98,7 +98,7 @@ export function CurrentJobSection({
   }
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-3" data-onboarding-target="apply-workflow">
       <section className="space-y-3">
         <div className="flex items-center justify-between gap-3 text-[12px] text-slate-500">
           <span className="inline-flex min-w-0 items-center gap-2">

@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
 import type { AppSettings, DefaultTone, UserProfile } from "../lib/types";
-import { ProfileSetupGuide } from "../sidepanel/components/ProfileSetupGuide";
 import { DEFAULT_SETTINGS, EMPTY_PROFILE } from "../lib/types";
 import { cn } from "../lib/classNames";
 import { compactProfileArrays } from "../lib/profileArrays";
@@ -8,6 +7,8 @@ import { apiGetServerProfile, apiPutServerProfile } from "../lib/backendApi";
 import { loadProfile, loadSettings, saveProfile, saveSettings } from "../lib/storage";
 import { AuthWall } from "../auth/AuthWall";
 import { useAccessGate } from "../auth/useAccessGate";
+import { useOnboardingTour } from "../hooks/useOnboardingTour";
+import { OnboardingTour } from "../ui/OnboardingTour";
 import { AutosaveStatus, type SaveStatus, type ServerSyncStatus } from "./components/AutosaveStatus";
 import { AccountWorkspaceSection } from "./components/AccountWorkspaceSection";
 import { OptionsSectionNav, type OptionsMainTab } from "./components/OptionsSectionNav";
@@ -70,6 +71,19 @@ export function OptionsPage() {
   const [serverSync, setServerSync] = useState<ServerSyncStatus>("idle");
   const [serverSyncMsg, setServerSyncMsg] = useState<string | null>(null);
   const [showApiAdvanced, setShowApiAdvanced] = useState(false);
+
+  const tourEnabled =
+    hydrated &&
+    gate.phase !== "loading" &&
+    gate.phase !== "signed_out" &&
+    gate.phase !== "no_api" &&
+    gate.phase !== "account_error";
+
+  const tour = useOnboardingTour({
+    surface: "options",
+    enabled: tourEnabled,
+    onNavigateTab: setMainTab,
+  });
 
   useEffect(() => {
     const applyHash = () => {
@@ -307,20 +321,15 @@ export function OptionsPage() {
         ) : null}
 
         {mainTab === "profile" ? (
-          <>
-            <ProfileSetupGuide
-              className="mt-4"
-              onOpenImport={() => setMainTab("import")}
-              onOpenProfile={() => setMainTab("profile")}
-            />
-            <ProfileWorkspaceSection
-              profile={profile}
-              setProfile={setProfile}
-              settings={settings}
-              tones={tones}
-              onNavigateImport={() => setMainTab("import")}
-            />
-          </>
+          <ProfileWorkspaceSection
+            profile={profile}
+            setProfile={setProfile}
+            settings={settings}
+            tones={tones}
+            onNavigateImport={() => setMainTab("import")}
+            onRelaunchTour={() => void tour.relaunch()}
+            showRelaunchTour
+          />
         ) : null}
 
         {mainTab === "resumes" ? (
@@ -355,23 +364,27 @@ export function OptionsPage() {
         ) : null}
 
         {mainTab === "import" ? (
-          <>
-            <ProfileSetupGuide
-              className="mt-4"
-              onOpenImport={() => setMainTab("import")}
-              onOpenProfile={() => setMainTab("profile")}
-            />
-            <ResumeImportSection
-              hydrated={hydrated}
-              settings={settings}
-              profile={profile}
-              setProfile={setProfile}
-              serverFeaturesEnabled={gate.phase === "paid"}
-              onNavigateToTab={setMainTab}
-            />
-          </>
+          <ResumeImportSection
+            hydrated={hydrated}
+            settings={settings}
+            profile={profile}
+            setProfile={setProfile}
+            serverFeaturesEnabled={gate.phase === "paid"}
+            onNavigateToTab={setMainTab}
+          />
         ) : null}
       </div>
+      {tour.currentStep ? (
+        <OnboardingTour
+          open={tour.open}
+          stepIndex={tour.stepIndex}
+          step={tour.currentStep}
+          onNext={() => void tour.onNext()}
+          onBack={() => void tour.onBack()}
+          onSkip={() => void tour.onSkip()}
+          onClose={() => void tour.onClose()}
+        />
+      ) : null}
       <OptionsBuildFootnote />
     </div>
   );

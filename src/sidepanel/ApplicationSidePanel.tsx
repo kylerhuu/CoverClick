@@ -17,10 +17,13 @@ import { applyScrapedCompanyDefaults } from "../lib/jobCompanyScrape";
 import { requestJobContextFromActiveTab } from "../lib/tabScrape";
 import { STORAGE_KEYS, loadProfile, loadSettings } from "../lib/storage";
 import { isProfileReadyForGeneration } from "../lib/profileReadiness";
+import { getStep, loadOnboardingState, saveOnboardingState, shouldOfferOnboarding } from "../lib/onboarding";
+import { requestOptionsTab } from "../lib/openOptionsTab";
+import { useOnboardingTour } from "../hooks/useOnboardingTour";
+import { OnboardingTour } from "../ui/OnboardingTour";
 import { WorkspaceApp } from "../workspace/WorkspaceApp";
 import { cn } from "../lib/classNames";
 import { CurrentJobSection } from "./components/CurrentJobSection";
-import { ProfileSetupGuide } from "./components/ProfileSetupGuide";
 import { SidePanelHeader } from "./components/SidePanelHeader";
 import { SidePanelHubView, type HubSubview } from "./components/SidePanelHubView";
 import { SidePanelModeNav, type SidePanelMode } from "./components/SidePanelModeNav";
@@ -47,10 +50,30 @@ export function ApplicationSidePanel() {
   const [settings, setSettings] = useState({ useMock: true, authToken: "", apiBaseUrl: "" });
   const [profileReady, setProfileReady] = useState(false);
   const pollAbortRef = useRef<AbortController | null>(null);
+  const onboardRedirectRef = useRef(false);
+
+  const tour = useOnboardingTour({
+    surface: "sidepanel",
+    enabled: mode === "scan" && scanSubview === "home",
+  });
 
   const refreshProfileReady = useCallback(async () => {
     const profile = await loadProfile();
     setProfileReady(isProfileReadyForGeneration(profile));
+  }, []);
+
+  useEffect(() => {
+    if (onboardRedirectRef.current) return;
+    void (async () => {
+      const [profile, onboarding] = await Promise.all([loadProfile(), loadOnboardingState()]);
+      if (!shouldOfferOnboarding(profile, onboarding) || onboarding.completed) return;
+      const stepDef = getStep(onboarding.step);
+      if (!stepDef || stepDef.surface !== "options") return;
+      onboardRedirectRef.current = true;
+      await saveOnboardingState({ ...onboarding, active: true });
+      await requestOptionsTab(stepDef.optionsTab ?? "profile");
+      await chrome.runtime.openOptionsPage();
+    })();
   }, []);
 
   const refreshResumeLibrary = useCallback(async () => {
@@ -287,7 +310,6 @@ export function ApplicationSidePanel() {
         ) : (
           <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
             <div className={ccPagePadding}>
-              <ProfileSetupGuide className="mb-3" />
               <CurrentJobSection
                 job={job}
                 scrapeBusy={scrapeBusy}
@@ -307,6 +329,17 @@ export function ApplicationSidePanel() {
           </div>
         )}
       </div>
+      {tour.currentStep ? (
+        <OnboardingTour
+          open={tour.open}
+          stepIndex={tour.stepIndex}
+          step={tour.currentStep}
+          onNext={() => void tour.onNext()}
+          onBack={() => void tour.onBack()}
+          onSkip={() => void tour.onSkip()}
+          onClose={() => void tour.onClose()}
+        />
+      ) : null}
     </div>
   );
 }

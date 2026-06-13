@@ -30,6 +30,7 @@ export function OptionsSectionNav({ active, onChange }: Props) {
             aria-selected={isActive}
             onClick={() => onChange(t.id)}
             className={cn(wsNavTab(isActive), ccFocusRing)}
+            data-onboarding-target={t.id === "profile" ? "profile-tab" : t.id === "import" ? "import-resume" : undefined}
           >
             {t.label}
             {isActive ? <span className={wsNavIndicator} aria-hidden /> : null}
