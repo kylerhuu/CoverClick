@@ -18,7 +18,7 @@ import { ApplicationListRow } from "../../hub/components/ApplicationListRow";
 import { HubSummaryChips } from "../../hub/components/HubSummaryChips";
 import { WorkspaceApp } from "../../workspace/WorkspaceApp";
 import { cn } from "../../lib/classNames";
-import { ccHubSectionHeader, ccPagePadding, ccPageTitle } from "../../ui/ccUi";
+import { ccHubListSurface, ccHubSectionHeader, ccPagePadding, ccPageTitle } from "../../ui/ccUi";
 
 export type HubSubview = "list" | "detail" | "materials";
 
@@ -173,7 +173,12 @@ export function SidePanelHubView({
           No saved jobs yet. Switch to Current job and choose Save for later.
         </p>
       ) : (
-        <div className="-mx-4 mt-3 flex min-h-0 flex-1 flex-col overflow-y-auto border-t border-slate-200 bg-white">
+        <div
+          className={cn(
+            "-mx-4 mt-3 flex min-h-0 flex-1 flex-col overflow-y-auto border-t border-slate-200/80 px-3 py-2",
+            ccHubListSurface,
+          )}
+        >
           {sections.map((section) => (
             <section key={section.status}>
               <h3 className={ccHubSectionHeader}>
@@ -185,7 +190,7 @@ export function SidePanelHubView({
                   {hubSectionTitle(section.status)} ({section.applications.length})
                 </span>
               </h3>
-              <div>
+              <div className="space-y-1.5 pb-2.5">
                 {section.applications.map((app) => (
                   <ApplicationListRow
                     key={app.id}

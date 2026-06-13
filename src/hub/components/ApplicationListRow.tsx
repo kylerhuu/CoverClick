@@ -1,7 +1,7 @@
 import type { JobApplication } from "../../lib/types";
 import { hubListMetadataLine } from "../applicationDisplay";
 import { cn } from "../../lib/classNames";
-import { ccFocusRing, ccHubListRow, ccHubListRowSelected } from "../../ui/ccUi";
+import { ccFocusRing, ccHubListCard, ccHubListCardSelected } from "../../ui/ccUi";
 
 type Props = {
   application: JobApplication;
@@ -16,7 +16,7 @@ export function ApplicationListRow({ application, selected, onClick }: Props) {
     <button
       type="button"
       onClick={onClick}
-      className={cn(ccHubListRow, selected && ccHubListRowSelected, ccFocusRing)}
+      className={cn(ccHubListCard, selected && ccHubListCardSelected, ccFocusRing)}
     >
       <div className="min-w-0 flex-1">
         <p

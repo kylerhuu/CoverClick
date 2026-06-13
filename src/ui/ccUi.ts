@@ -107,27 +107,35 @@ export const ccHairline = "h-px w-full bg-slate-100";
 /** Quiet surface: no heavy card border. */
 export const ccSurfaceQuiet = cn("rounded-xl bg-white/70 ring-1 ring-slate-200/40 shadow-[0_1px_2px_rgba(15,23,42,0.04)]");
 
-/** Dense hub list row — full-width inbox item. */
-export const ccHubListRow = cn(
-  "group flex w-full cursor-pointer items-start gap-3 border-b border-slate-100 border-l-[3px] border-l-transparent px-4 py-2.5 text-left transition-colors duration-100",
-  "hover:bg-slate-50 active:bg-slate-100/80",
+/** Tinted canvas behind grouped hub cards. */
+export const ccHubListSurface = "bg-slate-100/45";
+
+/** Compact hub surface card — tactile, selectable object (not a flat row). */
+export const ccHubListCard = cn(
+  "group flex w-full cursor-pointer items-start gap-2.5 rounded-[9px] border border-slate-200/85 bg-white px-3 py-2.5 text-left",
+  "transition-[box-shadow,border-color,background-color] duration-150",
+  "hover:border-slate-300 hover:shadow-[0_2px_8px_rgba(15,23,42,0.05)]",
+  "active:border-slate-300/90 active:shadow-[0_1px_3px_rgba(15,23,42,0.04)]",
 );
 
-export const ccHubListRowSelected = cn(
-  "border-l-indigo-600 bg-indigo-50/90 hover:bg-indigo-50 active:bg-indigo-50/95",
+export const ccHubListCardSelected = cn(
+  "border-indigo-300/90 bg-indigo-50/40 shadow-[0_1px_4px_rgba(79,70,229,0.07)]",
+  "hover:border-indigo-400/80 hover:bg-indigo-50/55 hover:shadow-[0_3px_10px_rgba(79,70,229,0.09)]",
+  "active:bg-indigo-50/50",
 );
 
-export const ccHubSectionHeader = "flex items-center gap-2 px-4 pb-1 pt-4 text-[11px] font-semibold text-slate-500 first:pt-2";
+export const ccHubSectionHeader = "flex items-center gap-2 px-0.5 pb-1.5 pt-3.5 text-[11px] font-semibold text-slate-500 first:pt-2";
+
+/** @deprecated Use ccHubListCard — kept for any legacy imports. */
+export const ccHubListRow = ccHubListCard;
+
+/** @deprecated Use ccHubListCardSelected. */
+export const ccHubListRowSelected = ccHubListCardSelected;
 
 /** Premium hub list card — clickable row with depth. */
-export const ccHubCard = cn(
-  "rounded-2xl border border-slate-200/70 bg-white px-3.5 py-3 text-left shadow-[0_1px_3px_rgba(15,23,42,0.05)]",
-  "transition-all duration-150 hover:border-indigo-200/90 hover:shadow-[0_4px_14px_rgba(79,70,229,0.08)] hover:-translate-y-px",
-);
+export const ccHubCard = ccHubListCard;
 
-export const ccHubCardSelected = cn(
-  "border-indigo-300/90 bg-indigo-50/40 ring-2 ring-indigo-200/50 shadow-[0_4px_14px_rgba(79,70,229,0.1)]",
-);
+export const ccHubCardSelected = ccHubListCardSelected;
 
 /** Hero / detail surface. */
 export const ccHeroCard = cn(
