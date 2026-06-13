@@ -184,3 +184,65 @@ export function hubListMetadataLine(app: JobApplication): string {
   }
   return parts.join(" · ");
 }
+
+/** Short section title for grouped hub inbox lists. */
+export function hubSectionTitle(status: JobApplicationStatus): string {
+  switch (status) {
+    case "READY_TO_APPLY":
+      return "Ready";
+    case "PREPARING":
+      return "Preparing";
+    case "SAVED":
+      return "Saved";
+    case "APPLIED":
+      return "Applied";
+    case "INTERVIEWING":
+      return "Interviewing";
+    case "OFFER":
+      return "Offer";
+    case "REJECTED":
+      return "Rejected";
+    case "ARCHIVED":
+      return "Archived";
+    default:
+      return jobApplicationStatusLabel(status);
+  }
+}
+
+export function hubSectionDotClass(status: JobApplicationStatus): string {
+  switch (status) {
+    case "READY_TO_APPLY":
+      return "bg-emerald-500";
+    case "PREPARING":
+    case "SAVED":
+      return "bg-amber-400";
+    case "APPLIED":
+    case "INTERVIEWING":
+    case "OFFER":
+      return "bg-sky-500";
+    case "REJECTED":
+      return "bg-rose-400";
+    default:
+      return "bg-slate-300";
+  }
+}
+
+export type HubListSection = {
+  status: JobApplicationStatus;
+  applications: JobApplication[];
+};
+
+/** Group applications into inbox sections preserving status priority order. */
+export function groupApplicationsForHubList(apps: JobApplication[]): HubListSection[] {
+  const sorted = sortApplicationsByStatusPriority(apps);
+  const sections: HubListSection[] = [];
+  for (const app of sorted) {
+    const last = sections[sections.length - 1];
+    if (!last || last.status !== app.status) {
+      sections.push({ status: app.status, applications: [app] });
+    } else {
+      last.applications.push(app);
+    }
+  }
+  return sections;
+}

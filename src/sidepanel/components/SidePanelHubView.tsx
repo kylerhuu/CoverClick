@@ -7,13 +7,18 @@ import {
   updateApplication,
 } from "../../lib/applicationsApi";
 import { loadSettings } from "../../lib/storage";
-import { hubSummaryCounts, sortApplicationsByStatusPriority } from "../../hub/applicationDisplay";
+import {
+  groupApplicationsForHubList,
+  hubSectionDotClass,
+  hubSectionTitle,
+  hubSummaryCounts,
+} from "../../hub/applicationDisplay";
 import { ApplicationDetailPanel } from "../../hub/components/ApplicationDetailPanel";
 import { ApplicationListRow } from "../../hub/components/ApplicationListRow";
 import { HubSummaryChips } from "../../hub/components/HubSummaryChips";
 import { WorkspaceApp } from "../../workspace/WorkspaceApp";
 import { cn } from "../../lib/classNames";
-import { ccPagePadding, ccPageTitle } from "../../ui/ccUi";
+import { ccHubSectionHeader, ccPagePadding, ccPageTitle } from "../../ui/ccUi";
 
 export type HubSubview = "list" | "detail" | "materials";
 
@@ -135,8 +140,14 @@ export function SidePanelHubView({
     );
   }
 
-  const sortedApplications = sortApplicationsByStatusPriority(applications);
+  const sections = groupApplicationsForHubList(applications);
   const summary = hubSummaryCounts(applications);
+
+  const openApplication = (app: JobApplication) => {
+    onSelectedIdChange(app.id);
+    setSelectedApplication(app);
+    onSubviewChange("detail");
+  };
 
   return (
     <div className={cn("flex min-h-0 flex-1 flex-col", ccPagePadding)}>
@@ -162,21 +173,31 @@ export function SidePanelHubView({
           No saved jobs yet. Switch to Current job and choose Save for later.
         </p>
       ) : (
-        <ul className="mt-4 flex min-h-0 flex-1 flex-col divide-y divide-slate-100 overflow-y-auto border-t border-slate-100">
-          {sortedApplications.map((app) => (
-            <li key={app.id}>
-              <ApplicationListRow
-                application={app}
-                selected={app.id === selectedId}
-                onClick={() => {
-                  onSelectedIdChange(app.id);
-                  setSelectedApplication(app);
-                  onSubviewChange("detail");
-                }}
-              />
-            </li>
+        <div className="-mx-4 mt-3 flex min-h-0 flex-1 flex-col overflow-y-auto border-t border-slate-200 bg-white">
+          {sections.map((section) => (
+            <section key={section.status}>
+              <h3 className={ccHubSectionHeader}>
+                <span
+                  className={cn("h-1.5 w-1.5 shrink-0 rounded-full", hubSectionDotClass(section.status))}
+                  aria-hidden
+                />
+                <span>
+                  {hubSectionTitle(section.status)} ({section.applications.length})
+                </span>
+              </h3>
+              <div>
+                {section.applications.map((app) => (
+                  <ApplicationListRow
+                    key={app.id}
+                    application={app}
+                    selected={app.id === selectedId}
+                    onClick={() => openApplication(app)}
+                  />
+                ))}
+              </div>
+            </section>
           ))}
-        </ul>
+        </div>
       )}
     </div>
   );
