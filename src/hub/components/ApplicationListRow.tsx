@@ -1,7 +1,6 @@
 import type { JobApplication } from "../../lib/types";
 import {
   hubListProgressLine,
-  hubListRelativeTime,
   hubListStatusLabel,
 } from "../applicationDisplay";
 import { cn } from "../../lib/classNames";
@@ -11,6 +10,7 @@ import {
   ccHubCardPreparing,
   ccHubCardReady,
   ccHubListArrow,
+  ccHubListArrowReady,
   ccHubListCard,
   ccHubListCardSelected,
   ccHubListProgress,
@@ -50,10 +50,10 @@ function hubStatusRowClass(application: JobApplication): string {
 }
 
 export function ApplicationListRow({ application, selected, onClick }: Props) {
+  const isReady = application.status === "READY_TO_APPLY";
   const isPreparing = application.status === "PREPARING" || application.status === "SAVED";
   const statusLabel = hubListStatusLabel(application);
   const progressLine = hubListProgressLine(application);
-  const relativeTime = hubListRelativeTime(application);
   const showArrow = !isPreparing;
 
   return (
@@ -102,16 +102,12 @@ export function ApplicationListRow({ application, selected, onClick }: Props) {
               {statusLabel}
             </p>
             {showArrow ? (
-              <span className={ccHubListArrow} aria-hidden>
+              <span className={isReady ? ccHubListArrowReady : ccHubListArrow} aria-hidden>
                 →
               </span>
             ) : null}
           </div>
         )}
-
-        {relativeTime ? (
-          <p className="mt-1 truncate text-[10px] text-slate-400">{relativeTime}</p>
-        ) : null}
       </div>
     </button>
   );

@@ -234,14 +234,11 @@ export function detailReadinessLines(app: JobApplication): DetailReadinessLine[]
   if (app.coverLetterDraft) {
     lines.push({ label: "Materials prepared" });
   }
-  const resume = app.resumeVariantName?.trim();
-  if (resume) {
-    lines.push({ label: `Resume selected · ${resume}` });
-  } else if (app.resumeVariantId) {
+  if (app.resumeVariantName?.trim() || app.resumeVariantId) {
     lines.push({ label: "Resume selected" });
   }
   if (app.fitScore != null) {
-    lines.push({ label: `Fit score generated · ${app.fitScore}%` });
+    lines.push({ label: "Fit score generated" });
   }
   if (lines.length === 0) {
     lines.push({ label: "Materials prepared" });
@@ -276,7 +273,7 @@ export function detailHeroStatusLabel(app: JobApplication): string {
 export function detailHeroStatusClass(status: JobApplicationStatus): string {
   switch (status) {
     case "READY_TO_APPLY":
-      return "text-emerald-700";
+      return "text-indigo-700";
     case "PREPARING":
     case "SAVED":
       return "text-amber-800";
@@ -336,7 +333,7 @@ export function hubSectionTitle(status: JobApplicationStatus): string {
 export function hubSectionDotClass(status: JobApplicationStatus): string {
   switch (status) {
     case "READY_TO_APPLY":
-      return "bg-emerald-500";
+      return "bg-indigo-500";
     case "PREPARING":
     case "SAVED":
       return "bg-amber-400";

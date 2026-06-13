@@ -123,13 +123,16 @@ export const ccHubListCardSelected = cn(
   "hover:border-indigo-400/90 hover:bg-indigo-50/50 hover:shadow-[0_3px_12px_rgba(79,70,229,0.1)]",
 );
 
-export const ccHubCardReady = "border-l-[3px] border-l-emerald-500 pl-[calc(0.875rem-1px)]";
+export const ccHubCardReady = cn(
+  "border-l-[3px] border-l-indigo-500 pl-[calc(0.875rem-1px)]",
+  "hover:-translate-y-0.5 hover:border-indigo-200 hover:shadow-[0_6px_20px_rgba(79,70,229,0.16)]",
+);
 
 export const ccHubCardPreparing = "border-l-[3px] border-l-amber-400 pl-[calc(0.875rem-1px)]";
 
-export const ccHubCardApplied = "";
+export const ccHubCardApplied = "border-l-[3px] border-l-slate-300 pl-[calc(0.875rem-1px)]";
 
-export const ccHubListStatusReady = "text-[11px] font-bold uppercase tracking-wide text-emerald-700";
+export const ccHubListStatusReady = "text-[11px] font-bold uppercase tracking-wide text-indigo-700";
 
 export const ccHubListStatusPreparing = "text-[11px] font-semibold text-amber-800";
 
@@ -142,6 +145,11 @@ export const ccHubListArrow = cn(
   "group-hover:text-slate-500",
 );
 
+export const ccHubListArrowReady = cn(
+  "shrink-0 text-[14px] font-medium leading-none text-indigo-400 transition-colors duration-150",
+  "group-hover:text-indigo-600",
+);
+
 export const ccHubSectionHeader = "flex items-center gap-2 px-0.5 pb-2 pt-3.5 text-[11px] font-semibold text-slate-500 first:pt-2";
 
 export const ccHubListCardGap = "space-y-3.5";
@@ -149,9 +157,15 @@ export const ccHubListCardGap = "space-y-3.5";
 /** Detail command center — hero readiness status. */
 export const ccDetailHeroStatus = "text-[12px] font-bold uppercase tracking-wide";
 
-export const ccDetailReadinessBlock = "space-y-2 rounded-xl border border-emerald-200/70 bg-emerald-50/40 px-3.5 py-3";
+/** Detail mission briefing — flat checklist, no card wrapper. */
+export const ccDetailReadinessList = "space-y-2.5";
 
-export const ccDetailReadinessLine = "flex items-start gap-2 text-[12px] font-medium text-emerald-900";
+export const ccDetailReadinessLine = "flex items-start gap-2.5 text-[13px] font-medium text-slate-700";
+
+export const ccDetailPrimaryCta = cn(
+  ccBtnPrimary,
+  "w-full py-3 text-[14px] shadow-md shadow-indigo-600/20",
+);
 
 /** @deprecated Use ccHubListCard — kept for any legacy imports. */
 export const ccHubListRow = ccHubListCard;
