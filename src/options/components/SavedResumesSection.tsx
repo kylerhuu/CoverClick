@@ -1,4 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
+import { useAccessGate } from "../../auth/useAccessGate";
+import { isProPlan } from "../../lib/planAccess";
+import { ProLockedPanel } from "../../ui/ProLockedPanel";
 import {
   createVariant,
   loadResumeLibrary,
@@ -45,6 +48,8 @@ function resumeTrackLabel(name: string): string {
 }
 
 export function SavedResumesSection() {
+  const gate = useAccessGate();
+  const isPro = isProPlan(gate.phase);
   const [library, setLibrary] = useState<ResumeLibraryStore | null>(null);
   const [loading, setLoading] = useState(true);
   const [createBusy, setCreateBusy] = useState(false);
@@ -92,6 +97,18 @@ export function SavedResumesSection() {
       setCreateBusy(false);
     }
   };
+
+  if (!isPro) {
+    return (
+      <div className="cc-fade-in mt-4">
+        <ProLockedPanel
+          title="Resume versions 🔒"
+          subtitle="Create and manage multiple tailored resumes for different application tracks."
+          onUpgrade={() => void gate.openStripeCheckout()}
+        />
+      </div>
+    );
+  }
 
   if (editingVariant) {
     return (

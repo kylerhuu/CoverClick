@@ -341,8 +341,8 @@ function withStableResumeIds(resume: StructuredResume): StructuredResume {
         aiCleanAttemptedRef.current = "";
         if (cancelled) return;
         if (e instanceof ApiHttpError) {
-          if (e.status === 401 || e.status === 403) {
-            setJobDescriptionAiError("AI cleanup is a Pro feature. Upgrade in Options → Cloud & Billing.");
+          if (e.status === 401) {
+            setJobDescriptionAiError("Sign in to use AI job description cleanup.");
             return;
           }
           if (e.status === 429) {

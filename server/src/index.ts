@@ -8,10 +8,11 @@ import { Prisma, PrismaClient, type SubscriptionStatus } from "@prisma/client";
 import { CodeChallengeMethod, OAuth2Client } from "google-auth-library";
 import Stripe from "stripe";
 import { createHash, randomBytes } from "node:crypto";
-import type { GenerationRequest, ResumeOptimizeForJobRequest, ResumeSummaryGenerateRequest } from "./contract.js";
+import type { GenerationRequest, JobFitScoreRequest, ResumeOptimizeForJobRequest, ResumeSummaryGenerateRequest } from "./contract.js";
 import { extractTextFromResumeBuffer } from "./textExtract.js";
 import { extractProfileFromResumeText } from "./extractProfileWithOpenAI.js";
 import { cleanJobDescriptionWithOpenAI } from "./cleanJobDescriptionOpenAI.js";
+import { jobFitScoreWithOpenAI } from "./jobFitScoreWithOpenAI.js";
 import { generateCoverLetterWithOpenAI } from "./generateCoverLetterOpenAI.js";
 import { generateResumeSummaryWithOpenAI } from "./generateResumeSummaryWithOpenAI.js";
 import { resumeOptimizeForJobWithOpenAI } from "./resumeOptimizeForJobWithOpenAI.js";
@@ -866,7 +867,7 @@ function isResumeOptimizeForJobRequest(body: unknown): body is ResumeOptimizeFor
   return typeof b.resume === "object" && b.resume !== null && typeof b.job === "object" && b.job !== null;
 }
 
-app.post("/api/clean-job-description", authMiddleware, requirePaidMiddleware, authedAiLimiter, async (req, res) => {
+app.post("/api/clean-job-description", authMiddleware, authedAiLimiter, async (req, res) => {
   try {
     const rawText = typeof req.body?.rawText === "string" ? req.body.rawText : "";
     if (!rawText.trim()) {
@@ -881,6 +882,27 @@ app.post("/api/clean-job-description", authMiddleware, requirePaidMiddleware, au
     res.json({ description });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Clean failed";
+    const status = msg.includes("OPENAI_API_KEY") ? 503 : 500;
+    res.status(status).json({ error: status === 503 || !IS_PRODUCTION ? msg : publicApiError(e) });
+  }
+});
+
+function isJobFitScoreRequest(body: unknown): body is JobFitScoreRequest {
+  if (!body || typeof body !== "object") return false;
+  const b = body as Record<string, unknown>;
+  return typeof b.profile === "object" && b.profile !== null && typeof b.job === "object" && b.job !== null;
+}
+
+app.post("/api/job-fit-score", authMiddleware, authedAiLimiter, async (req, res) => {
+  try {
+    if (!isJobFitScoreRequest(req.body)) {
+      res.status(400).json({ error: "Invalid body: expected profile and job." });
+      return;
+    }
+    const fit = await jobFitScoreWithOpenAI(req.body);
+    res.json(fit);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Fit score failed";
     const status = msg.includes("OPENAI_API_KEY") ? 503 : 500;
     res.status(status).json({ error: status === 503 || !IS_PRODUCTION ? msg : publicApiError(e) });
   }
@@ -1039,6 +1061,13 @@ app.post("/api/applications", authMiddleware, async (req, res) => {
       return;
     }
     const isPaid = hasPaidSubscription(user.subscriptionStatus);
+    if (!isPaid) {
+      res.status(403).json({
+        error: "Saving jobs is a Pro feature. Upgrade to track applications in your Hub.",
+        code: "SUBSCRIPTION_REQUIRED",
+      });
+      return;
+    }
 
     console.info("[POST /api/applications] save request", {
       userId: authed.userId,
@@ -1049,21 +1078,13 @@ app.post("/api/applications", authMiddleware, async (req, res) => {
       isPaid,
     });
 
-    const { application, alreadySaved } = await createJobApplication(prisma, authed.userId, parsed.input, {
-      forFreeTier: !isPaid,
-    });
-    if (isPaid) {
-      runPreparationPipeline(prisma, application.id);
-    }
+    const { application, alreadySaved } = await createJobApplication(prisma, authed.userId, parsed.input);
+    runPreparationPipeline(prisma, application.id);
 
     res.status(alreadySaved ? 200 : 201).json({
       application,
       alreadySaved,
-      message: alreadySaved
-        ? isPaid
-          ? "Job already saved — re-preparing application materials."
-          : "Job already saved."
-        : undefined,
+      message: alreadySaved ? "Job already saved — re-preparing application materials." : undefined,
     });
   } catch (e) {
     logApplicationRouteError("POST /api/applications", e, {

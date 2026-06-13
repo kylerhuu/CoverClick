@@ -19,6 +19,7 @@ import { ApplicationDetailPanel } from "../../hub/components/ApplicationDetailPa
 import { ApplicationListRow } from "../../hub/components/ApplicationListRow";
 import { HubSummaryChips } from "../../hub/components/HubSummaryChips";
 import { WorkspaceApp } from "../../workspace/WorkspaceApp";
+import { ProLockedPanel } from "../../ui/ProLockedPanel";
 import { cn } from "../../lib/classNames";
 import {
   ccFocusRing,
@@ -37,6 +38,8 @@ type Props = {
   subview: HubSubview;
   onSubviewChange: (view: HubSubview) => void;
   onApplicationsChange?: (apps: JobApplication[]) => void;
+  isPro?: boolean;
+  onUpgrade?: () => void;
 };
 
 export function SidePanelHubView({
@@ -45,6 +48,8 @@ export function SidePanelHubView({
   subview,
   onSubviewChange,
   onApplicationsChange,
+  isPro = true,
+  onUpgrade,
 }: Props) {
   const [applications, setApplications] = useState<JobApplication[]>([]);
   const [selectedApplication, setSelectedApplication] = useState<JobApplication | null>(null);
@@ -56,6 +61,12 @@ export function SidePanelHubView({
   const [settings, setSettings] = useState({ useMock: true, authToken: "", apiBaseUrl: "" });
 
   const refresh = useCallback(async () => {
+    if (!isPro) {
+      setLoading(false);
+      setApplications([]);
+      onApplicationsChange?.([]);
+      return;
+    }
     setError(null);
     try {
       const s = await loadSettings();
@@ -72,13 +83,14 @@ export function SidePanelHubView({
     } finally {
       setLoading(false);
     }
-  }, [onApplicationsChange, selectedId]);
+  }, [isPro, onApplicationsChange, selectedId]);
 
   useEffect(() => {
+    if (!isPro) return;
     void refresh();
     const interval = window.setInterval(() => void refresh(), 5000);
     return () => window.clearInterval(interval);
-  }, [refresh]);
+  }, [isPro, refresh]);
 
   useEffect(() => {
     if (!selectedId) {
@@ -161,6 +173,19 @@ export function SidePanelHubView({
     setSelectedApplication(app);
     onSubviewChange("detail");
   };
+
+  if (!isPro) {
+    return (
+      <div className={cn("flex min-h-0 flex-1 flex-col", ccPagePadding)}>
+        <ProLockedPanel
+          title="Application Hub 🔒"
+          subtitle="Track jobs across your search."
+          bullets={["Save opportunities", "Continue applications later", "Track application status", "Manage your pipeline"]}
+          onUpgrade={() => onUpgrade?.()}
+        />
+      </div>
+    );
+  }
 
   if (subview === "materials" && selectedApplication) {
     return (

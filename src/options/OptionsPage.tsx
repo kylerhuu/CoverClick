@@ -8,6 +8,8 @@ import { loadProfile, loadSettings, saveProfile, saveSettings } from "../lib/sto
 import { AuthWall } from "../auth/AuthWall";
 import { useAccessGate } from "../auth/useAccessGate";
 import { useOnboardingTour } from "../hooks/useOnboardingTour";
+import { PlanBadge } from "../ui/PlanBadge";
+import { isProPlan } from "../lib/planAccess";
 import { OnboardingTour } from "../ui/OnboardingTour";
 import { AutosaveStatus, type SaveStatus, type ServerSyncStatus } from "./components/AutosaveStatus";
 import { AccountWorkspaceSection } from "./components/AccountWorkspaceSection";
@@ -292,6 +294,10 @@ export function OptionsPage() {
             </div>
           </div>
           <div className="flex shrink-0 flex-col items-end gap-1 sm:flex-row sm:items-center sm:gap-3">
+            <PlanBadge
+              isPro={isProPlan(gate.phase)}
+              onUpgrade={() => void gate.openStripeCheckout()}
+            />
             {gate.me?.email ? (
               <span className="hidden max-w-[200px] truncate text-[11px] text-slate-500 sm:block" title={gate.me.email}>
                 {gate.me.email}
@@ -329,6 +335,8 @@ export function OptionsPage() {
             onNavigateImport={() => setMainTab("import")}
             onRelaunchTour={() => void tour.relaunch()}
             showRelaunchTour
+            isPro={isProPlan(gate.phase)}
+            onUpgrade={() => void gate.openStripeCheckout()}
           />
         ) : null}
 

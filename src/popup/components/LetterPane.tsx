@@ -8,6 +8,7 @@ import type {
   StructuredCoverLetter,
   UserProfile,
 } from "../../lib/types";
+import { freeGenerationsLabel } from "../../lib/planMessaging";
 import { cn } from "../../lib/classNames";
 import {
   ccBtnTextSecondary,
@@ -204,7 +205,7 @@ export function LetterPane({
 
           {freeGenerationsRemaining !== null && freeGenerationsRemaining > 0 ? (
             <span className="text-[11px] font-medium text-slate-500">
-              {freeGenerationsRemaining} free generation{freeGenerationsRemaining === 1 ? "" : "s"} left
+              {freeGenerationsLabel(freeGenerationsRemaining)}
             </span>
           ) : null}
 

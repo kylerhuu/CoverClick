@@ -4,6 +4,7 @@ import { CloudAndSyncSection } from "./CloudAndSyncSection";
 import type { AppSettings, UserProfile } from "../../lib/types";
 import { cn } from "../../lib/classNames";
 import { WorkspaceCard, WorkspaceHero, WorkspaceSection } from "../../ui/workspaceUi";
+import { PlanBadge } from "../../ui/PlanBadge";
 import { ccBtnGhost } from "../../ui/ccUi";
 
 type Props = {
@@ -38,27 +39,19 @@ export function AccountWorkspaceSection({
   onOpenBillingPortal,
 }: Props) {
   const displayName = profile.fullName?.trim() || settings.authEmail?.split("@")[0] || "Your account";
-  const planLabel = serverFeaturesEnabled && !settings.useMock ? "Pro" : settings.useMock ? "Demo" : "Free";
 
   return (
     <div className="cc-fade-in mt-4 space-y-6">
       <WorkspaceHero>
-        <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Account</p>
-        <h2 className="mt-1 text-[20px] font-bold tracking-tight text-slate-900">{displayName}</h2>
-        {settings.authEmail ? (
-          <p className="mt-0.5 text-[13px] text-slate-500">{settings.authEmail}</p>
-        ) : null}
-        <div className="mt-4 flex flex-wrap items-center gap-2">
-          <span
-            className={cn(
-              "rounded-full px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide ring-1",
-              serverFeaturesEnabled && !settings.useMock
-                ? "bg-emerald-50 text-emerald-800 ring-emerald-200/80"
-                : "bg-slate-100 text-slate-600 ring-slate-200/80",
-            )}
-          >
-            {planLabel} plan
-          </span>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Account</p>
+            <h2 className="mt-1 text-[20px] font-bold tracking-tight text-slate-900">{displayName}</h2>
+            {settings.authEmail ? (
+              <p className="mt-0.5 text-[13px] text-slate-500">{settings.authEmail}</p>
+            ) : null}
+          </div>
+          <PlanBadge isPro={serverFeaturesEnabled && !settings.useMock} onUpgrade={onOpenCheckout} />
         </div>
       </WorkspaceHero>
 

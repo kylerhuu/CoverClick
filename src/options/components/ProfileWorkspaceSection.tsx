@@ -19,6 +19,7 @@ import {
   wsHeroName,
   wsHeroSubtitle,
 } from "../../ui/workspaceUi";
+import { PlanBadge } from "../../ui/PlanBadge";
 import { ccHairline } from "../../ui/ccUi";
 
 type Props = {
@@ -29,6 +30,8 @@ type Props = {
   onNavigateImport: () => void;
   onRelaunchTour?: () => void;
   showRelaunchTour?: boolean;
+  isPro?: boolean;
+  onUpgrade?: () => void;
 };
 
 export function ProfileWorkspaceSection({
@@ -39,6 +42,8 @@ export function ProfileWorkspaceSection({
   onNavigateImport,
   onRelaunchTour,
   showRelaunchTour = false,
+  isPro = false,
+  onUpgrade,
 }: Props) {
   const [resumeCount, setResumeCount] = useState(0);
   const [applicationCount, setApplicationCount] = useState(0);
@@ -114,7 +119,9 @@ export function ProfileWorkspaceSection({
               </div>
             </div>
           </div>
-          <div className="grid grid-cols-3 gap-6 sm:gap-8">
+          <div className="flex shrink-0 flex-col items-start gap-4 sm:items-end">
+            <PlanBadge isPro={isPro} onUpgrade={onUpgrade} />
+            <div className="grid grid-cols-3 gap-6 sm:gap-8">
             <WorkspaceStat label="Resume versions" value={resumeCount} />
             <WorkspaceStat label="Saved applications" value={applicationCount} />
             <WorkspaceStat
@@ -122,6 +129,7 @@ export function ProfileWorkspaceSection({
               value={avgMatch != null ? `${avgMatch}%` : "—"}
               highlight={avgMatch != null && avgMatch >= 75}
             />
+            </div>
           </div>
         </div>
       </WorkspaceHero>

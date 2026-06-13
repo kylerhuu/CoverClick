@@ -17,10 +17,14 @@ import { applyScrapedCompanyDefaults } from "../lib/jobCompanyScrape";
 import { requestJobContextFromActiveTab } from "../lib/tabScrape";
 import { STORAGE_KEYS, loadProfile, loadSettings } from "../lib/storage";
 import { isProfileReadyForGeneration } from "../lib/profileReadiness";
+import { requestJobFitScore } from "../lib/jobFitApi";
+import { isProPlan } from "../lib/planAccess";
 import { getStep, loadOnboardingState, saveOnboardingState, shouldOfferOnboarding } from "../lib/onboarding";
 import { requestOptionsTab } from "../lib/openOptionsTab";
+import { useAccessGate } from "../auth/useAccessGate";
 import { useOnboardingTour } from "../hooks/useOnboardingTour";
 import { OnboardingTour } from "../ui/OnboardingTour";
+import { UpgradeModal } from "../ui/UpgradeModal";
 import { WorkspaceApp } from "../workspace/WorkspaceApp";
 import { cn } from "../lib/classNames";
 import { CurrentJobSection } from "./components/CurrentJobSection";
@@ -32,6 +36,11 @@ import { ccBgApp, ccPagePadding } from "../ui/ccUi";
 export type ScanSubview = "home" | "apply";
 
 export function ApplicationSidePanel() {
+  const gate = useAccessGate();
+  const isPro = isProPlan(gate.phase);
+  const [upgradeOpen, setUpgradeOpen] = useState(false);
+  const [scanFitScore, setScanFitScore] = useState<number | null>(null);
+  const [fitScoreBusy, setFitScoreBusy] = useState(false);
   const [mode, setMode] = useState<SidePanelMode>("scan");
   const [scanSubview, setScanSubview] = useState<ScanSubview>("home");
   const [hubSubview, setHubSubview] = useState<HubSubview>("list");
@@ -202,9 +211,13 @@ export function ApplicationSidePanel() {
   );
 
   const handleSaveForLater = useCallback(async () => {
+    if (!isPro) {
+      setUpgradeOpen(true);
+      return;
+    }
     if (!job?.pageUrl) return;
     if (!settings.useMock && (!settings.authToken?.trim() || !settings.apiBaseUrl.trim())) {
-      setSaveError("Sign in with an active subscription to save jobs to the cloud.");
+      setSaveError("Sign in to save jobs to your Application Hub.");
       return;
     }
     const library = resumeLibrary ?? (await refreshResumeLibrary());
@@ -241,7 +254,33 @@ export function ApplicationSidePanel() {
     } finally {
       setSaveBusy(false);
     }
-  }, [job, settings, startPolling, upsertHubApplication, resumeLibrary, refreshResumeLibrary]);
+  }, [job, settings, startPolling, upsertHubApplication, resumeLibrary, refreshResumeLibrary, isPro]);
+
+  useEffect(() => {
+    if (!job?.pageUrl || settings.useMock || !settings.authToken?.trim() || !settings.apiBaseUrl.trim()) {
+      setScanFitScore(null);
+      setFitScoreBusy(false);
+      return;
+    }
+    let cancelled = false;
+    setFitScoreBusy(true);
+    void (async () => {
+      try {
+        const profile = await loadProfile();
+        const fit = await requestJobFitScore(settings.apiBaseUrl, settings.authToken, profile, job);
+        if (!cancelled) setScanFitScore(fit.jobFitScore);
+      } catch (e) {
+        if (!cancelled) {
+          setScanFitScore(null);
+        }
+      } finally {
+        if (!cancelled) setFitScoreBusy(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [job?.pageUrl, job?.scrapedAt, job?.jobTitle, job?.companyName, settings.apiBaseUrl, settings.authToken, settings.useMock]);
 
   const handleModeChange = useCallback((next: SidePanelMode) => {
     setMode(next);
@@ -299,6 +338,8 @@ export function ApplicationSidePanel() {
             subview={hubSubview}
             onSubviewChange={setHubSubview}
             onApplicationsChange={setHubApplications}
+            isPro={isPro}
+            onUpgrade={() => setUpgradeOpen(true)}
           />
         ) : scanSubview === "apply" ? (
           <WorkspaceApp
@@ -322,6 +363,13 @@ export function ApplicationSidePanel() {
                 onApplyNow={handleApplyNow}
                 profileReady={profileReady}
                 onSaveForLater={() => void handleSaveForLater()}
+                saveLocked={!isPro}
+                onSaveLockedClick={() => setUpgradeOpen(true)}
+                scanFitScore={isPro ? null : scanFitScore}
+                fitScoreBusy={!isPro && fitScoreBusy}
+                freeGenerationsRemaining={
+                  gate.me?.hasPaidAccess ? null : (gate.me?.freeCoverLetterGenerationsRemaining ?? 0)
+                }
                 currentTabSaved={currentTabSaved}
                 preparingInBackground={preparingCurrentTab}
               />
@@ -340,6 +388,13 @@ export function ApplicationSidePanel() {
           onClose={() => void tour.onClose()}
         />
       ) : null}
+      <UpgradeModal
+        open={upgradeOpen}
+        title="Upgrade to Pro"
+        description="Save jobs, track your pipeline, and pick up applications whenever you're ready."
+        onClose={() => setUpgradeOpen(false)}
+        onUpgrade={() => void gate.openStripeCheckout()}
+      />
     </div>
   );
 }

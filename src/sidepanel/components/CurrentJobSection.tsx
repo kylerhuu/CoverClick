@@ -3,6 +3,7 @@ import type { JobApplication, JobContext } from "../../lib/types";
 import type { ResumeVariant } from "../../lib/resumeLibrary";
 import { currentJobSavedInlineMessage } from "../../hub/applicationDisplay";
 import { formatRelativeDate, jobSourceFromUrl } from "../../lib/jobSource";
+import { freeGenerationsLabel } from "../../lib/planMessaging";
 import { FitScoreRing } from "../../ui/FitScoreRing";
 import { cn } from "../../lib/classNames";
 import {
@@ -61,6 +62,11 @@ type Props = {
   currentTabSaved?: JobApplication | null;
   preparingInBackground?: boolean;
   profileReady?: boolean;
+  saveLocked?: boolean;
+  onSaveLockedClick?: () => void;
+  scanFitScore?: number | null;
+  fitScoreBusy?: boolean;
+  freeGenerationsRemaining?: number | null;
 };
 
 export function CurrentJobSection({
@@ -77,6 +83,11 @@ export function CurrentJobSection({
   currentTabSaved,
   preparingInBackground,
   profileReady = true,
+  saveLocked = false,
+  onSaveLockedClick,
+  scanFitScore = null,
+  fitScoreBusy = false,
+  freeGenerationsRemaining = null,
 }: Props) {
   const [descriptionExpanded, setDescriptionExpanded] = useState(false);
   const source = job?.pageUrl ? jobSourceFromUrl(job.pageUrl) : "";
@@ -86,7 +97,7 @@ export function CurrentJobSection({
   const hasDescription = Boolean(job?.descriptionText?.trim());
   const descriptionLong = (job?.descriptionText?.trim().length ?? 0) > 180;
   const activeResume = resumeVariants.find((v) => v.id === activeResumeVariantId) ?? resumeVariants[0];
-  const fitScore = currentTabSaved?.fitScore ?? null;
+  const fitScore = currentTabSaved?.fitScore ?? scanFitScore ?? null;
 
   const metadataParts: string[] = [];
   const location = currentTabSaved?.location?.trim();
@@ -144,6 +155,9 @@ export function CurrentJobSection({
           </div>
 
           {fitScore != null ? <FitScoreRing score={fitScore} size="md" className="shrink-0" /> : null}
+          {fitScoreBusy && fitScore == null ? (
+            <span className="cc-spinner h-8 w-8 shrink-0 border-2 border-slate-200 border-t-[#5B4CF0]" aria-label="Calculating fit score" />
+          ) : null}
         </div>
 
         {scrapeError ? (
@@ -196,6 +210,9 @@ export function CurrentJobSection({
               Complete your profile setup above before generating a cover letter.
             </p>
           ) : null}
+          {freeGenerationsRemaining != null && freeGenerationsRemaining > 0 ? (
+            <p className="text-[11px] font-medium text-slate-500">{freeGenerationsLabel(freeGenerationsRemaining)}</p>
+          ) : null}
           <button type="button" className={ccPrimaryCtaLg} disabled={!canAct} onClick={onApplyNow}>
             <div className="text-left">
               <span className="text-[14px] font-semibold">Apply Now</span>
@@ -210,10 +227,19 @@ export function CurrentJobSection({
           <button
             type="button"
             className={cn(ccBtnDecisionSecondary, "disabled:opacity-45")}
-            disabled={!canAct || saveBusy}
-            onClick={onSaveForLater}
+            disabled={(!canAct && !saveLocked) || saveBusy}
+            onClick={() => {
+              if (saveLocked) {
+                onSaveLockedClick?.();
+                return;
+              }
+              onSaveForLater();
+            }}
           >
-            <span className="text-[13px] font-semibold">{saveBusy ? "Saving…" : "Save for Later"}</span>
+            <span className="inline-flex items-center gap-1.5 text-[13px] font-semibold">
+              {saveLocked ? <span aria-hidden>🔒</span> : null}
+              {saveBusy ? "Saving…" : "Save for Later"}
+            </span>
             <span className="mt-0.5 text-[11px] font-medium text-slate-500">
               Save to Application Hub and prepare in the background
             </span>

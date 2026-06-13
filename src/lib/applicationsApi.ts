@@ -19,7 +19,7 @@ import {
 export function formatApplicationApiError(err: unknown): string {
   if (err instanceof ApiHttpError) {
     if (err.status === 401) return err.message || "Session expired. Please sign in again.";
-    if (err.status === 403) return err.message || "Active subscription required to save jobs.";
+    if (err.status === 403) return err.message || "Upgrade to Pro to save and track jobs in your Hub.";
     if (err.status === 503) return err.message || "Server is not ready. Try again shortly.";
     return err.message || `Request failed (${err.status})`;
   }

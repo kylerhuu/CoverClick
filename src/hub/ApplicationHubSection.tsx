@@ -1,4 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useAccessGate } from "../auth/useAccessGate";
+import { isProPlan } from "../lib/planAccess";
+import { ProLockedPanel } from "../ui/ProLockedPanel";
 import type { ApplicationStats, JobApplication, JobApplicationStatus } from "../lib/types";
 import { listApplications, updateApplication, deleteApplication } from "../lib/applicationsApi";
 import { loadSettings } from "../lib/storage";
@@ -12,6 +15,8 @@ import { ccFocusRing, ccHubSearchInput } from "../ui/ccUi";
 const EMPTY_STATS: ApplicationStats = { saved: 0, readyToApply: 0, applied: 0, interviewing: 0 };
 
 export function ApplicationHubSection() {
+  const gate = useAccessGate();
+  const isPro = isProPlan(gate.phase);
   const [applications, setApplications] = useState<JobApplication[]>([]);
   const [stats, setStats] = useState<ApplicationStats>(EMPTY_STATS);
   const [loading, setLoading] = useState(true);
@@ -23,6 +28,12 @@ export function ApplicationHubSection() {
   const [settings, setSettings] = useState({ useMock: true, authToken: "", apiBaseUrl: "" });
 
   const refresh = useCallback(async () => {
+    if (!isPro) {
+      setLoading(false);
+      setApplications([]);
+      setStats(EMPTY_STATS);
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
@@ -36,15 +47,19 @@ export function ApplicationHubSection() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [isPro]);
 
   useEffect(() => {
+    if (!isPro) {
+      setLoading(false);
+      return;
+    }
     void refresh();
     const interval = window.setInterval(() => {
       void refresh();
     }, 5000);
     return () => window.clearInterval(interval);
-  }, [refresh]);
+  }, [isPro, refresh]);
 
   useEffect(() => {
     const stored = sessionStorage.getItem("coverclick_view_materials_id");
@@ -106,6 +121,19 @@ export function ApplicationHubSection() {
   );
   const summary = hubSummaryCounts(applications);
   const hasSearchQuery = searchQuery.trim().length > 0;
+
+  if (!isPro) {
+    return (
+      <div className="cc-fade-in mt-4 space-y-6">
+        <ProLockedPanel
+          title="Application Hub 🔒"
+          subtitle="Track jobs across your search."
+          bullets={["Save opportunities", "Continue applications later", "Track application status", "Manage your pipeline"]}
+          onUpgrade={() => void gate.openStripeCheckout()}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="cc-fade-in mt-4 space-y-6">
