@@ -109,12 +109,12 @@ export const ccSurfaceQuiet = cn("rounded-xl bg-white/70 ring-1 ring-slate-200/4
 
 /** Dense hub list row — full-width inbox item. */
 export const ccHubListRow = cn(
-  "block w-full border-b border-slate-100 border-l-[3px] border-l-transparent px-4 py-2 text-left transition-colors duration-100",
-  "hover:bg-slate-50",
+  "group flex w-full cursor-pointer items-start gap-3 border-b border-slate-100 border-l-[3px] border-l-transparent px-4 py-2.5 text-left transition-colors duration-100",
+  "hover:bg-slate-50 active:bg-slate-100/80",
 );
 
 export const ccHubListRowSelected = cn(
-  "border-l-indigo-600 bg-indigo-50/80 hover:bg-indigo-50/90",
+  "border-l-indigo-600 bg-indigo-50/90 hover:bg-indigo-50 active:bg-indigo-50/95",
 );
 
 export const ccHubSectionHeader = "flex items-center gap-2 px-4 pb-1 pt-4 text-[11px] font-semibold text-slate-500 first:pt-2";
