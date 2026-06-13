@@ -39,6 +39,7 @@ import {
   readCompanyExtractionDebugEnabled,
 } from "../lib/companyExtractionDebugClient";
 import { useCompanyExtractionDebugEnabled } from "../lib/useCompanyExtractionDebugEnabled";
+import { useAccessGate } from "../auth/useAccessGate";
 import { applyScrapedCompanyDefaults } from "../lib/jobCompanyScrape";
 import { requestJobContextFromActiveTab } from "../lib/tabScrape";
 import { requestCleanJobDescription } from "../lib/jobDescriptionCleanApi";
@@ -88,6 +89,7 @@ export function WorkspaceApp({
   onBackToCapture?: () => void;
   onBackToLibrary?: () => void;
 } = {}) {
+  const gate = useAccessGate();
   const isApplicationMode = mode === "application";
   const isLibraryMode = mode === "library";
   const [applicationRecord, setApplicationRecord] = useState<JobApplication | null>(
@@ -339,7 +341,7 @@ function withStableResumeIds(resume: StructuredResume): StructuredResume {
         if (cancelled) return;
         if (e instanceof ApiHttpError) {
           if (e.status === 401 || e.status === 403) {
-            setJobDescriptionAiError("AI cleanup needs an active paid session. Refresh access or sign in again.");
+            setJobDescriptionAiError("AI cleanup is a Pro feature. Upgrade in Options → Cloud & Billing.");
             return;
           }
           if (e.status === 429) {
@@ -579,12 +581,19 @@ function withStableResumeIds(resume: StructuredResume): StructuredResume {
       setStatus("Done");
       window.setTimeout(() => setStatus(null), 1200);
       if (!isLibraryMode) setWorkspaceTab("letter");
+      void gate.refresh();
     } catch (e) {
+      const err = e as Error & { code?: string };
+      if (err.code === "FREE_CREDITS_EXHAUSTED") {
+        setError(err.message || "You've used all free cover letter generations.");
+        void gate.refresh();
+        return;
+      }
       setError(e instanceof Error ? e.message : "Generation failed");
     } finally {
       setGenBusy(false);
     }
-  }, [profile, job, tone, emphasis, length, responseShape, isApplicationMode, isLibraryMode]);
+  }, [profile, job, tone, emphasis, length, responseShape, isApplicationMode, isLibraryMode, gate]);
 
   const onCopy = useCallback(async () => {
     try {
@@ -856,6 +865,10 @@ function withStableResumeIds(resume: StructuredResume): StructuredResume {
   }, []);
 
   const onResumeDocx = useCallback(async (ctx?: { renderOptions?: import("../lib/resumeRender").ResumeRenderOptions }) => {
+    if (!gate.me?.hasPaidAccess && gate.phase !== "mock") {
+      setError("Resume export is a Pro feature. Upgrade in Options → Cloud & Billing.");
+      return;
+    }
     try {
       await downloadResumeDocx(resume, resumeExportBasename || "CoverClick_Resume", ctx?.renderOptions);
       setStatus("Resume DOCX saved");
@@ -863,9 +876,13 @@ function withStableResumeIds(resume: StructuredResume): StructuredResume {
     } catch (e) {
       setError(e instanceof Error ? e.message : "Resume DOCX failed");
     }
-  }, [resume, resumeExportBasename]);
+  }, [resume, resumeExportBasename, gate.me?.hasPaidAccess, gate.phase]);
 
   const onResumePdf = useCallback(async (ctx?: { renderOptions?: import("../lib/resumeRender").ResumeRenderOptions }) => {
+    if (!gate.me?.hasPaidAccess && gate.phase !== "mock") {
+      setError("Resume export is a Pro feature. Upgrade in Options → Cloud & Billing.");
+      return;
+    }
     try {
       await downloadResumePdf(resume, resumeExportBasename || "CoverClick_Resume", ctx?.renderOptions);
       setStatus("Resume PDF saved");
@@ -873,7 +890,7 @@ function withStableResumeIds(resume: StructuredResume): StructuredResume {
     } catch (e) {
       setError(e instanceof Error ? e.message : "Resume PDF failed");
     }
-  }, [resume, resumeExportBasename]);
+  }, [resume, resumeExportBasename, gate.me?.hasPaidAccess, gate.phase]);
 
   const handleJobChange = useCallback((next: JobContext) => {
     setJob(next);
@@ -920,6 +937,10 @@ function withStableResumeIds(resume: StructuredResume): StructuredResume {
       exportBasename={exportBasename}
       onExportBasenameChange={onExportBasenameChange}
       docEditEpoch={docEditEpoch}
+      freeGenerationsRemaining={
+        gate.me?.hasPaidAccess ? null : (gate.me?.freeCoverLetterGenerationsRemaining ?? 0)
+      }
+      onUpgrade={() => void gate.openStripeCheckout()}
     />
   );
 

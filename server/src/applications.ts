@@ -188,11 +188,15 @@ export async function createJobApplication(
   prisma: PrismaClient,
   userId: string,
   input: CreateApplicationInput,
+  options?: { forFreeTier?: boolean },
 ): Promise<CreateApplicationResult> {
   const jobUrl = normalizeJobUrl(input.jobUrl);
   const existing = await prisma.jobApplication.findUnique({
     where: { userId_jobUrl: { userId, jobUrl } },
   });
+
+  const forFreeTier = Boolean(options?.forFreeTier);
+  const status = forFreeTier ? "SAVED" : "PREPARING";
 
   const row = await prisma.jobApplication.upsert({
     where: { userId_jobUrl: { userId, jobUrl } },
@@ -206,7 +210,7 @@ export async function createJobApplication(
       jobDescription: asTrimmedString(input.jobDescription),
       resumeVariantId: input.resumeVariantId ?? null,
       resumeVariantName: input.resumeVariantName ?? null,
-      status: "PREPARING",
+      status,
       dateSaved: new Date(),
       preparationSteps: { ...DEFAULT_STEPS, jobSaved: true },
     },
@@ -218,12 +222,12 @@ export async function createJobApplication(
       jobDescription: asTrimmedString(input.jobDescription),
       resumeVariantId: input.resumeVariantId ?? null,
       resumeVariantName: input.resumeVariantName ?? null,
-      status: "PREPARING",
+      status,
       dateSaved: new Date(),
       preparationError: null,
-      fitScore: null,
-      coverLetterDraft: Prisma.JsonNull,
-      resumeSuggestions: Prisma.JsonNull,
+      fitScore: forFreeTier ? undefined : null,
+      coverLetterDraft: forFreeTier ? undefined : Prisma.JsonNull,
+      resumeSuggestions: forFreeTier ? undefined : Prisma.JsonNull,
       preparationSteps: { ...DEFAULT_STEPS, jobSaved: true },
     },
   });

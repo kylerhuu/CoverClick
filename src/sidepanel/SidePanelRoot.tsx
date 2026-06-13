@@ -14,29 +14,12 @@ export function SidePanelRoot() {
     );
   }
 
-  if (gate.phase === "no_api") {
-    return (
-      <AuthWall
-        variant="sidepanel"
-        mode="no_api"
-        me={null}
-        authBusy={false}
-        authError={null}
-        onGoogleSignIn={() => {}}
-        onSignOut={() => {}}
-        onSubscribe={() => {}}
-        onManageBilling={() => {}}
-        onRefreshAccess={() => {}}
-      />
-    );
-  }
-
-  if (gate.phase === "signed_out" || gate.phase === "unpaid" || gate.phase === "account_error") {
+  if (gate.phase === "no_api" || gate.phase === "signed_out" || gate.phase === "account_error") {
     return (
       <AuthWall
         variant="sidepanel"
         mode={
-          gate.phase === "signed_out" ? "signed_out" : gate.phase === "account_error" ? "account_error" : "unpaid"
+          gate.phase === "no_api" ? "no_api" : gate.phase === "account_error" ? "account_error" : "signed_out"
         }
         me={gate.me}
         authBusy={gate.authBusy}

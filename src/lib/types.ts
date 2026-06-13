@@ -339,6 +339,11 @@ export interface AccountMeResponse {
   subscriptionStatus: string;
   hasPaidAccess: boolean;
   subscriptionPeriodEnd: string | null;
+  /** Lifetime free-tier generations consumed (0 for new users). */
+  freeCoverLetterGenerationsUsed: number;
+  /** Remaining free generations; `null` means unlimited (paid). */
+  freeCoverLetterGenerationsRemaining: number | null;
+  freeCoverLetterLimit: number;
 }
 
 /** `POST /api/auth/exchange` */
@@ -348,6 +353,9 @@ export interface AuthExchangeResponse {
   hasPaidAccess: boolean;
   subscriptionStatus: string;
   subscriptionPeriodEnd?: string | null;
+  freeCoverLetterGenerationsUsed?: number;
+  freeCoverLetterGenerationsRemaining?: number | null;
+  freeCoverLetterLimit?: number;
 }
 
 export const EMPTY_PROFILE: UserProfile = {

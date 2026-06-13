@@ -227,7 +227,7 @@ export function OptionsPage() {
     );
   }
 
-  if (gate.phase === "no_api" || gate.phase === "signed_out" || gate.phase === "unpaid" || gate.phase === "account_error") {
+  if (gate.phase === "no_api" || gate.phase === "signed_out" || gate.phase === "account_error") {
     return (
       <div className={cn("flex min-h-full flex-col text-slate-900", wsShell)}>
         <div className="min-h-0 flex-1">
@@ -238,9 +238,7 @@ export function OptionsPage() {
                 ? "no_api"
                 : gate.phase === "signed_out"
                   ? "signed_out"
-                  : gate.phase === "account_error"
-                    ? "account_error"
-                    : "unpaid"
+                  : "account_error"
             }
             me={gate.me}
             authBusy={gate.authBusy}

@@ -64,6 +64,9 @@ type Props = {
   onExportBasenameChange: (value: string) => void;
   /** Bump when the letter should reload from structured (new job scrape or new generation). */
   docEditEpoch: number;
+  /** Remaining free cover letter generations; null = unlimited (Pro). */
+  freeGenerationsRemaining?: number | null;
+  onUpgrade?: () => void;
 };
 
 const FALLBACK_JOB: JobContext = {
@@ -116,10 +119,14 @@ export function LetterPane({
   exportBasename,
   onExportBasenameChange,
   docEditEpoch,
+  freeGenerationsRemaining = null,
+  onUpgrade,
 }: Props) {
   const jobCtx = job ?? FALLBACK_JOB;
   const hasLetter = letter.bodyParagraphs.some((p) => p.trim()) || letter.greeting.trim();
   const letterEditable = !genBusy && !pdfBusy && !saveBusy;
+  const generationBlocked =
+    freeGenerationsRemaining !== null && freeGenerationsRemaining <= 0;
   const actionsDisabled = !hasLetter || genBusy || pdfBusy || saveBusy;
 
   const [mode, setMode] = useState<LetterPaneMode>("preview");
@@ -190,10 +197,29 @@ export function LetterPane({
             type="button"
             className={ccWorkspaceGenerateBtn}
             onClick={onGenerate}
-            disabled={genBusy || pdfBusy || saveBusy || !job}
+            disabled={genBusy || pdfBusy || saveBusy || !job || generationBlocked}
           >
             {genBusy ? "Drafting…" : "Generate"}
           </button>
+
+          {freeGenerationsRemaining !== null && freeGenerationsRemaining > 0 ? (
+            <span className="text-[11px] font-medium text-slate-500">
+              {freeGenerationsRemaining} free generation{freeGenerationsRemaining === 1 ? "" : "s"} left
+            </span>
+          ) : null}
+
+          {generationBlocked ? (
+            <span className="text-[11px] font-medium text-amber-800">
+              Free generations used.{" "}
+              {onUpgrade ? (
+                <button type="button" className="font-semibold text-[#5B4CF0] underline" onClick={onUpgrade}>
+                  Upgrade to Pro
+                </button>
+              ) : (
+                "Upgrade to Pro for unlimited letters."
+              )}
+            </span>
+          ) : null}
 
           <div className="flex flex-wrap items-center gap-1">
             <button
@@ -267,7 +293,7 @@ export function LetterPane({
                 type="button"
                 className={cn(ccBtnTextSecondary, "mt-3 text-[11px]")}
                 onClick={onRegenerate}
-                disabled={genBusy || pdfBusy || saveBusy || !job}
+                disabled={genBusy || pdfBusy || saveBusy || !job || generationBlocked}
               >
                 Regenerate letter
               </button>
