@@ -676,6 +676,20 @@ function withStableResumeIds(resume: StructuredResume): StructuredResume {
     [scheduleResumeSave],
   );
 
+  const onPersistResumeChange = useCallback(
+    async (next: StructuredResume) => {
+      const normalized = withStableResumeIds(next);
+      resumeDirtyRef.current = true;
+      resumeRef.current = normalized;
+      setResume(normalized);
+      await flushResumeSave();
+      setResumeOptimizeResult(null);
+      setSuggestionDecisions({});
+      setResumeOptimizeError(null);
+    },
+    [flushResumeSave],
+  );
+
   const onImportResumeFromProfile = useCallback(() => {
     const mapped = withStableResumeIds(profileToStructuredResume(profileRef.current));
     if (hasResumeStudioContent(resume)) {
@@ -1024,6 +1038,7 @@ function withStableResumeIds(resume: StructuredResume): StructuredResume {
             suggestionDecisions={suggestionDecisions}
             onTargetRoleChange={setResumeTargetRole}
             onResumeChange={onResumeChange}
+            onPersistResumeChange={onPersistResumeChange}
             onGenerateSummary={() => void onGenerateResumeSummary()}
             onOptimizeForJob={() => void runResumeOptimizeForJob()}
             onAcceptSuggestion={onAcceptOptimizeSuggestion}

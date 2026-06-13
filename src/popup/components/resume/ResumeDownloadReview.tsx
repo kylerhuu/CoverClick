@@ -33,7 +33,7 @@ type Props = {
   onDoneManualEdit: () => void;
   onResetManualEdits: () => void;
   onFinalOverrideChange: (key: string, value: string) => void;
-  onSaveToResumeVersion: () => void;
+  onSaveToResumeVersion: () => void | Promise<void>;
   onExportOnlyClose: () => void;
   onDiscardOverrides: () => void;
   onExportDocx: (ctx: ResumeExportContext) => void;
@@ -82,8 +82,10 @@ export function ResumeDownloadReview({
     if (!choice) return;
     setCloseChoice(null);
     if (choice === "save") {
-      onSaveToResumeVersion();
-      onClose();
+      void (async () => {
+        await onSaveToResumeVersion();
+        onClose();
+      })();
       return;
     }
     if (choice === "export-only") {
@@ -197,8 +199,7 @@ export function ResumeDownloadReview({
               <div className="mt-3 flex flex-wrap gap-2">
                 <button
                   type="button"
-                  disabled={!overridesDirty}
-                  onClick={onSaveToResumeVersion}
+                  onClick={() => void onSaveToResumeVersion()}
                   className="rounded-lg border border-indigo-600 bg-indigo-600 px-3 py-1.5 text-[11px] font-bold text-white disabled:opacity-40"
                 >
                   Save to this resume version

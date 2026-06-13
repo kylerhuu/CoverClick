@@ -127,29 +127,54 @@ function bulletsFromOverrides(
     .filter((x): x is string => x != null);
 }
 
+export function buildReviewExportBaseline(
+  resume: StructuredResume,
+  renderOptions?: ResumeRenderOptions,
+): FinalExportOverrides {
+  const { finalExportOverrides: _ignored, ...optsWithoutOverrides } = renderOptions ?? {};
+  const model = getResumeRenderModel(resume, optsWithoutOverrides);
+  return buildDefaultFinalExportOverrides(model.resume, model.layout.renderPlan);
+}
+
+function pickDirtyExportOverrides(
+  overrides: FinalExportOverrides,
+  baseline: FinalExportOverrides,
+): FinalExportOverrides {
+  const out: FinalExportOverrides = {};
+  for (const key of new Set([...Object.keys(overrides), ...Object.keys(baseline)])) {
+    if ((overrides[key] ?? "") !== (baseline[key] ?? "")) {
+      out[key] = overrides[key] ?? "";
+    }
+  }
+  return out;
+}
+
 export function mergeFinalExportOverridesIntoResume(
   resume: StructuredResume,
   overrides?: FinalExportOverrides,
+  baseline?: FinalExportOverrides,
 ): StructuredResume {
   if (!overrides || !Object.keys(overrides).length) return resume;
+  const effective = baseline ? pickDirtyExportOverrides(overrides, baseline) : overrides;
+  if (!Object.keys(effective).length) return resume;
   const merged = {
     ...resume,
-    summary: overrides.summary != null ? overrides.summary : resume.summary,
+    summary: "summary" in effective ? effective.summary : resume.summary,
     experience: resume.experience.map((e, i) => {
       const ek = experienceEntryKey(e, i);
       const primaryKey = `${ek}:primary`;
       const secondaryKey = `${ek}:secondary`;
-      let next = { ...e, bullets: bulletsFromOverrides(e.bullets, ek, overrides) };
-      if (primaryKey in overrides) {
-        const parts = overrides[primaryKey].split(" — ");
+      let next = { ...e, bullets: bulletsFromOverrides(e.bullets, ek, effective) };
+      if (primaryKey in effective) {
+        const parts = effective[primaryKey].split(" — ");
         next = {
           ...next,
           company: parts[0]?.trim() ?? "",
           companySubtitle: parts.slice(1).join(" — ").trim(),
         };
       }
-      if (secondaryKey in overrides) {
-        const parts = overrides[secondaryKey].split("|").map((s) => s.trim());
+      if (secondaryKey in effective) {
+        const parts = effective[secondaryKey].split("|").map((s) => s.trim());
         next = {
           ...next,
           title: parts[0] ?? "",
@@ -163,15 +188,15 @@ export function mergeFinalExportOverridesIntoResume(
       const pk = projectEntryKey(p, i);
       const primaryKey = `${pk}:primary`;
       const secondaryKey = `${pk}:secondary`;
-      let next = { ...p, bullets: bulletsFromOverrides(p.bullets, pk, overrides) };
-      if (primaryKey in overrides) {
-        const parts = overrides[primaryKey].split(" — ");
+      let next = { ...p, bullets: bulletsFromOverrides(p.bullets, pk, effective) };
+      if (primaryKey in effective) {
+        const parts = effective[primaryKey].split(" — ");
         next = { ...next, name: parts[0]?.trim() ?? "", subtitle: parts.slice(1).join(" — ").trim() };
       }
-      if (secondaryKey in overrides) {
+      if (secondaryKey in effective) {
         next = {
           ...next,
-          techStack: overrides[secondaryKey]
+          techStack: effective[secondaryKey]
             .split(/[,·|]/)
             .map((s) => s.trim())
             .filter(Boolean),
@@ -185,32 +210,32 @@ export function mergeFinalExportOverridesIntoResume(
       const details = e.details
         .map((d, di) => {
           const k = `${prefix}:detail:${di}`;
-          if (!(k in overrides)) return d;
-          const v = overrides[k];
+          if (!(k in effective)) return d;
+          const v = effective[k];
           return v.trim() ? v : null;
         })
         .filter((x): x is string => x != null);
 
       let school = e.school;
       let graduationDate = e.graduationDate;
-      if (`${prefix}:school` in overrides) {
-        ({ school, graduationDate } = parseSchoolLineOverride(overrides[`${prefix}:school`], e));
+      if (`${prefix}:school` in effective) {
+        ({ school, graduationDate } = parseSchoolLineOverride(effective[`${prefix}:school`], e));
       }
 
       let major = e.major;
       let concentrationOrMinor = e.concentrationOrMinor ?? "";
-      if (`${prefix}:major` in overrides) {
-        ({ major, concentrationOrMinor } = parseMajorLineOverride(overrides[`${prefix}:major`]));
+      if (`${prefix}:major` in effective) {
+        ({ major, concentrationOrMinor } = parseMajorLineOverride(effective[`${prefix}:major`]));
       }
 
       let degree = e.degree;
-      if (`${prefix}:degree` in overrides) {
-        degree = parseDegreeLineOverride(overrides[`${prefix}:degree`], e);
+      if (`${prefix}:degree` in effective) {
+        degree = parseDegreeLineOverride(effective[`${prefix}:degree`], e);
       }
 
       let gpa = e.gpa ?? "";
-      if (`${prefix}:gpa` in overrides) {
-        gpa = overrides[`${prefix}:gpa`].replace(/^GPA:\s*/i, "").trim();
+      if (`${prefix}:gpa` in effective) {
+        gpa = effective[`${prefix}:gpa`].replace(/^GPA:\s*/i, "").trim();
       }
 
       return normalizeEducationItem({
@@ -240,15 +265,11 @@ export function exportOverridesAreDirty(
   resume: StructuredResume,
   renderOptions: ResumeRenderOptions | undefined,
   overrides: FinalExportOverrides,
+  baseline?: FinalExportOverrides,
 ): boolean {
   if (!overrides || Object.keys(overrides).length === 0) return false;
-  const { finalExportOverrides: _ignored, ...optsWithoutOverrides } = renderOptions ?? {};
-  const model = getResumeRenderModel(resume, optsWithoutOverrides);
-  const baseline = buildDefaultFinalExportOverrides(model.resume, model.layout.renderPlan);
-  for (const key of new Set([...Object.keys(overrides), ...Object.keys(baseline)])) {
-    if ((overrides[key] ?? "") !== (baseline[key] ?? "")) return true;
-  }
-  return false;
+  const base = baseline ?? buildReviewExportBaseline(resume, renderOptions);
+  return Object.keys(pickDirtyExportOverrides(overrides, base)).length > 0;
 }
 
 export type ResumeRenderOptions = {

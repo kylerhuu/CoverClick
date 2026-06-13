@@ -82,6 +82,7 @@ function ResumeTextBlock({
       style={style}
       contentEditable
       suppressContentEditableWarning
+      onInput={(e) => onOverrideChange?.(blockKey, e.currentTarget.textContent ?? "")}
       onBlur={(e) => onOverrideChange?.(blockKey, e.currentTarget.textContent ?? "")}
     >
       {text || "\u00a0"}

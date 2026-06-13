@@ -9,6 +9,7 @@ import { cn } from "../../lib/classNames";
 import {
   cloneRenderPlan,
   cloneRenderPlanDeep,
+  buildReviewExportBaseline,
   emptyFinalExportOverrides,
   exportOverridesAreDirty,
   getResumeRenderModel,
@@ -30,7 +31,6 @@ import type { ResumeTargetLength } from "../../lib/resumePageMetrics";
 import { formatPageFitDisplay, type ResumeDomFitContext } from "../../lib/resumePageMetrics";
 import {
   ResumeDownloadReview,
-  seedFinalExportOverrides,
   type ResumeExportContext,
 } from "./resume/ResumeDownloadReview";
 import {
@@ -57,6 +57,7 @@ type Props = {
   suggestionDecisions: Record<string, "pending" | "accepted" | "rejected">;
   onTargetRoleChange: (value: string) => void;
   onResumeChange: (next: StructuredResume) => void;
+  onPersistResumeChange?: (next: StructuredResume) => Promise<void>;
   onImportFromProfile: () => void;
   onGenerateSummary: () => void;
   onOptimizeForJob: () => void;
@@ -70,6 +71,14 @@ type Props = {
 
 const NARROW_PANEL_HINT_KEY = "coverclick-resume-narrow-panel-hint";
 const SPLIT_MIN_WIDTH_PX = 980;
+
+function renderOptionsWithoutExportOverrides(
+  opts: import("../../lib/resumeRender").ResumeRenderOptions,
+): import("../../lib/resumeRender").ResumeRenderOptions {
+  if (!("finalExportOverrides" in opts)) return opts;
+  const { finalExportOverrides: _ignored, ...rest } = opts;
+  return rest;
+}
 
 const degreeTypeOptions = ["High School", "Associate", "Bachelor's", "Master's", "MBA", "JD", "MD", "PhD", "Certificate", "Other"] as const;
 const sectionMeta: { key: ResumeSectionKey; label: string }[] = [
@@ -136,6 +145,7 @@ export function ResumeStudioPane({
   suggestionDecisions,
   onTargetRoleChange,
   onResumeChange,
+  onPersistResumeChange,
   onImportFromProfile,
   onGenerateSummary,
   onOptimizeForJob,
@@ -168,6 +178,9 @@ export function ResumeStudioPane({
   const [finalExportOverrides, setFinalExportOverrides] = useState<FinalExportOverrides>(() =>
     emptyFinalExportOverrides(),
   );
+  const finalExportOverridesRef = useRef<FinalExportOverrides>(emptyFinalExportOverrides());
+  const [reviewBaseline, setReviewBaseline] = useState<FinalExportOverrides>(() => emptyFinalExportOverrides());
+  const reviewBaselineRef = useRef<FinalExportOverrides>(emptyFinalExportOverrides());
   const [narrowHintDismissed, setNarrowHintDismissed] = useState(
     () => typeof localStorage !== "undefined" && localStorage.getItem(NARROW_PANEL_HINT_KEY) === "1",
   );
@@ -205,6 +218,9 @@ export function ResumeStudioPane({
     setSelectedTrimIds(new Set());
     setFullContentPreview(false);
     setFinalExportOverrides(emptyFinalExportOverrides());
+    finalExportOverridesRef.current = emptyFinalExportOverrides();
+    setReviewBaseline(emptyFinalExportOverrides());
+    reviewBaselineRef.current = emptyFinalExportOverrides();
     setDownloadReviewManualEdit(false);
   }, [resume]);
 
@@ -240,21 +256,44 @@ export function ResumeStudioPane({
     return opts;
   }, [layoutSettings, manualTrimPlan, forcePlanOverride, fullContentPreview, finalExportOverrides, domFitRevision]);
 
+  useEffect(() => {
+    finalExportOverridesRef.current = finalExportOverrides;
+  }, [finalExportOverrides]);
+
+  const renderOptionsWithoutOverrides = useMemo(
+    () => renderOptionsWithoutExportOverrides(renderOptions),
+    [renderOptions],
+  );
+
   const overridesDirty = useMemo(
-    () => exportOverridesAreDirty(resume, renderOptions, finalExportOverrides),
-    [resume, renderOptions, finalExportOverrides],
+    () => exportOverridesAreDirty(resume, renderOptionsWithoutOverrides, finalExportOverrides, reviewBaseline),
+    [resume, renderOptionsWithoutOverrides, finalExportOverrides, reviewBaseline],
   );
 
   const clearReviewOverrides = useCallback(() => {
-    setFinalExportOverrides(emptyFinalExportOverrides());
+    const empty = emptyFinalExportOverrides();
+    setFinalExportOverrides(empty);
+    finalExportOverridesRef.current = empty;
+    setReviewBaseline(empty);
+    reviewBaselineRef.current = empty;
     setDownloadReviewManualEdit(false);
   }, []);
 
-  const saveReviewEditsToVariant = useCallback(() => {
-    const merged = mergeFinalExportOverridesIntoResume(resume, finalExportOverrides);
-    onResumeChange(merged);
+  const saveReviewEditsToVariant = useCallback(async () => {
+    const active = document.activeElement;
+    if (active instanceof HTMLElement) active.blur();
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+
+    const overrides = finalExportOverridesRef.current;
+    const baseline = reviewBaselineRef.current;
+    const merged = mergeFinalExportOverridesIntoResume(resume, overrides, baseline);
+    if (onPersistResumeChange) {
+      await onPersistResumeChange(merged);
+    } else {
+      onResumeChange(merged);
+    }
     clearReviewOverrides();
-  }, [resume, finalExportOverrides, onResumeChange, clearReviewOverrides]);
+  }, [resume, onResumeChange, onPersistResumeChange, clearReviewOverrides]);
 
   const model = useMemo(() => getResumeRenderModel(resume, renderOptions), [resume, renderOptions]);
   const omittedNotes = model.layout.renderPlan.omittedNotes;
@@ -896,15 +935,27 @@ export function ResumeStudioPane({
         manualEditMode={downloadReviewManualEdit}
         overridesDirty={overridesDirty}
         onEnterManualEdit={() => {
-          setFinalExportOverrides((prev) => seedFinalExportOverrides(resume, renderOptions, prev));
+          const baseline = buildReviewExportBaseline(resume, renderOptionsWithoutOverrides);
+          reviewBaselineRef.current = baseline;
+          finalExportOverridesRef.current = baseline;
+          setReviewBaseline(baseline);
+          setFinalExportOverrides(baseline);
           setDownloadReviewManualEdit(true);
         }}
         onFinalOverrideChange={(key, value) => {
-          setFinalExportOverrides((prev) => ({ ...prev, [key]: value }));
+          setFinalExportOverrides((prev) => {
+            const next = { ...prev, [key]: value };
+            finalExportOverridesRef.current = next;
+            return next;
+          });
         }}
         onDoneManualEdit={() => setDownloadReviewManualEdit(false)}
-        onResetManualEdits={() => setFinalExportOverrides(emptyFinalExportOverrides())}
-        onSaveToResumeVersion={saveReviewEditsToVariant}
+        onResetManualEdits={() => {
+          const baseline = reviewBaselineRef.current;
+          setFinalExportOverrides(baseline);
+          finalExportOverridesRef.current = baseline;
+        }}
+        onSaveToResumeVersion={() => void saveReviewEditsToVariant()}
         onExportOnlyClose={() => setDownloadReviewManualEdit(false)}
         onDiscardOverrides={clearReviewOverrides}
         onExportDocx={onExportDocx}
