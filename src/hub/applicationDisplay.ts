@@ -223,14 +223,79 @@ export function hubListRelativeTime(app: JobApplication): string | null {
   return relative ? `Saved ${relative.toLowerCase()}` : null;
 }
 
-/** One muted metadata line for hub cards — fit first, then resume. */
+/** Fit score match label for rings and hero. */
+export function fitScoreMatchLabel(score: number): string {
+  if (score >= 75) return "Strong Match";
+  if (score >= 50) return "Good Match";
+  return "Match";
+}
+
+/** Hub list metadata — Match first, then resume. */
 export function hubListMetadataLine(app: JobApplication): string {
   if (app.status === "PREPARING" || app.status === "SAVED") return "";
   const parts: string[] = [];
-  if (app.fitScore != null) parts.push(`${app.fitScore}% fit`);
+  if (app.fitScore != null) parts.push(`${app.fitScore}% Match`);
   const resume = app.resumeVariantName?.trim();
   if (resume) parts.push(resume);
   return parts.join(" · ");
+}
+
+/** Status chip label for hub row (uppercase styling applied in UI). */
+export function hubListStatusChipLabel(app: JobApplication): string | null {
+  switch (app.status) {
+    case "READY_TO_APPLY":
+      return "Ready to apply";
+    case "PREPARING":
+    case "SAVED":
+      return "Preparing";
+    case "APPLIED":
+      return "Applied";
+    case "INTERVIEWING":
+      return "Interviewing";
+    case "OFFER":
+      return "Offer";
+    default:
+      return null;
+  }
+}
+
+export type PreparedAssetItem = {
+  id: string;
+  iconLabel: string;
+  title: string;
+  subtitle: string;
+};
+
+/** Prepared asset cards for detail mission control. */
+export function getPreparedAssetItems(app: JobApplication): PreparedAssetItem[] {
+  const items: PreparedAssetItem[] = [];
+  if (app.coverLetterDraft) {
+    items.push({
+      id: "materials",
+      iconLabel: "CL",
+      title: "Cover Letter",
+      subtitle: "Tailored to this role",
+    });
+  }
+  const resume = app.resumeVariantName?.trim();
+  if (resume || app.resumeVariantId) {
+    items.push({
+      id: "resume",
+      iconLabel: "CV",
+      title: "Resume",
+      subtitle: resume || "Variant selected",
+    });
+  }
+  if (app.fitScore != null) {
+    const qualifier = fitScoreMatchLabel(app.fitScore);
+    items.push({
+      id: "fit",
+      iconLabel: "FT",
+      title: "Fit Score",
+      subtitle: `${app.fitScore}% Match · ${qualifier}`,
+    });
+  }
+  return items;
 }
 
 /** Hub card status line (sentence case, not pill). */
@@ -264,28 +329,6 @@ export function detailHeroResumeLine(app: JobApplication): string | null {
   const name = app.resumeVariantName?.trim();
   if (!name) return app.resumeVariantId ? "Resume selected" : null;
   return `Resume: ${name}`;
-}
-
-export type PreparedAssetItem = {
-  id: string;
-  iconLabel: string;
-  assetName: string;
-};
-
-/** Asset tiles for detail briefing — objects, not completed tasks. */
-export function getPreparedAssetItems(app: JobApplication): PreparedAssetItem[] {
-  const items: PreparedAssetItem[] = [];
-  if (app.coverLetterDraft) {
-    items.push({ id: "materials", iconLabel: "CL", assetName: "Cover Letter" });
-  }
-  const resume = app.resumeVariantName?.trim();
-  if (resume || app.resumeVariantId) {
-    items.push({ id: "resume", iconLabel: "CV", assetName: "Resume" });
-  }
-  if (app.fitScore != null) {
-    items.push({ id: "fit", iconLabel: "FT", assetName: `${app.fitScore}% Match` });
-  }
-  return items;
 }
 
 export type DetailReadinessLine = {

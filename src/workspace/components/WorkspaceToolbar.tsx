@@ -1,5 +1,11 @@
 import { cn } from "../../lib/classNames";
-import { ccFocusRing, ccSidePanelTab, ccSidePanelTabTrack, ccTextLink } from "../../ui/ccUi";
+import {
+  ccFocusRing,
+  ccSidePanelTab,
+  ccSidePanelTabTrack,
+  ccWorkspaceActionLink,
+  ccWorkspaceToolbar,
+} from "../../ui/ccUi";
 import type { WorkspaceTab } from "../workspaceLayout";
 
 type Props = {
@@ -33,7 +39,7 @@ export function WorkspaceToolbar({
   const visibleSegments = resumeOnlyMode ? segments.filter((s) => s.id === "resume") : segments;
 
   return (
-    <div className="flex shrink-0 items-center justify-between gap-3 border-b border-slate-100 bg-white px-4 py-2">
+    <div className={ccWorkspaceToolbar}>
       {!resumeOnlyMode ? (
         <div className={cn(ccSidePanelTabTrack, "shrink-0")} role="tablist" aria-label="Workspace layout">
           {visibleSegments.map((s) => {
@@ -59,12 +65,12 @@ export function WorkspaceToolbar({
 
       <div className="flex shrink-0 items-center gap-3">
         {showRescan ? (
-          <button type="button" className={ccTextLink} onClick={onRescan} disabled={scrapeBusy}>
+          <button type="button" className={ccWorkspaceActionLink} onClick={onRescan} disabled={scrapeBusy}>
             {scrapeBusy ? "Scanning…" : "Re-scan"}
           </button>
         ) : null}
         {!resumeOnlyMode ? (
-          <button type="button" className={ccTextLink} onClick={onOpenProfile}>
+          <button type="button" className={ccWorkspaceActionLink} onClick={onOpenProfile}>
             Profile
           </button>
         ) : null}

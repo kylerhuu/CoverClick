@@ -9,7 +9,12 @@ import type {
   UserProfile,
 } from "../../lib/types";
 import { cn } from "../../lib/classNames";
-import { ccBtnPrimary, ccBtnTextSecondary, ccFocusRing, ccTextLink } from "../../ui/ccUi";
+import {
+  ccBtnTextSecondary,
+  ccFocusRing,
+  ccWorkspaceActionLink,
+  ccWorkspaceGenerateBtn,
+} from "../../ui/ccUi";
 import {
   canonicalPlainFromStructured,
   structuredFromCanonicalPlain,
@@ -149,7 +154,7 @@ export function LetterPane({
   };
 
   return (
-    <div className="flex min-h-0 min-w-0 flex-1 flex-col bg-[#f0f2f6]">
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col bg-[#F5F7FB]">
       <div
         className="pointer-events-none fixed left-[-14000px] top-0 z-0 overflow-visible"
         aria-hidden
@@ -157,33 +162,30 @@ export function LetterPane({
         <LetterDocument variant="export" letter={letter} />
       </div>
 
-      <div className="shrink-0 border-b border-slate-100 bg-white px-4 py-2.5">
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+      <div className="shrink-0 border-b border-slate-100/60 bg-[#F5F7FB]/95 px-4 py-2 backdrop-blur-sm">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
           <button
             type="button"
-            className={cn(ccBtnPrimary, "px-4 py-2")}
+            className={ccWorkspaceGenerateBtn}
             onClick={onGenerate}
             disabled={genBusy || pdfBusy || !job}
           >
             {genBusy ? "Drafting…" : "Generate"}
           </button>
 
-          <div className="flex flex-wrap items-center gap-2 text-[12px]">
+          <div className="flex flex-wrap items-center gap-2.5">
             <button
               type="button"
-              className={ccTextLink}
+              className={ccWorkspaceActionLink}
               onClick={onCopy}
               disabled={!hasLetter || genBusy || pdfBusy}
             >
               Copy
             </button>
-            <span className="text-slate-300" aria-hidden>
-              ·
-            </span>
             <div className="relative" ref={exportMenuRef}>
               <button
                 type="button"
-                className={ccTextLink}
+                className={ccWorkspaceActionLink}
                 aria-expanded={exportMenuOpen}
                 aria-haspopup="menu"
                 disabled={!hasLetter || genBusy || pdfBusy}
@@ -221,12 +223,9 @@ export function LetterPane({
                 </div>
               ) : null}
             </div>
-            <span className="text-slate-300" aria-hidden>
-              ·
-            </span>
             <button
               type="button"
-              className={ccTextLink}
+              className={ccWorkspaceActionLink}
               aria-expanded={advancedOpen}
               onClick={() => setAdvancedOpen((o) => !o)}
             >
@@ -270,7 +269,7 @@ export function LetterPane({
       </div>
 
       <div className="relative min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-auto">
-        <div className="sticky top-0 z-10 flex items-center justify-end gap-2 border-b border-slate-100/80 bg-[#f0f2f6]/95 px-4 py-1.5 backdrop-blur-sm">
+        <div className="sticky top-0 z-10 flex items-center justify-end gap-2 border-b border-slate-100/50 bg-[#F5F7FB]/80 px-4 py-1 backdrop-blur-sm">
           <button
             type="button"
             className={cn(
@@ -300,8 +299,8 @@ export function LetterPane({
 
         <CognitiveLoader open={genBusy} headline="Drafting your cover letter" lines={GEN_LINES} />
         {mode === "preview" ? (
-          <div className="flex justify-start px-4 py-8 sm:px-6">
-            <div className="letter-doc-preview-mount shadow-[0_8px_30px_rgba(15,23,42,0.08)] ring-1 ring-slate-200/80">
+          <div className="flex justify-center px-4 py-10 sm:px-8">
+            <div className="letter-doc-preview-mount shadow-[0_12px_40px_rgba(15,23,42,0.1)] ring-1 ring-slate-200/60">
               <LetterDocument variant="preview" letter={letter} />
             </div>
           </div>

@@ -2,7 +2,7 @@ import type { JobApplication } from "../../lib/types";
 import {
   hubListMetadataLine,
   hubListProgressLine,
-  hubListStatusLine,
+  hubListStatusChipLabel,
 } from "../applicationDisplay";
 import { cn } from "../../lib/classNames";
 import {
@@ -11,13 +11,18 @@ import {
   ccHubCardPreparing,
   ccHubCardReady,
   ccHubListArrow,
+  ccHubListArrowWrap,
   ccHubListCard,
   ccHubListCardSelected,
   ccHubListMetadata,
   ccHubListProgress,
-  ccHubListStatusApplied,
-  ccHubListStatusPreparing,
-  ccHubListStatusReady,
+  ccHubRowIcon,
+  ccHubRowIconPreparing,
+  ccHubRowIconReady,
+  ccHubStatusChipApplied,
+  ccHubStatusChipPreparing,
+  ccHubStatusChipReady,
+  ccOpportunityCompany,
   ccOpportunityTitle,
 } from "../../ui/ccUi";
 
@@ -39,24 +44,74 @@ function hubCardVariantClass(application: JobApplication): string {
   }
 }
 
-function hubStatusLineClass(application: JobApplication): string {
-  switch (application.status) {
-    case "READY_TO_APPLY":
-      return ccHubListStatusReady;
-    case "PREPARING":
-    case "SAVED":
-      return ccHubListStatusPreparing;
-    default:
-      return ccHubListStatusApplied;
-  }
+function ReadyIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <path
+        d="M3 11L6 8L9 10.5L13 5"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M11 5H13V7"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function PreparingIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <circle cx="8" cy="8" r="5.5" stroke="currentColor" strokeWidth="1.5" opacity="0.35" />
+      <path
+        d="M8 2.5A5.5 5.5 0 0 1 13.5 8"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+function AppliedIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <path
+        d="M4 8.5L6.5 11L12 5"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
 }
 
 export function ApplicationListRow({ application, selected, onClick }: Props) {
+  const isReady = application.status === "READY_TO_APPLY";
   const isPreparing = application.status === "PREPARING" || application.status === "SAVED";
   const progressLine = hubListProgressLine(application);
   const metadata = hubListMetadataLine(application);
-  const statusLine = hubListStatusLine(application);
-  const showArrow = application.status !== "PREPARING";
+  const statusChipLabel = hubListStatusChipLabel(application);
+  const showStatusChip = Boolean(statusChipLabel);
+
+  const iconBlockClass = isReady
+    ? ccHubRowIconReady
+    : isPreparing
+      ? ccHubRowIconPreparing
+      : ccHubRowIcon;
+
+  const statusChipClass = isReady
+    ? ccHubStatusChipReady
+    : isPreparing
+      ? ccHubStatusChipPreparing
+      : ccHubStatusChipApplied;
 
   return (
     <button
@@ -69,36 +124,43 @@ export function ApplicationListRow({ application, selected, onClick }: Props) {
         ccFocusRing,
       )}
     >
-      <div className="min-w-0 flex-1">
-        <p
-          className={cn(
-            "truncate leading-snug",
-            ccOpportunityTitle,
-            "text-[15px]",
-            selected && "font-extrabold",
-          )}
-        >
-          {application.title || "Untitled role"}
-        </p>
-        <p className="truncate text-[12px] font-medium text-slate-500">
-          {application.company || "Unknown company"}
-        </p>
-        <p className={cn("mt-1 truncate", hubStatusLineClass(application))}>{statusLine}</p>
-        {metadata ? <p className={ccHubListMetadata}>{metadata}</p> : null}
-        {application.status === "PREPARING" && progressLine ? (
-          <p className={ccHubListProgress}>
-            <span className="cc-spinner h-2.5 w-2.5 shrink-0 border-[1.5px]" aria-hidden />
-            <span className="truncate">{progressLine}</span>
+      <div className="flex min-w-0 flex-1 items-center gap-3">
+        <div className={iconBlockClass}>
+          {isReady ? <ReadyIcon /> : isPreparing ? <PreparingIcon /> : <AppliedIcon />}
+        </div>
+
+        <div className="min-w-0 flex-1 text-left">
+          <p
+            className={cn(
+              "truncate leading-snug",
+              ccOpportunityTitle,
+              "text-[15px]",
+              selected && "font-extrabold",
+            )}
+          >
+            {application.title || "Untitled role"}
           </p>
-        ) : isPreparing && application.status === "SAVED" ? (
-          <p className={cn(ccHubListMetadata, "text-amber-700/90")}>Preparing materials…</p>
-        ) : null}
+          <p className={cn(ccOpportunityCompany, "mt-0.5 truncate text-[12px]")}>
+            {application.company || "Unknown company"}
+          </p>
+          {metadata ? <p className={cn(ccHubListMetadata, "mt-0.5")}>{metadata}</p> : null}
+          {application.status === "PREPARING" && progressLine ? (
+            <p className={ccHubListProgress}>
+              <span className="cc-spinner h-2.5 w-2.5 shrink-0 border-[1.5px]" aria-hidden />
+              <span className="truncate">{progressLine}</span>
+            </p>
+          ) : isPreparing && application.status === "SAVED" ? (
+            <p className={cn(ccHubListMetadata, "mt-0.5 text-amber-700/90")}>Preparing materials…</p>
+          ) : null}
+        </div>
       </div>
-      {showArrow ? (
+
+      <div className={ccHubListArrowWrap}>
+        {showStatusChip ? <span className={statusChipClass}>{statusChipLabel}</span> : null}
         <span className={ccHubListArrow} aria-hidden>
           →
         </span>
-      ) : null}
+      </div>
     </button>
   );
 }

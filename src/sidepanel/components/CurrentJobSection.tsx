@@ -2,17 +2,24 @@ import { useState } from "react";
 import type { JobApplication, JobContext } from "../../lib/types";
 import type { ResumeVariant } from "../../lib/resumeLibrary";
 import { currentJobSavedInlineMessage } from "../../hub/applicationDisplay";
-import { jobSourceFromUrl } from "../../lib/jobSource";
+import { formatRelativeDate, jobSourceFromUrl } from "../../lib/jobSource";
+import { FitScoreRing } from "../../ui/FitScoreRing";
 import { cn } from "../../lib/classNames";
 import {
   ccAboutRoleSurface,
   ccBtnDecisionSecondary,
+  ccCtaArrow,
   ccFocusRing,
+  ccInfoBanner,
   ccMetadataLabel,
+  ccMetadataRow,
+  ccMetadataValue,
   ccMuted,
   ccOpportunityCompany,
   ccOpportunityTitle,
   ccPrimaryCtaLg,
+  ccResumeRowSurface,
+  ccTextLink,
   ccTertiaryText,
 } from "../../ui/ccUi";
 import { ResumeVariantSelector } from "./ResumeVariantSelector";
@@ -28,7 +35,7 @@ function detectionState(scrapeBusy: boolean, scrapeError: string | null, job: Jo
 
 const detectionDotClass: Record<DetectionState, string> = {
   scanning: "bg-amber-400",
-  detected: "bg-[#34D399]",
+  detected: "bg-[#22C55E]",
   empty: "bg-slate-300",
   error: "bg-red-500",
 };
@@ -76,6 +83,17 @@ export function CurrentJobSection({
   const canAct = Boolean(job?.pageUrl) && !scrapeBusy && hasResume;
   const hasDescription = Boolean(job?.descriptionText?.trim());
   const descriptionLong = (job?.descriptionText?.trim().length ?? 0) > 180;
+  const activeResume = resumeVariants.find((v) => v.id === activeResumeVariantId) ?? resumeVariants[0];
+  const fitScore = currentTabSaved?.fitScore ?? null;
+
+  const metadataParts: string[] = [];
+  const location = currentTabSaved?.location?.trim();
+  if (location) metadataParts.push(location);
+  if (source) metadataParts.push(source);
+  if (job?.scrapedAt) {
+    const detected = formatRelativeDate(new Date(job.scrapedAt).toISOString());
+    if (detected) metadataParts.push(`Posted ${detected.toLowerCase()}`);
+  }
 
   return (
     <div className="space-y-3">
@@ -87,12 +105,7 @@ export function CurrentJobSection({
             ) : (
               <span className={cn("h-2 w-2 shrink-0 rounded-full", detectionDotClass[detection])} aria-hidden />
             )}
-            <span className="truncate">
-              {detectionLabel[detection]}
-              {source && detection === "detected" ? (
-                <span className="text-slate-400"> · {source}</span>
-              ) : null}
-            </span>
+            <span className="truncate">{detectionLabel[detection]}</span>
           </span>
           <button
             type="button"
@@ -104,34 +117,87 @@ export function CurrentJobSection({
           </button>
         </div>
 
-        <div>
-          <h1 className={ccOpportunityTitle}>
-            {scrapeBusy ? "Reading posting…" : job?.jobTitle?.trim() || "Open a job posting"}
-          </h1>
-          {job?.companyName?.trim() ? (
-            <p className={cn(ccOpportunityCompany, "mt-1")}>{job.companyName}</p>
-          ) : detection === "empty" && !scrapeBusy ? (
-            <p className="mt-1 text-[14px] text-slate-500">Navigate to a role, then re-scan</p>
-          ) : null}
-          {source ? <p className={cn(ccTertiaryText, "mt-0.5")}>{source}</p> : null}
+        <div className="flex items-start justify-between gap-4">
+          <div className="min-w-0 flex-1">
+            <h1 className={ccOpportunityTitle}>
+              {scrapeBusy ? "Reading posting…" : job?.jobTitle?.trim() || "Open a job posting"}
+            </h1>
+            {job?.companyName?.trim() ? (
+              <p className={cn(ccOpportunityCompany, "mt-1")}>{job.companyName}</p>
+            ) : detection === "empty" && !scrapeBusy ? (
+              <p className="mt-1 text-[14px] text-slate-500">Navigate to a role, then re-scan</p>
+            ) : null}
+            {metadataParts.length > 0 ? (
+              <p className={cn(ccMetadataRow, "mt-1.5")}>
+                {metadataParts.map((part, i) => (
+                  <span key={part}>
+                    {i > 0 ? <span className="text-slate-300"> · </span> : null}
+                    {part}
+                  </span>
+                ))}
+              </p>
+            ) : source ? (
+              <p className={cn(ccTertiaryText, "mt-1")}>{source}</p>
+            ) : null}
+          </div>
+
+          {fitScore != null ? <FitScoreRing score={fitScore} size="md" className="shrink-0" /> : null}
         </div>
 
         {scrapeError ? (
           <p className="text-[12px] font-medium text-red-700">{scrapeError}</p>
         ) : null}
 
-        <ResumeVariantSelector
-          variant="compact"
-          variants={resumeVariants}
-          activeId={activeResumeVariantId}
-          onSelect={onSelectResumeVariant}
-        />
+        {detection === "detected" ? (
+          <div className={ccInfoBanner}>
+            CoverClick can prepare your application materials. We&apos;ll generate a tailored cover letter and review
+            your fit.
+          </div>
+        ) : null}
+
+        {hasResume ? (
+          <div className={ccResumeRowSurface}>
+            <div className="min-w-0">
+              <p className={ccMetadataLabel}>Resume</p>
+              <p className={cn(ccMetadataValue, "mt-0.5 truncate")}>{activeResume?.name ?? "General"}</p>
+            </div>
+            {resumeVariants.length > 1 ? (
+              <div className="relative shrink-0">
+                <span className="text-[12px] font-semibold text-[#5B4CF0]">Change</span>
+                <select
+                  className="absolute inset-0 cursor-pointer opacity-0"
+                  value={activeResume?.id ?? ""}
+                  onChange={(e) => onSelectResumeVariant(e.target.value)}
+                  aria-label="Change resume version"
+                >
+                  {resumeVariants.map((v) => (
+                    <option key={v.id} value={v.id}>
+                      {v.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            ) : null}
+          </div>
+        ) : (
+          <ResumeVariantSelector
+            variant="compact"
+            variants={resumeVariants}
+            activeId={activeResumeVariantId}
+            onSelect={onSelectResumeVariant}
+          />
+        )}
 
         <div className="space-y-2">
           <button type="button" className={ccPrimaryCtaLg} disabled={!canAct} onClick={onApplyNow}>
-            <span className="text-[14px] font-semibold">Apply now</span>
-            <span className="mt-0.5 text-[11px] font-normal text-indigo-100/90">
-              Generate your cover letter, review, and download
+            <div className="text-left">
+              <span className="text-[14px] font-semibold">Apply Now</span>
+              <span className="mt-0.5 block text-[11px] font-normal text-indigo-100/90">
+                Generate your cover letter, review, and download
+              </span>
+            </div>
+            <span className={ccCtaArrow} aria-hidden>
+              →
             </span>
           </button>
           <button
@@ -140,7 +206,7 @@ export function CurrentJobSection({
             disabled={!canAct || saveBusy}
             onClick={onSaveForLater}
           >
-            <span className="text-[13px] font-semibold">{saveBusy ? "Saving…" : "Save for later"}</span>
+            <span className="text-[13px] font-semibold">{saveBusy ? "Saving…" : "Save for Later"}</span>
             <span className="mt-0.5 text-[11px] font-medium text-slate-500">
               Save to Application Hub and prepare in the background
             </span>
@@ -149,7 +215,7 @@ export function CurrentJobSection({
 
         {currentTabSaved ? (
           <p className="flex items-center gap-2 text-[12px] text-slate-500">
-            <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#34D399]" aria-hidden />
+            <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#22C55E]" aria-hidden />
             {currentJobSavedInlineMessage(currentTabSaved, Boolean(preparingInBackground))}
           </p>
         ) : null}
@@ -183,10 +249,10 @@ export function CurrentJobSection({
           {descriptionLong ? (
             <button
               type="button"
-              className={cn("mt-2 text-[12px] font-medium text-indigo-600 hover:text-indigo-800", ccFocusRing)}
+              className={cn(ccTextLink, "mt-2 text-[#5B4CF0] hover:text-[#4f46e5]")}
               onClick={() => setDescriptionExpanded((v) => !v)}
             >
-              {descriptionExpanded ? "Show less" : "View details"}
+              {descriptionExpanded ? "Show less" : "View full details →"}
             </button>
           ) : null}
         </section>

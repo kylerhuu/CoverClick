@@ -50,6 +50,7 @@ import { normalizeEducationItem } from "../lib/resumeEducation";
 import { buildDefaultExportBasename, buildDefaultResumeExportBasename } from "../lib/utils";
 import { cn } from "../lib/classNames";
 import {
+  ccBgApp,
   ccTextLink,
   ccHeroSubtitle,
   ccHeroTitle,
@@ -929,8 +930,8 @@ function withStableResumeIds(resume: StructuredResume): StructuredResume {
   const workspaceResumeLine = isLibraryMode ? null : `Resume: ${resumeVariantName}`;
 
   return (
-    <div className={cn("flex h-screen min-h-[360px] w-full min-w-0 flex-col overflow-hidden bg-[#f0f2f6] text-slate-900 antialiased")}>
-      <header className="shrink-0 border-b border-slate-100 bg-white px-4 py-3">
+    <div className={cn("flex h-screen min-h-[360px] w-full min-w-0 flex-col overflow-hidden text-slate-900 antialiased", ccBgApp)}>
+      <header className="shrink-0 border-b border-slate-100/80 bg-white/90 px-4 py-2.5 backdrop-blur-sm">
         <div className="flex min-w-0 items-start gap-3">
           {onBackToLibrary ? (
             <button type="button" onClick={handleBackToLibrary} className={cn(ccTextLink, "shrink-0 pt-0.5")}>
