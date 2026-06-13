@@ -7,10 +7,51 @@ type Props = {
   variants: ResumeVariant[];
   activeId: string;
   onSelect: (id: string) => void;
+  variant?: "default" | "compact";
 };
 
-export function ResumeVariantSelector({ variants, activeId, onSelect }: Props) {
+export function ResumeVariantSelector({ variants, activeId, onSelect, variant = "default" }: Props) {
   const active = variants.find((v) => v.id === activeId) ?? variants[0];
+
+  if (variant === "compact") {
+    if (variants.length === 0) {
+      return (
+        <p className="text-[12px] font-medium text-slate-500">No saved resume — add one in Profile.</p>
+      );
+    }
+
+    if (variants.length === 1) {
+      return (
+        <p className="text-[12px] text-slate-600">
+          Resume: <span className="font-semibold text-slate-900">{active?.name ?? "General"}</span>
+        </p>
+      );
+    }
+
+    return (
+      <div className="flex flex-wrap items-center gap-1.5 text-[12px] text-slate-600">
+        <span>Resume:</span>
+        <select
+          className={cn(
+            "min-w-0 max-w-full cursor-pointer border-0 bg-transparent p-0 text-[12px] font-semibold text-slate-900",
+            "underline decoration-indigo-300/80 underline-offset-2",
+            "focus:outline-none focus:ring-0",
+            ccFocusRing,
+          )}
+          value={active?.id ?? ""}
+          onChange={(e) => onSelect(e.target.value)}
+          aria-label="Resume version"
+        >
+          {variants.map((v) => (
+            <option key={v.id} value={v.id}>
+              {v.name}
+            </option>
+          ))}
+        </select>
+      </div>
+    );
+  }
+
   const showDropdown = variants.length > 1;
 
   return (

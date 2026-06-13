@@ -17,14 +17,12 @@ import { applyScrapedCompanyDefaults } from "../lib/jobCompanyScrape";
 import { requestJobContextFromActiveTab } from "../lib/tabScrape";
 import { STORAGE_KEYS, loadSettings } from "../lib/storage";
 import { WorkspaceApp } from "../workspace/WorkspaceApp";
-import type { WorkspaceTab } from "../workspace/workspaceLayout";
 import { CurrentJobSection } from "./components/CurrentJobSection";
-import { RecentApplicationsSection } from "./components/RecentApplicationsSection";
 import { SidePanelHeader } from "./components/SidePanelHeader";
 import { SidePanelHubView, type HubSubview } from "./components/SidePanelHubView";
 import { SidePanelModeNav, type SidePanelMode } from "./components/SidePanelModeNav";
 
-export type ScanSubview = "home" | "letter" | "resume-edit";
+export type ScanSubview = "home" | "apply";
 
 export function ApplicationSidePanel() {
   const [mode, setMode] = useState<SidePanelMode>("scan");
@@ -32,7 +30,6 @@ export function ApplicationSidePanel() {
   const [hubSubview, setHubSubview] = useState<HubSubview>("list");
   const [selectedHubId, setSelectedHubId] = useState<string | null>(null);
   const [hubApplications, setHubApplications] = useState<JobApplication[]>([]);
-  const [hubAppsLoading, setHubAppsLoading] = useState(true);
 
   const [resumeLibrary, setResumeLibrary] = useState<ResumeLibraryStore | null>(null);
 
@@ -73,8 +70,6 @@ export function ApplicationSidePanel() {
       setHubApplications(data.applications);
     } catch {
       /* keep last list */
-    } finally {
-      setHubAppsLoading(false);
     }
   }, []);
 
@@ -163,7 +158,7 @@ export function ApplicationSidePanel() {
     [settings, upsertHubApplication],
   );
 
-  const handleSave = useCallback(async () => {
+  const handleSaveForLater = useCallback(async () => {
     if (!job?.pageUrl) return;
     if (!settings.useMock && (!settings.authToken?.trim() || !settings.apiBaseUrl.trim())) {
       setSaveError("Sign in with an active subscription to save jobs to the cloud.");
@@ -196,7 +191,7 @@ export function ApplicationSidePanel() {
       );
       upsertHubApplication(saved);
       setCurrentTabSaved(saved);
-      setSaveNotice(message ?? "Job saved — preparing in the background. Keep browsing!");
+      setSaveNotice(message ?? "Saved for later — preparing in the background.");
       if (saved.status === "PREPARING") startPolling(saved.id);
     } catch (e) {
       setSaveError(formatApplicationApiError(e));
@@ -223,16 +218,7 @@ export function ApplicationSidePanel() {
     [refreshResumeLibrary],
   );
 
-  const openHubForApplication = useCallback((app: JobApplication) => {
-    setSelectedHubId(app.id);
-    setHubSubview("detail");
-    setMode("hub");
-  }, []);
-
   const preparingCurrentTab = currentTabSaved?.status === "PREPARING";
-
-  const workspaceTabForScan: WorkspaceTab | undefined =
-    scanSubview === "letter" ? "letter" : scanSubview === "resume-edit" ? "resume" : undefined;
 
   const activeResumeVariantId = resumeLibrary?.activeVariantId ?? "";
 
@@ -267,16 +253,16 @@ export function ApplicationSidePanel() {
             onSubviewChange={setHubSubview}
             onApplicationsChange={setHubApplications}
           />
-        ) : scanSubview === "letter" || scanSubview === "resume-edit" ? (
+        ) : scanSubview === "apply" ? (
           <WorkspaceApp
             mode="capture"
             initialJob={job}
-            initialWorkspaceTab={workspaceTabForScan}
+            initialWorkspaceTab="split"
             onBackToCapture={() => setScanSubview("home")}
           />
         ) : (
           <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
-            <div className="flex flex-col gap-4 p-3">
+            <div className="p-3">
               <CurrentJobSection
                 job={job}
                 scrapeBusy={scrapeBusy}
@@ -285,20 +271,11 @@ export function ApplicationSidePanel() {
                 resumeVariants={resumeLibrary?.variants ?? []}
                 activeResumeVariantId={activeResumeVariantId}
                 onSelectResumeVariant={(id) => void handleSelectResumeVariant(id)}
-                onQuickEditResume={() => setScanSubview("resume-edit")}
                 onRescan={() => void refreshScrape()}
-                onSave={() => void handleSave()}
-                onGenerateLetter={() => setScanSubview("letter")}
-                alreadySaved={Boolean(currentTabSaved)}
+                onApplyNow={() => setScanSubview("apply")}
+                onSaveForLater={() => void handleSaveForLater()}
                 currentTabSaved={currentTabSaved}
                 preparingInBackground={preparingCurrentTab}
-                onOpenHub={() => handleModeChange("hub")}
-              />
-              <RecentApplicationsSection
-                applications={hubApplications}
-                loading={hubAppsLoading}
-                onSelectApplication={openHubForApplication}
-                onViewAll={() => handleModeChange("hub")}
               />
             </div>
           </div>

@@ -10,8 +10,6 @@ import {
   ccMetaChip,
   ccMuted,
 } from "../../ui/ccUi";
-import { requestOptionsTab } from "../../lib/openOptionsTab";
-import { ProfileInsightStrip } from "./ProfileInsightStrip";
 import { ResumeVariantSelector } from "./ResumeVariantSelector";
 
 type DetectionState = "scanning" | "detected" | "empty" | "error";
@@ -45,14 +43,11 @@ type Props = {
   resumeVariants: ResumeVariant[];
   activeResumeVariantId: string;
   onSelectResumeVariant: (id: string) => void;
-  onQuickEditResume: () => void;
   onRescan: () => void;
-  onSave: () => void;
-  onGenerateLetter: () => void;
-  alreadySaved?: boolean;
+  onApplyNow: () => void;
+  onSaveForLater: () => void;
   currentTabSaved?: JobApplication | null;
   preparingInBackground?: boolean;
-  onOpenHub?: () => void;
 };
 
 export function CurrentJobSection({
@@ -63,21 +58,19 @@ export function CurrentJobSection({
   resumeVariants,
   activeResumeVariantId,
   onSelectResumeVariant,
-  onQuickEditResume,
   onRescan,
-  onSave,
-  onGenerateLetter,
-  alreadySaved,
+  onApplyNow,
+  onSaveForLater,
   currentTabSaved,
   preparingInBackground,
-  onOpenHub,
 }: Props) {
   const source = job?.pageUrl ? jobSourceFromUrl(job.pageUrl) : "";
   const detection = detectionState(scrapeBusy, scrapeError, job);
-  const canGenerate = Boolean(job?.pageUrl) && !scrapeBusy;
+  const hasResume = resumeVariants.length > 0;
+  const canAct = Boolean(job?.pageUrl) && !scrapeBusy && hasResume;
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
       <div
         className={cn(
           "relative overflow-hidden rounded-2xl border border-indigo-200/55 shadow-[0_4px_22px_rgba(79,70,229,0.09)]",
@@ -89,30 +82,45 @@ export function CurrentJobSection({
           aria-hidden
         />
 
-        <div className={cn("border-b px-3.5 py-2 text-[10px] font-semibold uppercase tracking-[0.12em]", detectionBarClass[detection])}>
-          <span className="inline-flex items-center gap-1.5">
+        <div
+          className={cn(
+            "flex items-center justify-between gap-2 border-b px-3.5 py-2 text-[10px] font-semibold uppercase tracking-[0.12em]",
+            detectionBarClass[detection],
+          )}
+        >
+          <span className="inline-flex min-w-0 items-center gap-1.5">
             {detection === "scanning" ? (
               <span className="cc-spinner h-3 w-3 border-[1.5px]" aria-hidden />
             ) : (
               <span
                 className={cn(
-                  "h-1.5 w-1.5 rounded-full",
+                  "h-1.5 w-1.5 shrink-0 rounded-full",
                   detection === "detected" ? "bg-emerald-500" : detection === "error" ? "bg-red-500" : "bg-slate-400",
                 )}
                 aria-hidden
               />
             )}
-            {detectionLabel[detection]}
+            <span className="truncate">{detectionLabel[detection]}</span>
             {source && detection === "detected" ? (
-              <span className="normal-case tracking-normal opacity-75">· {source}</span>
+              <span className="hidden truncate normal-case tracking-normal opacity-75 sm:inline">· {source}</span>
             ) : null}
           </span>
+          <button
+            type="button"
+            className={cn(
+              ccBtnGhost,
+              "shrink-0 px-1.5 py-0.5 text-[10px] normal-case tracking-normal opacity-80 hover:opacity-100",
+            )}
+            disabled={scrapeBusy}
+            onClick={onRescan}
+          >
+            {scrapeBusy ? "Scanning…" : "Re-scan"}
+          </button>
         </div>
 
         <div className="space-y-3 p-3.5">
           <div>
-            <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-400">Current tab</p>
-            <h2 className="mt-1.5 text-[18px] font-bold leading-snug tracking-tight text-slate-900">
+            <h2 className="text-[18px] font-bold leading-snug tracking-tight text-slate-900">
               {scrapeBusy ? "Reading posting…" : job?.jobTitle?.trim() || "Open a job posting"}
             </h2>
             {job?.companyName?.trim() ? (
@@ -132,7 +140,7 @@ export function CurrentJobSection({
           ) : null}
 
           {job?.descriptionText?.trim() ? (
-            <div className="max-h-[130px] overflow-y-auto rounded-xl border border-slate-200/55 bg-white/70 p-3 shadow-[inset_0_1px_2px_rgba(15,23,42,0.04)]">
+            <div className="max-h-[120px] overflow-y-auto rounded-xl border border-slate-200/55 bg-white/70 p-3 shadow-[inset_0_1px_2px_rgba(15,23,42,0.04)]">
               <p className="whitespace-pre-wrap text-[11px] leading-relaxed text-slate-600">
                 {job.descriptionText.trim().slice(0, 600)}
                 {job.descriptionText.length > 600 ? "…" : ""}
@@ -142,12 +150,10 @@ export function CurrentJobSection({
             <p className={cn(ccMuted, "text-[12px]")}>We will pull title, company, and description from the page you have open.</p>
           ) : null}
 
-          <ProfileInsightStrip />
-
-          {alreadySaved && currentTabSaved ? (
+          {currentTabSaved ? (
             <div
               className={cn(
-                "rounded-xl border px-3 py-2.5 text-[11px] font-medium leading-snug",
+                "rounded-xl border px-3 py-2 text-[11px] font-medium leading-snug",
                 currentJobSavedBannerClass(currentTabSaved),
               )}
             >
@@ -158,61 +164,34 @@ export function CurrentJobSection({
       </div>
 
       <ResumeVariantSelector
+        variant="compact"
         variants={resumeVariants}
         activeId={activeResumeVariantId}
         onSelect={onSelectResumeVariant}
       />
 
-      <div className="grid grid-cols-2 gap-2">
-        <button type="button" className={cn(ccBtnSecondary, "w-full py-2.5 text-[12px]")} onClick={onQuickEditResume}>
-          Quick Edit
-        </button>
-        <button
-          type="button"
-          className={cn(ccBtnGhost, "w-full border border-slate-200/80 py-2.5 text-[12px]")}
-          onClick={() => void requestOptionsTab("resumes")}
-        >
-          Saved Resumes
-        </button>
-      </div>
-
       <div className="space-y-2">
-        <p className="px-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">Quick actions</p>
         <button
           type="button"
-          className={cn(ccBtnPrimary, "w-full py-2.5 text-[13px]")}
-          disabled={!canGenerate}
-          onClick={onGenerateLetter}
+          className={cn(ccBtnPrimary, "w-full py-3 text-[13px]")}
+          disabled={!canAct}
+          onClick={onApplyNow}
         >
-          Generate Cover Letter
+          Apply now
         </button>
         <button
           type="button"
-          className={cn(ccBtnSecondary, "w-full py-2 text-[12px]")}
-          disabled={!job?.pageUrl || saveBusy || scrapeBusy}
-          onClick={onSave}
+          className={cn(ccBtnSecondary, "w-full py-2.5 text-[12px]")}
+          disabled={!canAct || saveBusy}
+          onClick={onSaveForLater}
         >
-          {saveBusy ? "Saving…" : alreadySaved ? "Save again & re-prepare" : "Save to Hub"}
+          {saveBusy ? "Saving…" : "Save for later"}
         </button>
-        <p className="px-0.5 text-center text-[10px] leading-snug text-slate-500">
-          Cover letter is tailored to this job. Your selected resume version is linked to this application.
-        </p>
-      </div>
-
-      <div className="flex items-center justify-between gap-2 border-t border-slate-200/60 pt-2">
-        {onOpenHub ? (
-          <button type="button" className={cn(ccBtnGhost, "flex-1 text-[11px]")} onClick={onOpenHub}>
-            Application Hub
-          </button>
+        {!hasResume && !scrapeBusy ? (
+          <p className="text-center text-[10px] leading-snug text-slate-500">
+            Add a resume in Profile to apply or save this job.
+          </p>
         ) : null}
-        <button
-          type="button"
-          className={cn(ccBtnGhost, "flex-1 text-[11px]")}
-          disabled={scrapeBusy}
-          onClick={onRescan}
-        >
-          Re-scan tab
-        </button>
       </div>
     </div>
   );
