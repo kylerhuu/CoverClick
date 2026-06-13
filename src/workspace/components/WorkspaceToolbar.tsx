@@ -7,6 +7,8 @@ type Props = {
   onRescan: () => void;
   /** When false, hides Re-scan (saved application mode). */
   showRescan?: boolean;
+  /** Resume Studio only — hides job/letter/split tabs. */
+  resumeOnlyMode?: boolean;
   workspaceTab: WorkspaceTab;
   onWorkspaceTabChange: (tab: WorkspaceTab) => void;
   exportBasename: string;
@@ -32,35 +34,44 @@ export function WorkspaceToolbar({
   scrapeBusy,
   onRescan,
   showRescan = true,
+  resumeOnlyMode = false,
   workspaceTab,
   onWorkspaceTabChange,
   exportBasename,
   onExportBasenameChange,
   onOpenProfile,
 }: Props) {
+  const visibleSegments = resumeOnlyMode
+    ? segments.filter((s) => s.id === "resume")
+    : segments;
+
   return (
     <div className="flex shrink-0 flex-col gap-1.5 border-b border-slate-200/70 bg-white/90 px-3 py-2 backdrop-blur-sm">
       <div className="flex min-w-0 flex-wrap items-center gap-2">
-        <div className={cn(ccSegmentTrack, "shrink-0")} role="tablist" aria-label="Workspace layout">
-          {segments.map((s) => {
-            const active = workspaceTab === s.id;
-            return (
-              <button
-                key={s.id}
-                type="button"
-                role="tab"
-                aria-selected={active}
-                title={s.title}
-                onClick={() => onWorkspaceTabChange(s.id)}
-                className={cn("px-2.5 py-1.5 text-[11px]", ccSegmentTab(active), ccFocusRing)}
-              >
-                {s.label}
-              </button>
-            );
-          })}
-        </div>
+        {!resumeOnlyMode ? (
+          <div className={cn(ccSegmentTrack, "shrink-0")} role="tablist" aria-label="Workspace layout">
+            {visibleSegments.map((s) => {
+              const active = workspaceTab === s.id;
+              return (
+                <button
+                  key={s.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={active}
+                  title={s.title}
+                  onClick={() => onWorkspaceTabChange(s.id)}
+                  className={cn("px-2.5 py-1.5 text-[11px]", ccSegmentTab(active), ccFocusRing)}
+                >
+                  {s.label}
+                </button>
+              );
+            })}
+          </div>
+        ) : null}
 
-        <span className="hidden h-5 w-px shrink-0 bg-slate-200/80 sm:block" aria-hidden />
+        {!resumeOnlyMode ? (
+          <span className="hidden h-5 w-px shrink-0 bg-slate-200/80 sm:block" aria-hidden />
+        ) : null}
 
         {showRescan ? (
           <button type="button" className={toolBtn} onClick={onRescan} disabled={scrapeBusy}>
@@ -68,30 +79,34 @@ export function WorkspaceToolbar({
           </button>
         ) : null}
 
-        <label className="flex min-w-0 flex-[1_1_160px] flex-col gap-0.5 sm:flex-[1_1_220px]">
-          <span className="text-[9px] font-semibold uppercase tracking-wide text-slate-400">Export name</span>
-          <input
-            type="text"
-            value={exportBasename}
-            onChange={(e) => onExportBasenameChange(e.target.value)}
-            spellCheck={false}
-            autoComplete="off"
-            className={cn(
-              "h-8 w-full min-w-0 rounded-lg border border-slate-200/90 bg-slate-50/90 px-2.5 text-[11px] font-medium text-slate-900",
-              "outline-none transition focus:border-indigo-300 focus:bg-white focus:ring-2 focus:ring-indigo-500/20",
-            )}
-            placeholder="Name_Role_Company_CoverLetter"
-          />
-        </label>
+        {!resumeOnlyMode ? (
+          <label className="flex min-w-0 flex-[1_1_160px] flex-col gap-0.5 sm:flex-[1_1_220px]">
+            <span className="text-[9px] font-semibold uppercase tracking-wide text-slate-400">Export name</span>
+            <input
+              type="text"
+              value={exportBasename}
+              onChange={(e) => onExportBasenameChange(e.target.value)}
+              spellCheck={false}
+              autoComplete="off"
+              className={cn(
+                "h-8 w-full min-w-0 rounded-lg border border-slate-200/90 bg-slate-50/90 px-2.5 text-[11px] font-medium text-slate-900",
+                "outline-none transition focus:border-indigo-300 focus:bg-white focus:ring-2 focus:ring-indigo-500/20",
+              )}
+              placeholder="Name_Role_Company_CoverLetter"
+            />
+          </label>
+        ) : null}
 
-        <button
-          type="button"
-          className={cn(toolBtn, "ml-auto shrink-0")}
-          onClick={onOpenProfile}
-          title="Opens CoverClick Options in a new tab — profile, resume import, billing"
-        >
-          Profile
-        </button>
+        {!resumeOnlyMode ? (
+          <button
+            type="button"
+            className={cn(toolBtn, "ml-auto shrink-0")}
+            onClick={onOpenProfile}
+            title="Opens CoverClick Options in a new tab — profile, saved resumes, billing"
+          >
+            Profile
+          </button>
+        ) : null}
       </div>
     </div>
   );

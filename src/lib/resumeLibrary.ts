@@ -180,6 +180,17 @@ export async function updateActiveLayoutSettings(settings: ResumeStudioLayoutSet
   });
 }
 
+export async function updateVariantResume(id: string, resume: StructuredResume): Promise<void> {
+  return enqueueLibraryWrite(async () => {
+    const library = await loadResumeLibrary();
+    const idx = library.variants.findIndex((v) => v.id === id);
+    if (idx < 0) throw new Error("Resume variant not found.");
+    const variants = [...library.variants];
+    variants[idx] = { ...variants[idx], resume: cloneResume(resume), updatedAt: Date.now() };
+    await saveResumeLibrary({ ...library, variants });
+  });
+}
+
 export function validateVariantName(
   name: string,
   variants: ResumeVariant[],

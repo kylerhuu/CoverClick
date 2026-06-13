@@ -68,3 +68,34 @@ export function educationMajorLine(entry: ResumeEducationItem): string {
   }
   return majorLine;
 }
+
+export function parseSchoolLineOverride(
+  line: string,
+  entry: ResumeEducationItem,
+): { school: string; graduationDate: string } {
+  const trimmed = line.trim();
+  const gradMatch = trimmed.match(/Expected Graduation:\s*(.+)$/i);
+  if (gradMatch) {
+    const graduationDate = gradMatch[1].trim();
+    const school = trimmed.replace(/\s*Expected Graduation:\s*.+$/i, "").replace(/\s+/g, " ").trim();
+    return { school: school || entry.school, graduationDate: graduationDate || entry.graduationDate };
+  }
+  return { school: trimmed || entry.school, graduationDate: entry.graduationDate };
+}
+
+export function parseMajorLineOverride(line: string): { major: string; concentrationOrMinor: string } {
+  if (!line.trim()) return { major: "", concentrationOrMinor: "" };
+  const parts = line.split("|").map((s) => s.trim()).filter(Boolean);
+  return {
+    major: parts[0] ?? "",
+    concentrationOrMinor: parts.slice(1).join(" | "),
+  };
+}
+
+export function parseDegreeLineOverride(line: string, entry: ResumeEducationItem): string {
+  const trimmed = line.trim();
+  if (!trimmed) return "";
+  const label = entry.degreeType ? degreeLabel(entry.degreeType) : "";
+  if (label && trimmed.toLowerCase() === label.toLowerCase()) return "";
+  return trimmed;
+}

@@ -10,6 +10,7 @@ import {
   ccMetaChip,
   ccMuted,
 } from "../../ui/ccUi";
+import { requestOptionsTab } from "../../lib/openOptionsTab";
 import { ProfileInsightStrip } from "./ProfileInsightStrip";
 import { ResumeVariantSelector } from "./ResumeVariantSelector";
 
@@ -43,11 +44,8 @@ type Props = {
   saveBusy: boolean;
   resumeVariants: ResumeVariant[];
   activeResumeVariantId: string;
-  resumeCreateBusy?: boolean;
-  resumeCreateError?: string | null;
   onSelectResumeVariant: (id: string) => void;
-  onCreateResumeVariant: (name: string) => Promise<void>;
-  onEditResume: () => void;
+  onQuickEditResume: () => void;
   onRescan: () => void;
   onSave: () => void;
   onGenerateLetter: () => void;
@@ -64,11 +62,8 @@ export function CurrentJobSection({
   saveBusy,
   resumeVariants,
   activeResumeVariantId,
-  resumeCreateBusy,
-  resumeCreateError,
   onSelectResumeVariant,
-  onCreateResumeVariant,
-  onEditResume,
+  onQuickEditResume,
   onRescan,
   onSave,
   onGenerateLetter,
@@ -166,14 +161,20 @@ export function CurrentJobSection({
         variants={resumeVariants}
         activeId={activeResumeVariantId}
         onSelect={onSelectResumeVariant}
-        onCreate={onCreateResumeVariant}
-        createBusy={resumeCreateBusy}
-        createError={resumeCreateError}
       />
 
-      <button type="button" className={cn(ccBtnSecondary, "w-full py-2.5 text-[13px]")} onClick={onEditResume}>
-        Edit Saved Resume
-      </button>
+      <div className="grid grid-cols-2 gap-2">
+        <button type="button" className={cn(ccBtnSecondary, "w-full py-2.5 text-[12px]")} onClick={onQuickEditResume}>
+          Quick Edit
+        </button>
+        <button
+          type="button"
+          className={cn(ccBtnGhost, "w-full border border-slate-200/80 py-2.5 text-[12px]")}
+          onClick={() => void requestOptionsTab("resumes")}
+        >
+          Saved Resumes
+        </button>
+      </div>
 
       <div className="space-y-2">
         <p className="px-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">Quick actions</p>
@@ -194,7 +195,7 @@ export function CurrentJobSection({
           {saveBusy ? "Saving…" : alreadySaved ? "Save again & re-prepare" : "Save to Hub"}
         </button>
         <p className="px-0.5 text-center text-[10px] leading-snug text-slate-500">
-          Cover letter is tailored to this job. Your selected saved resume version is linked to this application.
+          Cover letter is tailored to this job. Your selected resume version is linked to this application.
         </p>
       </div>
 

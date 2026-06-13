@@ -1,5 +1,5 @@
 import type { ResumeEducationItem, ResumeSectionKey, StructuredResume } from "./types";
-import { educationDegreeLine, educationMajorLine } from "./resumeEducation";
+import { educationDegreeLine, educationMajorLine, normalizeEducationItem, parseDegreeLineOverride, parseMajorLineOverride, parseSchoolLineOverride } from "./resumeEducation";
 import {
   cloneRenderPlan,
   computeOnePageLayoutPlan,
@@ -127,21 +127,57 @@ function bulletsFromOverrides(
     .filter((x): x is string => x != null);
 }
 
-export function applyExportOverridesToResume(
+export function mergeFinalExportOverridesIntoResume(
   resume: StructuredResume,
   overrides?: FinalExportOverrides,
 ): StructuredResume {
   if (!overrides || !Object.keys(overrides).length) return resume;
-  return {
+  const merged = {
     ...resume,
     summary: overrides.summary != null ? overrides.summary : resume.summary,
     experience: resume.experience.map((e, i) => {
       const ek = experienceEntryKey(e, i);
-      return { ...e, bullets: bulletsFromOverrides(e.bullets, ek, overrides) };
+      const primaryKey = `${ek}:primary`;
+      const secondaryKey = `${ek}:secondary`;
+      let next = { ...e, bullets: bulletsFromOverrides(e.bullets, ek, overrides) };
+      if (primaryKey in overrides) {
+        const parts = overrides[primaryKey].split(" — ");
+        next = {
+          ...next,
+          company: parts[0]?.trim() ?? "",
+          companySubtitle: parts.slice(1).join(" — ").trim(),
+        };
+      }
+      if (secondaryKey in overrides) {
+        const parts = overrides[secondaryKey].split("|").map((s) => s.trim());
+        next = {
+          ...next,
+          title: parts[0] ?? "",
+          location: parts[1] ?? "",
+          dates: parts[2] ?? "",
+        };
+      }
+      return next;
     }),
     projects: resume.projects.map((p, i) => {
       const pk = projectEntryKey(p, i);
-      return { ...p, bullets: bulletsFromOverrides(p.bullets, pk, overrides) };
+      const primaryKey = `${pk}:primary`;
+      const secondaryKey = `${pk}:secondary`;
+      let next = { ...p, bullets: bulletsFromOverrides(p.bullets, pk, overrides) };
+      if (primaryKey in overrides) {
+        const parts = overrides[primaryKey].split(" — ");
+        next = { ...next, name: parts[0]?.trim() ?? "", subtitle: parts.slice(1).join(" — ").trim() };
+      }
+      if (secondaryKey in overrides) {
+        next = {
+          ...next,
+          techStack: overrides[secondaryKey]
+            .split(/[,·|]/)
+            .map((s) => s.trim())
+            .filter(Boolean),
+        };
+      }
+      return next;
     }),
     education: resume.education.map((e, i) => {
       const id = e.id ?? `edu-${i}`;
@@ -154,16 +190,65 @@ export function applyExportOverridesToResume(
           return v.trim() ? v : null;
         })
         .filter((x): x is string => x != null);
-      return {
+
+      let school = e.school;
+      let graduationDate = e.graduationDate;
+      if (`${prefix}:school` in overrides) {
+        ({ school, graduationDate } = parseSchoolLineOverride(overrides[`${prefix}:school`], e));
+      }
+
+      let major = e.major;
+      let concentrationOrMinor = e.concentrationOrMinor ?? "";
+      if (`${prefix}:major` in overrides) {
+        ({ major, concentrationOrMinor } = parseMajorLineOverride(overrides[`${prefix}:major`]));
+      }
+
+      let degree = e.degree;
+      if (`${prefix}:degree` in overrides) {
+        degree = parseDegreeLineOverride(overrides[`${prefix}:degree`], e);
+      }
+
+      let gpa = e.gpa ?? "";
+      if (`${prefix}:gpa` in overrides) {
+        gpa = overrides[`${prefix}:gpa`].replace(/^GPA:\s*/i, "").trim();
+      }
+
+      return normalizeEducationItem({
         ...e,
-        school: overrides[`${prefix}:school`] ?? e.school,
-        degree: overrides[`${prefix}:degree`] ?? e.degree,
-        major: overrides[`${prefix}:major`] ?? e.major,
-        gpa: overrides[`${prefix}:gpa`]?.replace(/^GPA:\s*/i, "").trim() || e.gpa,
+        school,
+        graduationDate,
+        degree,
+        major,
+        concentrationOrMinor,
+        gpa,
         details,
-      };
+      });
     }),
   };
+  return merged;
+}
+
+/** @deprecated Use mergeFinalExportOverridesIntoResume — kept for render pipeline. */
+export function applyExportOverridesToResume(
+  resume: StructuredResume,
+  overrides?: FinalExportOverrides,
+): StructuredResume {
+  return mergeFinalExportOverridesIntoResume(resume, overrides);
+}
+
+export function exportOverridesAreDirty(
+  resume: StructuredResume,
+  renderOptions: ResumeRenderOptions | undefined,
+  overrides: FinalExportOverrides,
+): boolean {
+  if (!overrides || Object.keys(overrides).length === 0) return false;
+  const { finalExportOverrides: _ignored, ...optsWithoutOverrides } = renderOptions ?? {};
+  const model = getResumeRenderModel(resume, optsWithoutOverrides);
+  const baseline = buildDefaultFinalExportOverrides(model.resume, model.layout.renderPlan);
+  for (const key of new Set([...Object.keys(overrides), ...Object.keys(baseline)])) {
+    if ((overrides[key] ?? "") !== (baseline[key] ?? "")) return true;
+  }
+  return false;
 }
 
 export type ResumeRenderOptions = {

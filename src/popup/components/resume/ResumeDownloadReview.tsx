@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import type { StructuredResume } from "../../../lib/types";
 import { cn } from "../../../lib/classNames";
 import {
@@ -14,6 +14,8 @@ export type ResumeExportContext = {
   renderOptions: ResumeRenderOptions;
 };
 
+type CloseChoice = "save" | "export-only" | "discard" | null;
+
 type Props = {
   open: boolean;
   onClose: () => void;
@@ -24,11 +26,16 @@ type Props = {
   targetLength: number;
   exportFileBaseName: string;
   onExportFileBaseNameChange: (value: string) => void;
+  resumeVariantName: string;
   manualEditMode: boolean;
+  overridesDirty: boolean;
   onEnterManualEdit: () => void;
   onDoneManualEdit: () => void;
   onResetManualEdits: () => void;
   onFinalOverrideChange: (key: string, value: string) => void;
+  onSaveToResumeVersion: () => void;
+  onExportOnlyClose: () => void;
+  onDiscardOverrides: () => void;
   onExportDocx: (ctx: ResumeExportContext) => void;
   onExportPdf: (ctx: ResumeExportContext) => void;
 };
@@ -43,19 +50,50 @@ export function ResumeDownloadReview({
   targetLength,
   exportFileBaseName,
   onExportFileBaseNameChange,
+  resumeVariantName,
   manualEditMode,
+  overridesDirty,
   onEnterManualEdit,
   onDoneManualEdit,
   onResetManualEdits,
   onFinalOverrideChange,
+  onSaveToResumeVersion,
+  onExportOnlyClose,
+  onDiscardOverrides,
   onExportDocx,
   onExportPdf,
 }: Props) {
+  const [closeChoice, setCloseChoice] = useState<CloseChoice>(null);
   const model = useMemo(() => getResumeRenderModel(resume, renderOptions), [resume, renderOptions]);
   const omittedNotes = model.layout.renderPlan.omittedNotes;
   const pageFit = pagesUsed != null ? formatPageFitDisplay(pagesUsed, targetLength) : null;
   const band = healthyPageBand(targetLength);
   const exportCtx: ResumeExportContext = { renderOptions };
+
+  const requestClose = () => {
+    if (overridesDirty) {
+      setCloseChoice("save");
+      return;
+    }
+    onClose();
+  };
+
+  const handleCloseChoice = (choice: CloseChoice) => {
+    if (!choice) return;
+    setCloseChoice(null);
+    if (choice === "save") {
+      onSaveToResumeVersion();
+      onClose();
+      return;
+    }
+    if (choice === "export-only") {
+      onExportOnlyClose();
+      onClose();
+      return;
+    }
+    onDiscardOverrides();
+    onClose();
+  };
 
   if (!open) return null;
 
@@ -75,13 +113,13 @@ export function ResumeDownloadReview({
               </h2>
               <p className="mt-0.5 text-[11px] text-slate-500">
                 {manualEditMode
-                  ? "Final export preview with inline editing."
+                  ? `Editing export preview for ${resumeVariantName}. Save to update your saved resume version.`
                   : "Final export preview — same layout as your PDF and DOCX files."}
               </p>
             </div>
             <button
               type="button"
-              onClick={onClose}
+              onClick={requestClose}
               className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-semibold text-slate-700 hover:bg-slate-50"
             >
               Close
@@ -109,29 +147,75 @@ export function ResumeDownloadReview({
         </header>
 
         <div className="min-h-0 flex-1 overflow-y-auto bg-slate-50/80 px-4 py-4 sm:px-5">
-          {manualEditMode ? (
-            <section className="mb-3 rounded-lg border-2 border-indigo-400 bg-indigo-50 px-3 py-3 shadow-sm">
-              <p className="text-[12px] font-bold text-indigo-950">Manual Edit Mode ON</p>
-              <p className="mt-1 text-[11px] leading-snug text-indigo-900">
-                Click directly into the resume to make final export edits.
-              </p>
-              <p className="mt-1 text-[10px] text-indigo-800/90">
-                These edits affect the final export only and do not change your saved structured resume.
+          {closeChoice ? (
+            <section className="mb-3 rounded-lg border-2 border-amber-300 bg-amber-50 px-3 py-3 shadow-sm">
+              <p className="text-[12px] font-bold text-amber-950">Unsaved review edits</p>
+              <p className="mt-1 text-[11px] leading-snug text-amber-900">
+                Save these changes to <span className="font-semibold">{resumeVariantName}</span> so they apply across jobs,
+                or keep them for this export only.
               </p>
               <div className="mt-3 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleCloseChoice("save")}
+                  className="rounded-lg border border-indigo-500 bg-indigo-600 px-3 py-1.5 text-[11px] font-bold text-white"
+                >
+                  Save to resume version
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleCloseChoice("export-only")}
+                  className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-[11px] font-semibold text-slate-800"
+                >
+                  Export only
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleCloseChoice("discard")}
+                  className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-1.5 text-[11px] font-semibold text-rose-800"
+                >
+                  Discard
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCloseChoice(null)}
+                  className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-semibold text-slate-600"
+                >
+                  Keep editing
+                </button>
+              </div>
+            </section>
+          ) : null}
+
+          {manualEditMode ? (
+            <section className="mb-3 rounded-lg border-2 border-indigo-400 bg-indigo-50 px-3 py-3 shadow-sm">
+              <p className="text-[12px] font-bold text-indigo-950">Manual edit mode</p>
+              <p className="mt-1 text-[11px] leading-snug text-indigo-900">
+                Click into the resume to fix wording. Use <span className="font-semibold">Save to this resume version</span>{" "}
+                to persist changes to {resumeVariantName}.
+              </p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  disabled={!overridesDirty}
+                  onClick={onSaveToResumeVersion}
+                  className="rounded-lg border border-indigo-600 bg-indigo-600 px-3 py-1.5 text-[11px] font-bold text-white disabled:opacity-40"
+                >
+                  Save to this resume version
+                </button>
                 <button
                   type="button"
                   onClick={onDoneManualEdit}
                   className="rounded-lg border border-indigo-500 bg-white px-3 py-1.5 text-[11px] font-bold text-indigo-950"
                 >
-                  Done Editing
+                  Done editing
                 </button>
                 <button
                   type="button"
                   onClick={onResetManualEdits}
                   className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-[11px] font-semibold text-slate-800"
                 >
-                  Reset Manual Edits
+                  Reset edits
                 </button>
               </div>
             </section>
@@ -181,7 +265,7 @@ export function ResumeDownloadReview({
               onClick={onEditResume}
               className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-[12px] font-semibold text-slate-800"
             >
-              Edit Resume
+              Quick edit resume
             </button>
             {!manualEditMode ? (
               <button
@@ -189,7 +273,7 @@ export function ResumeDownloadReview({
                 onClick={onEnterManualEdit}
                 className="rounded-lg border border-indigo-300 bg-indigo-50 px-4 py-2 text-[12px] font-semibold text-indigo-950"
               >
-                Manually Edit Final Resume
+                Edit in review
               </button>
             ) : null}
             <button
@@ -222,3 +306,4 @@ export function seedFinalExportOverrides(
   const model = getResumeRenderModel(resume, renderOptions);
   return buildDefaultFinalExportOverrides(model.resume, model.layout.renderPlan);
 }
+

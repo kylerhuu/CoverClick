@@ -29,7 +29,6 @@ import {
   loadCachedLetter,
   loadGenerationPrefs,
   loadProfile,
-  loadResumeStudio,
   loadSettings,
   saveCachedLetter,
   saveGenerationPrefs,
@@ -46,6 +45,7 @@ import { requestJobContextFromActiveTab } from "../lib/tabScrape";
 import { requestCleanJobDescription } from "../lib/jobDescriptionCleanApi";
 import { shouldUseAiDescriptionClean } from "../lib/jobDescriptionQuality";
 import { hasResumeStudioContent, profileToStructuredResume } from "../lib/profileToStructuredResume";
+import { getActiveVariant, setActiveVariant } from "../lib/resumeLibrary";
 import { normalizeEducationItem } from "../lib/resumeEducation";
 import { buildDefaultExportBasename, buildDefaultResumeExportBasename } from "../lib/utils";
 import { cn } from "../lib/classNames";
@@ -57,7 +57,7 @@ import { WorkspaceToolbar } from "./components/WorkspaceToolbar";
 import { PreparationProgress } from "../sidepanel/components/PreparationProgress";
 import { SPLIT_STACK_MAX_WIDTH, type WorkspaceTab, panelDensityFromWidth } from "./workspaceLayout";
 
-export type WorkspaceMode = "capture" | "application";
+export type WorkspaceMode = "capture" | "application" | "library";
 
 const RESUME_AUTOSAVE_MS = 600;
 
@@ -94,16 +94,24 @@ export function WorkspaceApp({
   initialApplication,
   initialJob,
   initialWorkspaceTab,
+  libraryVariantId,
+  libraryVariantName,
   onBackToCapture,
+  onBackToLibrary,
 }: {
   mode?: WorkspaceMode;
   initialApplication?: JobApplication | null;
   /** Seed job from side panel scrape — skips initial re-scrape in capture mode. */
   initialJob?: JobContext | null;
   initialWorkspaceTab?: WorkspaceTab;
+  /** When mode=library, optionally activate this variant before editing. */
+  libraryVariantId?: string;
+  libraryVariantName?: string;
   onBackToCapture?: () => void;
+  onBackToLibrary?: () => void;
 } = {}) {
   const isApplicationMode = mode === "application";
+  const isLibraryMode = mode === "library";
   const [applicationRecord, setApplicationRecord] = useState<JobApplication | null>(
     isApplicationMode && initialApplication ? initialApplication : null,
   );
@@ -152,7 +160,9 @@ function withStableResumeIds(resume: StructuredResume): StructuredResume {
   const [scrapeError, setScrapeError] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [workspaceTab, setWorkspaceTab] = useState<WorkspaceTab>(initialWorkspaceTab ?? "split");
+  const [workspaceTab, setWorkspaceTab] = useState<WorkspaceTab>(
+    isLibraryMode ? "resume" : (initialWorkspaceTab ?? "split"),
+  );
   const [exportBasename, setExportBasename] = useState(() => buildDefaultExportBasename(EMPTY_PROFILE, null));
   const exportDirtyRef = useRef(false);
   const [resumeExportBasename, setResumeExportBasename] = useState(() =>
@@ -177,6 +187,7 @@ function withStableResumeIds(resume: StructuredResume): StructuredResume {
   const resumeLoadGenerationRef = useRef(0);
   const resumeSaveGenerationRef = useRef(0);
   const resumeSaveTimerRef = useRef<number | null>(null);
+  const [resumeVariantName, setResumeVariantName] = useState(libraryVariantName ?? "General");
   const [resumeTargetRole, setResumeTargetRole] = useState("");
   const [resumeSummaryBusy, setResumeSummaryBusy] = useState(false);
   const [resumeSummaryError, setResumeSummaryError] = useState<string | null>(null);
@@ -256,16 +267,20 @@ function withStableResumeIds(resume: StructuredResume): StructuredResume {
     let cancelled = false;
     const loadGeneration = ++resumeLoadGenerationRef.current;
     void (async () => {
-      const storedResume = await loadResumeStudio();
+      if (isLibraryMode && libraryVariantId) {
+        await setActiveVariant(libraryVariantId);
+      }
+      const active = await getActiveVariant();
       if (cancelled || loadGeneration !== resumeLoadGenerationRef.current || resumeDirtyRef.current) return;
-      const normalized = withStableResumeIds(storedResume);
+      const normalized = withStableResumeIds(active.resume);
       setResume(normalized);
       resumeRef.current = normalized;
+      setResumeVariantName(libraryVariantName ?? active.name);
     })();
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [isLibraryMode, libraryVariantId, libraryVariantName]);
 
   const flushResumeSave = useCallback(async () => {
     if (resumeSaveTimerRef.current != null) {
@@ -395,10 +410,11 @@ function withStableResumeIds(resume: StructuredResume): StructuredResume {
   }, []);
 
   useEffect(() => {
-    if (!isApplicationMode && !initialJob?.pageUrl) {
+    if (isLibraryMode || isApplicationMode) return;
+    if (!initialJob?.pageUrl) {
       void refreshScrape();
     }
-  }, [refreshScrape, isApplicationMode, initialJob?.pageUrl]);
+  }, [refreshScrape, isApplicationMode, isLibraryMode, initialJob?.pageUrl]);
 
   useEffect(() => {
     if (!isApplicationMode || !initialApplication) return;
@@ -528,6 +544,16 @@ function withStableResumeIds(resume: StructuredResume): StructuredResume {
             apiBaseUrl: s.apiBaseUrl,
           }),
         );
+      }
+      if (changes[STORAGE_KEYS.resumeLibrary]) {
+        void getActiveVariant().then((v) => {
+          setResumeVariantName(v.name);
+          if (!resumeDirtyRef.current) {
+            const normalized = withStableResumeIds(v.resume);
+            setResume(normalized);
+            resumeRef.current = normalized;
+          }
+        });
       }
     };
     chrome.storage.onChanged.addListener(onStorage);
@@ -673,6 +699,13 @@ function withStableResumeIds(resume: StructuredResume): StructuredResume {
       onBackToCapture?.();
     })();
   }, [flushResumeSave, onBackToCapture]);
+
+  const handleBackToLibrary = useCallback(() => {
+    void (async () => {
+      await flushResumeSave();
+      onBackToLibrary?.();
+    })();
+  }, [flushResumeSave, onBackToLibrary]);
 
   const onGenerateResumeSummary = useCallback(async () => {
     setResumeSummaryBusy(true);
@@ -838,9 +871,9 @@ function withStableResumeIds(resume: StructuredResume): StructuredResume {
     }
   }, [resume, resumeExportBasename]);
 
-  const onResumePdf = useCallback(async () => {
+  const onResumePdf = useCallback(async (ctx?: { renderOptions?: import("../lib/resumeRender").ResumeRenderOptions }) => {
     try {
-      await downloadResumePdf(resume, resumeExportBasename || "CoverClick_Resume");
+      await downloadResumePdf(resume, resumeExportBasename || "CoverClick_Resume", ctx?.renderOptions);
       setStatus("Resume PDF saved");
       window.setTimeout(() => setStatus(null), 900);
     } catch (e) {
@@ -902,7 +935,15 @@ function withStableResumeIds(resume: StructuredResume): StructuredResume {
         )}
       >
         <div className="flex min-w-0 items-center gap-2.5">
-          {onBackToCapture ? (
+          {onBackToLibrary ? (
+            <button
+              type="button"
+              onClick={handleBackToLibrary}
+              className="shrink-0 rounded-lg border border-white/15 bg-white/10 px-2 py-1 text-[11px] font-semibold text-white hover:bg-white/15"
+            >
+              ← Saved Resumes
+            </button>
+          ) : onBackToCapture ? (
             <button
               type="button"
               onClick={handleBackToCapture}
@@ -915,7 +956,11 @@ function withStableResumeIds(resume: StructuredResume): StructuredResume {
           <div className="min-w-0">
             <h1 className="text-[14px] font-bold tracking-tight">CoverClick</h1>
             <p className="truncate text-[10px] font-medium text-indigo-100/80">
-              {isApplicationMode ? "Saved application · edit & export" : "From this tab · edit & export"}
+              {isLibraryMode
+                ? `Saved Resumes · ${resumeVariantName}`
+                : isApplicationMode
+                  ? "Saved application · edit & export"
+                  : "From this tab · edit & export"}
             </p>
           </div>
         </div>
@@ -936,7 +981,8 @@ function withStableResumeIds(resume: StructuredResume): StructuredResume {
       <WorkspaceToolbar
         scrapeBusy={scrapeBusy}
         onRescan={() => void refreshScrape()}
-        showRescan={!isApplicationMode}
+        showRescan={!isApplicationMode && !isLibraryMode}
+        resumeOnlyMode={isLibraryMode}
         workspaceTab={workspaceTab}
         onWorkspaceTabChange={setWorkspaceTab}
         exportBasename={exportBasename}
@@ -965,12 +1011,13 @@ function withStableResumeIds(resume: StructuredResume): StructuredResume {
         ) : workspaceTab === "resume" ? (
           <ResumeStudioPane
             resume={resume}
+            resumeVariantName={resumeVariantName}
             exportFileBaseName={resumeExportBasename}
             onExportFileBaseNameChange={onResumeExportBasenameChange}
             targetRole={resumeTargetRole}
             summaryBusy={resumeSummaryBusy}
             summaryError={resumeSummaryError}
-            jobAvailable={Boolean(job)}
+            jobAvailable={!isLibraryMode && Boolean(job)}
             optimizeBusy={resumeOptimizeBusy}
             optimizeError={resumeOptimizeError}
             optimizeResult={resumeOptimizeResult}
@@ -982,8 +1029,9 @@ function withStableResumeIds(resume: StructuredResume): StructuredResume {
             onAcceptSuggestion={onAcceptOptimizeSuggestion}
             onRejectSuggestion={onRejectOptimizeSuggestion}
             onExportDocx={(ctx) => void onResumeDocx(ctx)}
-            onExportPdf={() => void onResumePdf()}
+            onExportPdf={(ctx) => void onResumePdf(ctx)}
             onImportFromProfile={onImportResumeFromProfile}
+            libraryMode={isLibraryMode}
           />
         ) : workspaceTab === "letter" ? (
           renderLetterPane()

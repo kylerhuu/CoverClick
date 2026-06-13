@@ -1,10 +1,11 @@
 import { cn } from "../../lib/classNames";
 import { ccFocusRing, ccSegmentTab, ccSegmentTrack } from "../../ui/ccUi";
 
-export type OptionsMainTab = "profile" | "applications" | "account" | "import";
+export type OptionsMainTab = "profile" | "resumes" | "applications" | "account" | "import";
 
 const tabs: { id: OptionsMainTab; label: string; description: string }[] = [
   { id: "profile", label: "Profile", description: "Your details and story" },
+  { id: "resumes", label: "Saved Resumes", description: "Reusable resume versions — source of truth" },
   { id: "applications", label: "Application Hub", description: "Track saved jobs and application status" },
   { id: "account", label: "Cloud & billing", description: "Connection, plan, sync" },
   { id: "import", label: "Import resume", description: "Upload a file · autofill profile fields" },

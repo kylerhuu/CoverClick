@@ -14,7 +14,9 @@ import { ConnectionSettings } from "./components/ConnectionSettings";
 import { Field } from "./components/Field";
 import { OptionsSectionNav, type OptionsMainTab } from "./components/OptionsSectionNav";
 import { ResumeImportSection } from "./components/ResumeImportSection";
+import { SavedResumesSection } from "./components/SavedResumesSection";
 import { ApplicationHubSection } from "../hub/ApplicationHubSection";
+import { clearRequestedOptionsTab, OPTIONS_TAB_KEY, readRequestedOptionsTab } from "../lib/openOptionsTab";
 import { ccBtnPrimarySm, ccEyebrow, ccHairline, ccMuted, ccSectionTitle, ccSurfaceQuiet } from "../ui/ccUi";
 import { EXTENSION_BUILD_ID } from "virtual:coverclick-build";
 
@@ -74,10 +76,21 @@ export function OptionsPage() {
     const applyHash = () => {
       const hash = window.location.hash.replace(/^#/, "").split("?")[0];
       if (hash === "applications") setMainTab("applications");
+      if (hash === "resumes") setMainTab("resumes");
     };
     applyHash();
     window.addEventListener("hashchange", applyHash);
     return () => window.removeEventListener("hashchange", applyHash);
+  }, []);
+
+  useEffect(() => {
+    void (async () => {
+      const data = await chrome.storage.local.get(OPTIONS_TAB_KEY);
+      const tab = readRequestedOptionsTab(data);
+      if (tab === "resumes") setMainTab("resumes");
+      if (tab === "applications") setMainTab("applications");
+      if (tab) await clearRequestedOptionsTab();
+    })();
   }, []);
 
   useEffect(() => {
@@ -497,6 +510,10 @@ export function OptionsPage() {
               </div>
             </div>
           </div>
+        ) : null}
+
+        {mainTab === "resumes" ? (
+          <SavedResumesSection />
         ) : null}
 
         {mainTab === "applications" ? (

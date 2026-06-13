@@ -9,7 +9,6 @@ import {
 } from "../lib/applicationsApi";
 import { jobSourceFromUrl, normalizeJobUrl } from "../lib/jobSource";
 import {
-  createVariant,
   loadResumeLibrary,
   setActiveVariant,
   type ResumeLibraryStore,
@@ -36,8 +35,6 @@ export function ApplicationSidePanel() {
   const [hubAppsLoading, setHubAppsLoading] = useState(true);
 
   const [resumeLibrary, setResumeLibrary] = useState<ResumeLibraryStore | null>(null);
-  const [resumeCreateBusy, setResumeCreateBusy] = useState(false);
-  const [resumeCreateError, setResumeCreateError] = useState<string | null>(null);
 
   const [job, setJob] = useState<JobContext | null>(null);
   const [currentTabSaved, setCurrentTabSaved] = useState<JobApplication | null>(null);
@@ -226,24 +223,6 @@ export function ApplicationSidePanel() {
     [refreshResumeLibrary],
   );
 
-  const handleCreateResumeVariant = useCallback(
-    async (name: string) => {
-      setResumeCreateBusy(true);
-      setResumeCreateError(null);
-      try {
-        await createVariant(name);
-        await refreshResumeLibrary();
-      } catch (e) {
-        const msg = e instanceof Error ? e.message : "Could not create resume.";
-        setResumeCreateError(msg);
-        throw e;
-      } finally {
-        setResumeCreateBusy(false);
-      }
-    },
-    [refreshResumeLibrary],
-  );
-
   const openHubForApplication = useCallback((app: JobApplication) => {
     setSelectedHubId(app.id);
     setHubSubview("detail");
@@ -305,11 +284,8 @@ export function ApplicationSidePanel() {
                 saveBusy={saveBusy}
                 resumeVariants={resumeLibrary?.variants ?? []}
                 activeResumeVariantId={activeResumeVariantId}
-                resumeCreateBusy={resumeCreateBusy}
-                resumeCreateError={resumeCreateError}
                 onSelectResumeVariant={(id) => void handleSelectResumeVariant(id)}
-                onCreateResumeVariant={handleCreateResumeVariant}
-                onEditResume={() => setScanSubview("resume-edit")}
+                onQuickEditResume={() => setScanSubview("resume-edit")}
                 onRescan={() => void refreshScrape()}
                 onSave={() => void handleSave()}
                 onGenerateLetter={() => setScanSubview("letter")}

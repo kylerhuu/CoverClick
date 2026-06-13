@@ -10,8 +10,10 @@ import {
   cloneRenderPlan,
   cloneRenderPlanDeep,
   emptyFinalExportOverrides,
+  exportOverridesAreDirty,
   getResumeRenderModel,
   getVisibleResumeSections,
+  mergeFinalExportOverridesIntoResume,
   mergeRenderPlans,
   normalizeResumeForRender,
   tightenRenderPlanOneStep,
@@ -42,6 +44,7 @@ import { ResumePreview } from "./resume/ResumePreview";
 
 type Props = {
   resume: StructuredResume;
+  resumeVariantName: string;
   exportFileBaseName: string;
   onExportFileBaseNameChange: (value: string) => void;
   targetRole: string;
@@ -61,6 +64,8 @@ type Props = {
   onRejectSuggestion: (id: string) => void;
   onExportDocx: (ctx: ResumeExportContext) => void;
   onExportPdf: (ctx: ResumeExportContext) => void;
+  onQuickEditResume?: () => void;
+  libraryMode?: boolean;
 };
 
 const NARROW_PANEL_HINT_KEY = "coverclick-resume-narrow-panel-hint";
@@ -118,6 +123,7 @@ const textCls = cn(
 
 export function ResumeStudioPane({
   resume,
+  resumeVariantName,
   exportFileBaseName,
   onExportFileBaseNameChange,
   targetRole,
@@ -137,6 +143,8 @@ export function ResumeStudioPane({
   onRejectSuggestion,
   onExportDocx,
   onExportPdf,
+  onQuickEditResume,
+  libraryMode = false,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const domTightenStepsRef = useRef(0);
@@ -231,6 +239,22 @@ export function ResumeStudioPane({
     }
     return opts;
   }, [layoutSettings, manualTrimPlan, forcePlanOverride, fullContentPreview, finalExportOverrides, domFitRevision]);
+
+  const overridesDirty = useMemo(
+    () => exportOverridesAreDirty(resume, renderOptions, finalExportOverrides),
+    [resume, renderOptions, finalExportOverrides],
+  );
+
+  const clearReviewOverrides = useCallback(() => {
+    setFinalExportOverrides(emptyFinalExportOverrides());
+    setDownloadReviewManualEdit(false);
+  }, []);
+
+  const saveReviewEditsToVariant = useCallback(() => {
+    const merged = mergeFinalExportOverridesIntoResume(resume, finalExportOverrides);
+    onResumeChange(merged);
+    clearReviewOverrides();
+  }, [resume, finalExportOverrides, onResumeChange, clearReviewOverrides]);
 
   const model = useMemo(() => getResumeRenderModel(resume, renderOptions), [resume, renderOptions]);
   const omittedNotes = model.layout.renderPlan.omittedNotes;
@@ -656,7 +680,9 @@ export function ResumeStudioPane({
         <div>
           <h2 className="text-[13px] font-semibold text-slate-900">Resume Studio</h2>
           <p className="mt-0.5 text-[11px] text-slate-500">
-            Editing your saved resume version. Changes are saved to this resume version and reused across jobs.
+            {libraryMode
+              ? `Editing saved resume version: ${resumeVariantName}. Changes apply across all jobs.`
+              : `Quick editing ${resumeVariantName}. For full management, use Saved Resumes in Profile.`}
           </p>
           <p className="mt-0.5 text-[11px] text-slate-500">Preview matches export. Layout trims are render-only and never delete your resume text.</p>
         </div>
@@ -858,6 +884,7 @@ export function ResumeStudioPane({
         onEditResume={() => {
           setDownloadReviewOpen(false);
           setDownloadReviewManualEdit(false);
+          onQuickEditResume?.();
         }}
         resume={resume}
         renderOptions={renderOptions}
@@ -865,7 +892,9 @@ export function ResumeStudioPane({
         targetLength={layoutSettings.targetLength}
         exportFileBaseName={exportFileBaseName}
         onExportFileBaseNameChange={onExportFileBaseNameChange}
+        resumeVariantName={resumeVariantName}
         manualEditMode={downloadReviewManualEdit}
+        overridesDirty={overridesDirty}
         onEnterManualEdit={() => {
           setFinalExportOverrides((prev) => seedFinalExportOverrides(resume, renderOptions, prev));
           setDownloadReviewManualEdit(true);
@@ -875,6 +904,9 @@ export function ResumeStudioPane({
         }}
         onDoneManualEdit={() => setDownloadReviewManualEdit(false)}
         onResetManualEdits={() => setFinalExportOverrides(emptyFinalExportOverrides())}
+        onSaveToResumeVersion={saveReviewEditsToVariant}
+        onExportOnlyClose={() => setDownloadReviewManualEdit(false)}
+        onDiscardOverrides={clearReviewOverrides}
         onExportDocx={onExportDocx}
         onExportPdf={onExportPdf}
       />

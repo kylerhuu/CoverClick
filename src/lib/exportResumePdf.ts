@@ -1,9 +1,14 @@
 import type { StructuredResume } from "./types";
+import type { ResumeRenderOptions } from "./resumeRender";
 import { RESUME_EXPORT_CONTAINER_ID, RESUME_TEMPLATE_VERSION } from "./resumeRender";
 import { captureHtmlToLetterPdf } from "./captureHtmlToLetterPdf";
 import { sanitizeExportBasename } from "./utils";
 
-export async function downloadResumePdf(_resume: StructuredResume, fileBaseName: string): Promise<void> {
+export async function downloadResumePdf(
+  _resume: StructuredResume,
+  fileBaseName: string,
+  _renderOptions?: ResumeRenderOptions,
+): Promise<void> {
   const base = sanitizeExportBasename(fileBaseName || "CoverClick_Resume", "CoverClick_Resume");
 
   if (import.meta.env.DEV) {
