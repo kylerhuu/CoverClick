@@ -258,7 +258,7 @@ export function ApplicationSidePanel() {
           <WorkspaceApp
             mode="capture"
             initialJob={job}
-            initialWorkspaceTab="split"
+            initialWorkspaceTab="letter"
             onBackToCapture={() => setScanSubview("home")}
           />
         ) : (

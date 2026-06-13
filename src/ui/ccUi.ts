@@ -305,4 +305,32 @@ export const ccWorkspaceGenerateBtn = cn(
   "px-3.5 py-1.5 text-[12px] shadow-[0_4px_14px_rgba(91,76,240,0.22)]",
 );
 
-export const ccWorkspaceActionLink = "text-[11px] font-medium text-slate-500 hover:text-slate-800";
+export const ccWorkspaceActionLink = "text-[11px] font-medium text-slate-500 hover:text-slate-800 transition-colors duration-200";
+
+export const ccWorkspaceSecondaryBtn = cn(
+  "inline-flex items-center justify-center gap-1 rounded-lg px-2.5 py-1.5 text-[11px] font-medium text-slate-600",
+  "hover:bg-white/80 hover:text-slate-900",
+  "disabled:pointer-events-none disabled:opacity-40",
+  "transition-all duration-200",
+  ccFocusRing,
+);
+
+export const ccWorkspaceDownloadBtn = cn(
+  "inline-flex items-center justify-center gap-1.5 rounded-lg border border-slate-200/90 bg-white px-3 py-1.5 text-[11px] font-semibold text-slate-800 shadow-sm",
+  "hover:border-[#5B4CF0]/30 hover:shadow-[0_4px_14px_rgba(91,76,240,0.12)]",
+  "disabled:pointer-events-none disabled:opacity-40",
+  "transition-all duration-200",
+  ccFocusRing,
+);
+
+export const ccLetterPreviewCanvas = "relative min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-auto bg-[#F5F7FB]";
+
+export const ccLetterPreviewPaper = cn(
+  "letter-doc-preview-mount w-full max-w-[42rem] rounded-sm bg-white",
+  "shadow-[0_20px_60px_rgba(15,23,42,0.12),0_4px_16px_rgba(15,23,42,0.06)]",
+  "ring-1 ring-slate-200/50",
+);
+
+export const ccWorkspaceEditPanel = cn(
+  "rounded-xl border border-slate-200/80 bg-white/90 px-4 py-3 shadow-[0_1px_3px_rgba(15,23,42,0.04)]",
+);

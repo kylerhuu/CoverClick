@@ -11,9 +11,12 @@ import type {
 import { cn } from "../../lib/classNames";
 import {
   ccBtnTextSecondary,
-  ccFocusRing,
-  ccWorkspaceActionLink,
+  ccLetterPreviewCanvas,
+  ccLetterPreviewPaper,
+  ccWorkspaceDownloadBtn,
+  ccWorkspaceEditPanel,
   ccWorkspaceGenerateBtn,
+  ccWorkspaceSecondaryBtn,
 } from "../../ui/ccUi";
 import {
   canonicalPlainFromStructured,
@@ -48,12 +51,15 @@ type Props = {
   }) => void;
   genBusy: boolean;
   pdfBusy: boolean;
+  saveBusy?: boolean;
   status: string | null;
   onGenerate: () => void;
   onRegenerate: () => void;
   onCopy: () => void;
+  onSave: () => void;
+  onDownload: () => void;
   onDocx: () => void;
-  onPdf: () => void;
+  onSwitchToResume?: () => void;
   profile: UserProfile;
   job: JobContext | null;
   exportBasename: string;
@@ -70,6 +76,26 @@ const FALLBACK_JOB: JobContext = {
   scrapedAt: 0,
 };
 
+function DownloadIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+      <path
+        d="M7 2V9M7 9L4.5 6.5M7 9L9.5 6.5"
+        stroke="currentColor"
+        strokeWidth="1.4"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M3 10.5V11.5C3 12 3.5 12.5 4 12.5H10C10.5 12.5 11 12 11 11.5V10.5"
+        stroke="currentColor"
+        strokeWidth="1.4"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
 export function LetterPane({
   letter,
   onLetterChange,
@@ -80,12 +106,15 @@ export function LetterPane({
   onPrefsChange,
   genBusy,
   pdfBusy,
+  saveBusy,
   status,
   onGenerate,
   onRegenerate,
   onCopy,
+  onSave,
+  onDownload,
   onDocx,
-  onPdf,
+  onSwitchToResume,
   profile,
   job,
   exportBasename,
@@ -94,13 +123,11 @@ export function LetterPane({
 }: Props) {
   const jobCtx = job ?? FALLBACK_JOB;
   const hasLetter = letter.bodyParagraphs.some((p) => p.trim()) || letter.greeting.trim();
-  const letterEditable = !genBusy && !pdfBusy;
+  const letterEditable = !genBusy && !pdfBusy && !saveBusy;
+  const actionsDisabled = !hasLetter || genBusy || pdfBusy || saveBusy;
 
   const [mode, setMode] = useState<LetterPaneMode>("preview");
-  const [advancedOpen, setAdvancedOpen] = useState(false);
-  const [exportMenuOpen, setExportMenuOpen] = useState(false);
   const [editPlain, setEditPlain] = useState(() => canonicalPlainFromStructured(letter));
-  const exportMenuRef = useRef<HTMLDivElement>(null);
   const debRef = useRef<number>();
   const prevGenBusy = useRef(genBusy);
 
@@ -128,29 +155,27 @@ export function LetterPane({
     prevGenBusy.current = genBusy;
   }, [genBusy]);
 
-  useEffect(() => {
-    if (!exportMenuOpen) return;
-    const onPointerDown = (e: PointerEvent) => {
-      const el = exportMenuRef.current;
-      if (el && !el.contains(e.target as Node)) setExportMenuOpen(false);
-    };
-    document.addEventListener("pointerdown", onPointerDown);
-    return () => document.removeEventListener("pointerdown", onPointerDown);
-  }, [exportMenuOpen]);
+  const exitEditMode = () => {
+    window.clearTimeout(debRef.current);
+    onLetterChange(structuredFromCanonicalPlain(editPlain, profile, jobCtx));
+    setMode("preview");
+  };
 
-  const setLetterMode = (next: LetterPaneMode) => {
-    if (next === "preview" && mode === "edit") {
-      window.clearTimeout(debRef.current);
-      onLetterChange(structuredFromCanonicalPlain(editPlain, profile, jobCtx));
-    }
-    if (next === "edit") {
-      setEditPlain(canonicalPlainFromStructured(letter));
-    }
-    setMode(next);
+  const enterEditMode = () => {
+    setEditPlain(canonicalPlainFromStructured(letter));
+    setMode("edit");
   };
 
   const onEditPlainChange = (s: string) => {
     setEditPlain(s);
+  };
+
+  const handleSave = () => {
+    if (mode === "edit") {
+      window.clearTimeout(debRef.current);
+      onLetterChange(structuredFromCanonicalPlain(editPlain, profile, jobCtx));
+    }
+    onSave();
   };
 
   return (
@@ -162,152 +187,139 @@ export function LetterPane({
         <LetterDocument variant="export" letter={letter} />
       </div>
 
-      <div className="shrink-0 border-b border-slate-100/60 bg-[#F5F7FB]/95 px-4 py-2 backdrop-blur-sm">
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+      <div className="shrink-0 border-b border-slate-100/50 bg-[#F5F7FB]/95 px-4 py-2 backdrop-blur-sm">
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
           <button
             type="button"
             className={ccWorkspaceGenerateBtn}
             onClick={onGenerate}
-            disabled={genBusy || pdfBusy || !job}
+            disabled={genBusy || pdfBusy || saveBusy || !job}
           >
             {genBusy ? "Drafting…" : "Generate"}
           </button>
 
-          <div className="flex flex-wrap items-center gap-2.5">
+          <div className="flex flex-wrap items-center gap-1">
             <button
               type="button"
-              className={ccWorkspaceActionLink}
+              className={ccWorkspaceSecondaryBtn}
               onClick={onCopy}
-              disabled={!hasLetter || genBusy || pdfBusy}
+              disabled={actionsDisabled}
             >
               Copy
             </button>
-            <div className="relative" ref={exportMenuRef}>
-              <button
-                type="button"
-                className={ccWorkspaceActionLink}
-                aria-expanded={exportMenuOpen}
-                aria-haspopup="menu"
-                disabled={!hasLetter || genBusy || pdfBusy}
-                onClick={() => setExportMenuOpen((o) => !o)}
-              >
-                Export
-              </button>
-              {exportMenuOpen ? (
-                <div
-                  className="absolute left-0 top-[calc(100%+4px)] z-20 min-w-[8rem] overflow-hidden rounded-lg border border-slate-200/90 bg-white py-1 shadow-md"
-                  role="menu"
-                >
-                  <button
-                    type="button"
-                    role="menuitem"
-                    className="flex w-full items-center px-3 py-2 text-left text-[12px] font-medium text-slate-700 hover:bg-slate-50"
-                    onClick={() => {
-                      setExportMenuOpen(false);
-                      onPdf();
-                    }}
-                  >
-                    PDF
-                  </button>
-                  <button
-                    type="button"
-                    role="menuitem"
-                    className="flex w-full items-center px-3 py-2 text-left text-[12px] font-medium text-slate-700 hover:bg-slate-50"
-                    onClick={() => {
-                      setExportMenuOpen(false);
-                      onDocx();
-                    }}
-                  >
-                    DOCX
-                  </button>
-                </div>
-              ) : null}
-            </div>
             <button
               type="button"
-              className={ccWorkspaceActionLink}
-              aria-expanded={advancedOpen}
-              onClick={() => setAdvancedOpen((o) => !o)}
+              className={cn(
+                ccWorkspaceSecondaryBtn,
+                mode === "edit" && "bg-white text-slate-900 shadow-sm ring-1 ring-slate-200/80",
+              )}
+              onClick={mode === "edit" ? exitEditMode : enterEditMode}
+              disabled={genBusy || pdfBusy || saveBusy}
             >
-              Advanced{advancedOpen ? "" : "…"}
+              {mode === "edit" ? "Preview" : "Edit"}
+            </button>
+            <button
+              type="button"
+              className={ccWorkspaceSecondaryBtn}
+              onClick={handleSave}
+              disabled={actionsDisabled}
+            >
+              {saveBusy ? "Saving…" : "Save"}
+            </button>
+            <button
+              type="button"
+              className={ccWorkspaceDownloadBtn}
+              onClick={onDownload}
+              disabled={actionsDisabled}
+            >
+              <DownloadIcon />
+              {pdfBusy ? "Rendering…" : "Download"}
             </button>
           </div>
 
-          {status && !pdfBusy ? (
-            <span className="ml-auto text-[11px] font-medium text-emerald-600">{status}</span>
+          {status && !pdfBusy && !saveBusy ? (
+            <span className="ml-auto text-[11px] font-medium text-[#22C55E]">{status}</span>
           ) : null}
         </div>
-
-        {advancedOpen ? (
-          <div className="mt-3 border-t border-slate-100 pt-3">
-            <GenerationControls
-              tone={tone}
-              emphasis={emphasis}
-              length={length}
-              responseShape={responseShape}
-              onChange={onPrefsChange}
-              exportBasename={exportBasename}
-              onExportBasenameChange={onExportBasenameChange}
-            />
-            <button
-              type="button"
-              className={cn(ccBtnTextSecondary, "mt-3 text-[12px]")}
-              onClick={onRegenerate}
-              disabled={genBusy || pdfBusy || !job}
-            >
-              Regenerate letter
-            </button>
-          </div>
-        ) : null}
 
         {pdfBusy ? (
           <div className="mt-2 flex items-center gap-2 text-[11px] text-slate-600">
             <span className="cc-spinner h-3.5 w-3.5 border-2" aria-hidden />
-            Rendering PDF…
+            Preparing your download…
           </div>
         ) : null}
       </div>
 
-      <div className="relative min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-auto">
-        <div className="sticky top-0 z-10 flex items-center justify-end gap-2 border-b border-slate-100/50 bg-[#F5F7FB]/80 px-4 py-1 backdrop-blur-sm">
-          <button
-            type="button"
-            className={cn(
-              "text-[11px] font-medium",
-              mode === "preview" ? "text-slate-900" : "text-slate-400 hover:text-slate-600",
-              ccFocusRing,
-            )}
-            onClick={() => setLetterMode("preview")}
-          >
-            Preview
-          </button>
-          <span className="text-slate-300" aria-hidden>
-            ·
-          </span>
-          <button
-            type="button"
-            className={cn(
-              "text-[11px] font-medium",
-              mode === "edit" ? "text-slate-900" : "text-slate-400 hover:text-slate-600",
-              ccFocusRing,
-            )}
-            onClick={() => setLetterMode("edit")}
-          >
-            Edit
-          </button>
-        </div>
-
-        <CognitiveLoader open={genBusy} headline="Drafting your cover letter" lines={GEN_LINES} />
-        {mode === "preview" ? (
-          <div className="flex justify-center px-4 py-10 sm:px-8">
-            <div className="letter-doc-preview-mount shadow-[0_12px_40px_rgba(15,23,42,0.1)] ring-1 ring-slate-200/60">
+      {mode === "preview" ? (
+        <div className={ccLetterPreviewCanvas}>
+          <CognitiveLoader open={genBusy} headline="Drafting your cover letter" lines={GEN_LINES} />
+          <div className="flex min-h-full justify-center px-6 py-12 sm:px-10 md:px-14 lg:px-20">
+            <div className={ccLetterPreviewPaper}>
               <LetterDocument variant="preview" letter={letter} />
             </div>
           </div>
-        ) : (
-          <LetterContinuousEditor value={editPlain} onChange={onEditPlainChange} disabled={!letterEditable} />
-        )}
-      </div>
+        </div>
+      ) : (
+        <div className={cn(ccLetterPreviewCanvas, "flex flex-col")}>
+          <div className="shrink-0 border-b border-slate-100/60 bg-white/70 px-4 py-2.5 backdrop-blur-sm">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-[12px] font-semibold text-slate-800">Edit cover letter</p>
+              <div className="flex flex-wrap items-center gap-2">
+                {onSwitchToResume ? (
+                  <button type="button" className={ccBtnTextSecondary} onClick={onSwitchToResume}>
+                    Edit resume →
+                  </button>
+                ) : null}
+                <button
+                  type="button"
+                  className={cn(ccBtnTextSecondary, "text-[11px]")}
+                  onClick={onRegenerate}
+                  disabled={genBusy || pdfBusy || saveBusy || !job}
+                >
+                  Regenerate
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div className="min-h-0 flex-1 overflow-y-auto">
+            <LetterContinuousEditor
+              value={editPlain}
+              onChange={onEditPlainChange}
+              disabled={!letterEditable}
+            />
+          </div>
+
+          <div className="shrink-0 border-t border-slate-100/60 bg-[#F5F7FB]/95 px-4 py-3">
+            <div className={ccWorkspaceEditPanel}>
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                Generation settings
+              </p>
+              <div className="mt-3">
+                <GenerationControls
+                  tone={tone}
+                  emphasis={emphasis}
+                  length={length}
+                  responseShape={responseShape}
+                  onChange={onPrefsChange}
+                  exportBasename={exportBasename}
+                  onExportBasenameChange={onExportBasenameChange}
+                />
+              </div>
+              <div className="mt-3 flex flex-wrap items-center gap-3 border-t border-slate-100 pt-3">
+                <button
+                  type="button"
+                  className={cn(ccBtnTextSecondary, "text-[11px]")}
+                  onClick={onDocx}
+                  disabled={actionsDisabled}
+                >
+                  Download DOCX
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

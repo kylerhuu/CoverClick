@@ -140,8 +140,9 @@ function withStableResumeIds(resume: StructuredResume): StructuredResume {
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [workspaceTab, setWorkspaceTab] = useState<WorkspaceTab>(
-    isLibraryMode ? "resume" : (initialWorkspaceTab ?? "split"),
+    isLibraryMode ? "resume" : (initialWorkspaceTab ?? "letter"),
   );
+  const [saveBusy, setSaveBusy] = useState(false);
   const [exportBasename, setExportBasename] = useState(() => buildDefaultExportBasename(EMPTY_PROFILE, null));
   const exportDirtyRef = useRef(false);
   const [resumeExportBasename, setResumeExportBasename] = useState(() =>
@@ -578,12 +579,13 @@ function withStableResumeIds(resume: StructuredResume): StructuredResume {
       }
       setStatus("Done");
       window.setTimeout(() => setStatus(null), 1200);
+      if (!isLibraryMode) setWorkspaceTab("letter");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Generation failed");
     } finally {
       setGenBusy(false);
     }
-  }, [profile, job, tone, emphasis, length, responseShape, isApplicationMode]);
+  }, [profile, job, tone, emphasis, length, responseShape, isApplicationMode, isLibraryMode]);
 
   const onCopy = useCallback(async () => {
     try {
@@ -595,6 +597,24 @@ function withStableResumeIds(resume: StructuredResume): StructuredResume {
       setError("Clipboard blocked.");
     }
   }, [letter]);
+
+  const onSaveLetter = useCallback(async () => {
+    if (!job?.pageUrl) return;
+    setSaveBusy(true);
+    setError(null);
+    try {
+      await saveCachedLetter({ pageUrl: job.pageUrl, structured: letter, updatedAt: Date.now() });
+      if (isApplicationMode && applicationRecord) {
+        setApplicationRecord({ ...applicationRecord, coverLetterDraft: letter });
+      }
+      setStatus("Saved");
+      window.setTimeout(() => setStatus(null), 1200);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Save failed");
+    } finally {
+      setSaveBusy(false);
+    }
+  }, [job?.pageUrl, letter, isApplicationMode, applicationRecord]);
 
   const onDocx = useCallback(async () => {
     if (!job) return;
@@ -907,12 +927,15 @@ function withStableResumeIds(resume: StructuredResume): StructuredResume {
       onPrefsChange={(n) => void persistPrefs(n)}
       genBusy={genBusy}
       pdfBusy={pdfBusy}
+      saveBusy={saveBusy}
       status={status}
       onGenerate={() => void runGeneration()}
       onRegenerate={() => void runGeneration()}
       onCopy={() => void onCopy()}
+      onSave={() => void onSaveLetter()}
+      onDownload={() => void onPdf()}
       onDocx={() => void onDocx()}
-      onPdf={() => void onPdf()}
+      onSwitchToResume={() => setWorkspaceTab("resume")}
       profile={profile}
       job={job}
       exportBasename={exportBasename}

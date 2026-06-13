@@ -21,9 +21,9 @@ type Props = {
 };
 
 const segments: { id: WorkspaceTab; label: string; title: string }[] = [
+  { id: "letter", label: "Letter", title: "Cover letter preview" },
   { id: "split", label: "Split", title: "Job posting and letter together" },
   { id: "job", label: "Job", title: "Full-width job posting" },
-  { id: "letter", label: "Letter", title: "Full-width cover letter" },
   { id: "resume", label: "Resume", title: "Resume Studio" },
 ];
 
